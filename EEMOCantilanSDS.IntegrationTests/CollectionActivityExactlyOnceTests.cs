@@ -364,6 +364,42 @@ public sealed class CollectionActivityExactlyOnceTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task ADayOnlyTotal_IsTheAuthoritativeNetOfThatPhilippineDay_NotTrimmedByTheListLimit_AndMidnightFallsOnTheRightSide()
+    {
+        // "Collected today" on the Financial Summary asks this feed for one day and one event: the figure must cover every event of the day, and a
+        // payment must belong to the Philippine calendar day it was received on, not the UTC day.
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync("D");
+        await PostRentAsync(w, (Period, 250m));
+        await PostMarketFeeAsync(w, Guid.NewGuid(), DateTime.UtcNow.AddMinutes(-1));
+
+        await using var read = db.CreateContext(w.Tenant.Id);
+        CollectionActivityFeedDto Ask(DateOnly from, DateOnly to, int limit = 500) =>
+            new GetCollectionActivityQueryHandler(new CollectionActivityReader(read), new Caller(w.HeadId, w.Tenant.Id, "Admin"),
+                new FixedTenant(w.Tenant.Id), new Clock())
+                .Handle(new GetCollectionActivityQuery(from, to, Limit: limit), CancellationToken.None).Result.Value!;
+
+        // The list is trimmed to the limit; the totals are not: legacy ₱900 + ₱100, canonical ₱250 + ₱30, counted once each.
+        var trimmed = Ask(Today, Today, limit: 1);
+        Assert.Single(trimmed.Events);
+        Assert.Equal((4, 1_280m), (trimmed.EventCount, trimmed.NetAmount));
+
+        // Move the still-legacy ₱900 rent to 30 seconds before local midnight: it is YESTERDAY's money, not today's.
+        var (startOfToday, _) = PhilippineTime.DayUtcRange(Today);
+        await read.PaymentRecords.Where(p => p.Id == w.TccRecordId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PaidAt, startOfToday.AddSeconds(-30)));
+        var yesterday = Today.AddDays(-1);
+        Assert.Equal(380m, Ask(Today, Today).NetAmount);                              // ₱100 legacy ECF + ₱280 canonical
+        Assert.Equal(900m, Ask(yesterday, yesterday).NetAmount);
+        Assert.Equal(1_280m, Ask(yesterday, Today).NetAmount);                        // a wider period holds both days, each once
+
+        // And 30 seconds after local midnight it is today's again.
+        await read.PaymentRecords.Where(p => p.Id == w.TccRecordId).ExecuteUpdateAsync(s => s.SetProperty(p => p.PaidAt, startOfToday.AddSeconds(30)));
+        Assert.Equal(1_280m, Ask(Today, Today).NetAmount);
+        Assert.Equal(0m, Ask(yesterday, yesterday).NetAmount);
+    }
+
+    [SkippableFact]
     public async Task ATenantSeesOnlyItsOwnActivity_AndOnlyOfficeStaffReadIt()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

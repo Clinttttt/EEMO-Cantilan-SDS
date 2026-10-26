@@ -211,6 +211,61 @@ namespace EEMOCantilanSDS.Domain.Constants
                 ? effectivity
                 : effectivity.AddYears(durationYears).AddDays(-1);
 
+        /// <summary>
+        /// Why a NEW contract duration in months is refused. Signed contracts are recorded in whole years; an occupant who pays monthly without a signed term is
+        /// recorded as "No contract (space only)". A duration in months that was already stored is still read and still expires correctly: nothing is converted.
+        /// </summary>
+        public const string WholeYearsOnlyNotice =
+            "Contract duration is recorded in whole years (1, 2, 3, 5 or a custom number of years). Record a holder who pays monthly without a signed contract as 'No contract (space only)'.";
+
+        /// <summary>Longest recordable space-rental term, in months (50 years — the existing yearly ceiling).</summary>
+        public const int MaxTermMonths = 600;
+
+        /// <summary>
+        /// The month-aware form of <see cref="TermLastDay(DateOnly, int)"/> and the one rule every Space Rental consumer reads:
+        /// start + (years × 12 + months) months, minus one day. Months null (or 0) is the legacy yearly term and returns EXACTLY the
+        /// year result (a calendar month-clamped N × 12 months is the same date as N years, leap days included). A month-end start clamps
+        /// to the shorter month before the day is taken off (Jan 31 + 1 month = Feb 28/29, so the last day is Feb 27/28). Years may be
+        /// 0 only for a months-only term.
+        /// </summary>
+        public static DateOnly TermLastDay(DateOnly effectivity, int durationYears, int? durationMonths)
+        {
+            if (durationMonths is null or 0) return TermLastDay(effectivity, durationYears);
+            var total = durationYears * 12 + durationMonths.Value;
+            return total <= 0 ? effectivity : effectivity.AddMonths(total).AddDays(-1);
+        }
+
+        /// <summary>DateTime form of the month-aware <see cref="TermLastDay(DateOnly, int, int?)"/>; the time is not meaningful.</summary>
+        public static DateTime TermLastDay(DateTime effectivity, int durationYears, int? durationMonths) =>
+            TermLastDay(DateOnly.FromDateTime(effectivity), durationYears, durationMonths).ToDateTime(TimeOnly.MinValue);
+
+        /// <summary>
+        /// Validates a recorded space term and puts it in its one canonical shape: whole years plus 0–11 extra months (months null when
+        /// none), so 12 months and 1 year are the same record. Both null is "no term recorded". Years alone keeps the legacy 1–50 bound;
+        /// months-only is allowed down to 1 month; the total may not exceed 50 years.
+        /// </summary>
+        public static (int? Years, int? Months) NormalizeSpaceTerm(int? years, int? months)
+        {
+            if (years is null && months is null) return (null, null);
+            if (years is < 0 || months is < 0 || (years ?? 0) > MaxTermMonths || (months ?? 0) > MaxTermMonths)
+                throw new ArgumentException("Contract duration must be between 1 month and 50 years.");
+            var total = (years ?? 0) * 12 + (months ?? 0);
+            if (total < 1 || total > MaxTermMonths)
+                throw new ArgumentException(months is null ? "Contract duration must be between 1 and 50 years." : "Contract duration must be between 1 month and 50 years.");
+            return (total / 12, total % 12 == 0 ? null : total % 12);
+        }
+
+        /// <summary>Plain wording for a term: "3 years", "6 months", "1 year 6 months". Null when nothing is recorded.</summary>
+        public static string? DescribeTerm(int? years, int? months)
+        {
+            var y = years ?? 0; var m = months ?? 0;
+            if (y <= 0 && m <= 0) return null;
+            var parts = new List<string>(2);
+            if (y > 0) parts.Add($"{y} year{(y == 1 ? "" : "s")}");
+            if (m > 0) parts.Add($"{m} month{(m == 1 ? "" : "s")}");
+            return string.Join(' ', parts);
+        }
+
         /// <inheritdoc cref="TermLastDay(DateOnly, int)"/>
         /// <remarks>For the console's DTOs, which carry DateTime. Returns the date at midnight; the time is not meaningful.</remarks>
         public static DateTime TermLastDay(DateTime effectivity, int durationYears) =>

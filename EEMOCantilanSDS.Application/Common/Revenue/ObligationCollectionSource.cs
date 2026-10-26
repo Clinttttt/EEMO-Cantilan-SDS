@@ -50,15 +50,22 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
             .Where(x => x.MunicipalityId == tenantId && accountIds.Contains(x.ObligationAccountId)).ToListAsync(ct))
             .ToDictionary(x => (x.ObligationAccountId, x.PeriodStart));
         var settled = await SettledByPeriodAsync(tenantId, periods.Values.Select(x => x.Id).ToArray(), ct);
+        // A signed term that has run out and was not renewed stops accruing NEW months, as a stall's contract does: only months not yet assessed are
+        // withheld after the term's last day. Everything already incurred (assessed or owed up to that day) stays collectible on the original account.
+        var terms = (await db.SpaceContractTerms.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenantId && accountIds.Contains(x.ObligationAccountId)).ToListAsync(ct))
+            .GroupBy(x => x.ObligationAccountId).ToDictionary(g => g.Key, g => SpaceTermSplit.Ordered(g));
         var payors = await PayorNamesAsync(tenantId, accounts.Where(x => x.PayorId.HasValue).Select(x => x.PayorId!.Value).Distinct().ToArray(), ct);
 
         var quotes = new List<ObligationQuoteDto>();
         foreach (var account in accounts)
         {
+            var termLast = SpaceArrears.TermLastDay(account, terms.GetValueOrDefault(account.Id) ?? []);
             foreach (var start in account.PeriodStarts(businessDate))
             {
                 if (start < businessDate.AddMonths(-(lookbackMonths ?? LookbackMonths))) continue;
                 periods.TryGetValue((account.Id, start), out var period);
+                if (period is null && termLast is { } last && start > last) continue;   // term ended and not renewed: no new monthly charge
                 if (account.Kind == ObligationKind.FishMeatVendorFee && FishMeatVendorFeeRules.UsesDirectCollection(businessDate) && period is null) continue;
                 var rate = period is null ? ObligationRate.Resolve(rates[account.Id], account.RateAsOf(start)) : null;
                 if (period is null && rate is null) continue;   // no approved amount in force: not billable, never invented
@@ -97,6 +104,9 @@ public sealed class ObligationCollectionSource(IAppDbContext db)
         if (period is null)
         {
             if (!assess) return null;
+            // The same cut-off the quote applies: a month after an unrenewed term's last day is never assessed here, so quote and post agree.
+            var termRows = await db.SpaceContractTerms.AsNoTracking().Where(x => x.MunicipalityId == tenantId && x.ObligationAccountId == accountId).ToListAsync(ct);
+            if (SpaceArrears.TermLastDay(account, SpaceTermSplit.Ordered(termRows)) is { } termLast && periodStart > termLast) return null;
             var rates = await db.ObligationRates.AsNoTracking()
                 .Where(x => x.MunicipalityId == tenantId && x.ObligationAccountId == accountId).ToListAsync(ct);
             var rate = ObligationRate.Resolve(rates, account.RateAsOf(periodStart));

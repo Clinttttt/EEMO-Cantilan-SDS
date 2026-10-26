@@ -3,6 +3,7 @@
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Dashboard
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Client.Components.Pages.Reports
 @using EEMOCantilanSDS.Client.Services
 @inject IDashboardApiClient DashboardApi
@@ -250,7 +251,7 @@
                         }
                         else
                         {
-                            <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source"
+                            <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source" Facilities="_revenueFacilities"
                                                            HeaderActions="@Toolbar("rev", compact: true)" />
                         }
                     }
@@ -380,6 +381,8 @@
     private bool _revenueMounted;
     private RevenueSourcePerformanceDto? _source;
     private bool _sourceLoading = true;
+    private IReadOnlyList<FinancialFacilityRowDto>? _revenueFacilities;
+    private bool _revenueFacilityReadAttempted;
 
     [PersistentState(AllowUpdates = true)]
     public DashboardOverviewDto? DashboardData { get; set; }
@@ -463,12 +466,31 @@
         StateHasChanged();
     }
 
-    private void SelectView(string view)
+    private async Task SelectView(string view)
     {
         if (view == _view) return;
         _view = view;
-        if (view == ViewRevenue) _revenueMounted = true;
         _restoreSwitchFocus = true;
+        if (view != ViewRevenue) return;
+
+        _revenueMounted = true;
+        if (_revenueFacilityReadAttempted) return;
+        _revenueFacilityReadAttempted = true;
+
+        // Reuse the same month-scoped, facility-owned unpaid figures as Financial Reports.
+        // The dashboard's lighter overview DTO contains only counts, not balances.
+        // A missing/failed read must never be replaced with an invented monetary figure.
+        var reports = Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<IReportsApiClient>(Services);
+        if (reports is null) return;
+        try
+        {
+            var result = await reports.GetFinancialReportAsync(ReportPeriod.Monthly, _now.Year, _now.Month);
+            _revenueFacilities = result is { IsSuccess: true, Value: not null } ? result.Value.Facilities : null;
+        }
+        catch
+        {
+            _revenueFacilities = null;
+        }
     }
 
     // The switch exists once in each view, so choosing the other view moves it. Keyboard focus follows to the same control in the

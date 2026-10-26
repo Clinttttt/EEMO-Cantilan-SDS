@@ -25,6 +25,9 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
     public Guid? PayorUserId { get; private set; }
     public string? PayerName { get; private set; }
 
+    /// <summary>Collector-entered receipt reference only. Not proof of issue, stock or custody; never consumes an accountable document.</summary>
+    public string? ReceiptReference { get; private set; }
+
     public decimal TotalAmount { get; private set; }
     public Guid? ClientOperationId { get; private set; }
 
@@ -65,7 +68,8 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
         Guid? payorUserId = null,
         string? payerName = null,
         Guid? clientOperationId = null,
-        Guid? payorId = null)
+        Guid? payorId = null,
+        string? receiptReference = null)
     {
         ArgumentNullException.ThrowIfNull(lines);
         var drafts = lines.ToList();
@@ -83,6 +87,10 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
         ValidateOptionalId(payorUserId, nameof(payorUserId));
         ValidateOptionalId(clientOperationId, nameof(clientOperationId));
         ValidateOptionalId(payorId, nameof(payorId));
+        if (receiptReference?.Trim().Length > 100)
+            throw new ArgumentException("Receipt reference cannot exceed 100 characters.", nameof(receiptReference));
+        if (receiptReference?.Trim().Length > 100)
+            throw new ArgumentException("Receipt reference cannot exceed 100 characters.", nameof(receiptReference));
         if (payerName?.Length > 200)
             throw new ArgumentException("Payer name must not exceed 200 characters.", nameof(payerName));
         if (payorId.HasValue && string.IsNullOrWhiteSpace(payerName))
@@ -96,6 +104,7 @@ public sealed class Collection : BaseEntity, IMunicipalityOwned
             Id = Guid.NewGuid(),
             MunicipalityId = municipalityId,
             BusinessDate = businessDate,
+            ReceiptReference = string.IsNullOrWhiteSpace(receiptReference) ? null : receiptReference.Trim(),
             RecordedAtUtc = recordedAtUtc,
             ActorId = actorId.Trim(),
             ActorName = actorName.Trim(),

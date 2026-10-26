@@ -50,7 +50,11 @@ public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSe
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
     IReadOnlyList<CollectionSessionItemIntent> Items,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null,
+    // Registered OR retains its existing stock/custody validation.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OfficialReceiptNumber = null,
+    // Optional entered reference, not an issued/registered receipt. One SRC with itemized months; no custody state changes.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReceiptReference = null);
 public sealed record RecordCollectionSessionRequest(CollectionSessionIntent Intent, string? QuoteFingerprint);
 public sealed record CollectionSessionProblem(Guid? ClientItemId, string Code, string Message);
 public sealed record CollectionSessionItemQuote(Guid ClientItemId, CollectionSessionItemKind Kind,

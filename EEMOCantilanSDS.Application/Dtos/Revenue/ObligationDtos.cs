@@ -48,7 +48,29 @@ public sealed record ObligationAccountDto(
     // The monthly rental the signed contract states (evidence only; the approved amount above is what is assessed).
     decimal? ContractMonthlyRate = null,
     // Retired from the roll (closed, nothing owed, records kept). Part of the one account-state classification.
-    bool Retired = false);
+    bool Retired = false,
+    // A renewed space's terms, oldest first, each with its own figures (they add back to the totals above). Null when never renewed.
+    IReadOnlyList<SpaceTermDto>? Terms = null,
+    // Extra months beyond ContractYears (0 years + months = a months-only term). Null = a yearly contract, as before.
+    int? ContractMonths = null);
+
+/// <summary>
+/// One contract term of a renewed space account. <see cref="RenewedOn"/> is the day before the next term began (null for the term in
+/// force); periods up to it belong to this term, including any lapsed months before the renewal.
+/// </summary>
+public sealed record SpaceTermDto(
+    int Number,
+    DateOnly Commencement,
+    int? Years,
+    DateOnly? LastDay,
+    DateOnly? RenewedOn,
+    string? ContractName,
+    string? Reference,
+    decimal Assessed,
+    decimal Collected,
+    decimal Outstanding,
+    bool Current,
+    int? Months = null);
 
 public sealed record CreateObligationAccountRequest(
     ObligationKind Kind,
@@ -69,13 +91,15 @@ public sealed record CreateObligationAccountRequest(
     string? AreaLocation = null,
     decimal? ContractMonthlyRate = null,
     // Retired from the roll (closed, nothing owed, records kept). Part of the one account-state classification.
-    bool Retired = false);
+    bool Retired = false,
+    int? ContractMonths = null);
 
 /// <summary>Head-authorized correction of recorded holder/lease evidence; it never changes existing financial periods.</summary>
 public sealed record CorrectObligationHolderRequest(string ActualOccupant, OccupancyArrangement Arrangement,
     string? ContractReference, string? ContractName, DateOnly? ContractEffectiveDate,
     int? ContractYears, decimal? AreaSqm, string? AreaLocation, decimal? ContractMonthlyRate = null,
-    SetObligationRateRequest? RateChange = null);
+    SetObligationRateRequest? RateChange = null,
+    int? ContractMonths = null);
 
 public sealed record SetObligationRateRequest(DateOnly EffectiveFrom, decimal Amount);
 

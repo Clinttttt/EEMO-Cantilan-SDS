@@ -21,7 +21,8 @@ public sealed class CanonicalCollectionPostingCoordinator(IAppDbContext db, IClo
         Guid? collectorId = null, Guid? payorId = null, string? payerName = null,
         IReadOnlyList<Action<DateTime>>? sourceProjections = null,
         Action<Guid, DateTime>? beforeCommit = null, CancellationToken ct = default,
-        NpmRentMonthPostingPermit? npmMonthPermit = null)
+        NpmRentMonthPostingPermit? npmMonthPermit = null,
+        string? receiptReference = null)
     {
         var monthAllocations = lines.SelectMany(x => x.Allocations ?? [])
             .Where(x => x.SourceKind == CollectionSourceKind.NpmRentMonth).ToArray();
@@ -43,7 +44,7 @@ public sealed class CanonicalCollectionPostingCoordinator(IAppDbContext db, IClo
         var recordedAtUtc = clock?.UtcNow ?? DateTime.UtcNow;
         var collection = Collection.Post(businessDate, recordedAtUtc, actorId, actorName,
             actorRole, lines, collectorId: collectorId, payerName: payerName,
-            clientOperationId: clientOperationId, payorId: payorId);
+            clientOperationId: clientOperationId, payorId: payorId, receiptReference: receiptReference);
         document?.Consume(collection.Id, clientOperationId, recordedAtUtc, updatedBy);
         foreach (var project in sourceProjections ?? Array.Empty<Action<DateTime>>())
             project(recordedAtUtc);

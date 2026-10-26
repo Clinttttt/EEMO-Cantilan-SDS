@@ -14,8 +14,8 @@ public class BulkImportStallholdersCommandValidator : AbstractValidator<BulkImpo
     public BulkImportStallholdersCommandValidator(Common.Interface.Persistence.IFacilityRepository? facilities = null)
     {
         RuleFor(x => x.FacilityCode)
-            .Must(code => Supported.Contains(code))
-            .WithMessage("Bulk import is only supported for NPM, TCC, NCC, BBQ and ICE.");
+            .Must(code => Supported.Contains(code) || Domain.Constants.FacilityCatalog.IsCustom(code))
+            .WithMessage("Bulk import is only supported for NPM, TCC, NCC, BBQ, ICE and the office's own custom stall-rent facilities.");
 
         RuleFor(x => x.Rows)
             .NotEmpty().WithMessage("There are no rows to import.");

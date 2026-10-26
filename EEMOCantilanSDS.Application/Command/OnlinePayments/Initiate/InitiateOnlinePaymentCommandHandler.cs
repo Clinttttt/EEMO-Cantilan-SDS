@@ -20,11 +20,22 @@ public class InitiateOnlinePaymentCommandHandler(
     IPaymentGateway paymentGateway,
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
-    INpmMonthSettlementService npmMonthSettlementService,
-    IFeeRateResolver feeRateResolver,
-    IUtilityBillRepository utilityBillRepository,
-    IUnitOfWork unitOfWork, IClock clock, NpmRentMonthWorkflow? monthly = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
+    /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
+    public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
+
+    /// <summary>
+    /// The single rule for what can be paid online: a Monthly-kind charge on a monthly-rent facility. A daily-billed Public
+    /// Market (NPM without the monthly-rent flag) is never online, whatever kind is sent. The portal's PayableOnline flag
+    /// calls this too, so the button and the server guard cannot disagree.
+    /// </summary>
+    public static bool IsOnlineStallRent(Domain.Entities.Facilities.Facility? facility, PayorPayableKind kind) =>
+        kind == PayorPayableKind.Monthly
+        && facility is not null
+        && facility.CustomCategory != CustomFacilityCategory.SpaceRental   // Space Rental is not Stall Rent
+        && (facility.Code != FacilityCode.NPM || facility.IsMonthlyRentMarket);
+
     public async Task<Result<InitiateOnlinePaymentResultDto>> Handle(InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
     {
         var payorId = currentUser.UserId;
@@ -39,33 +50,25 @@ public class InitiateOnlinePaymentCommandHandler(
         if (stall is null)
             return Result<InitiateOnlinePaymentResultDto>.NotFound();
 
+        // Approved scope: NEW online checkout is monthly Stall Rent only - one stall + period, that period's full balance.
+        // Everything else (daily-billed NPM in any form including its whole-month aggregate, fish days, utilities, any kind
+        // but Monthly) is refused here: the real guard, the portal only hides the button. Settlement of transactions created
+        // before this restriction does not pass through this handler and is unchanged.
+        if (!IsOnlineStallRent(stall.Facility, request.Kind) || request.Days is > 0 || request.Day is not null
+            || request.FishKilos is not null || request.FishDays is { Count: > 0 })
+            return Result<InitiateOnlinePaymentResultDto>.ValidationFailure(new Dictionary<string, string[]>
+            {
+                [OutOfScopeCode] = ["Only the month's stall rent can be paid online, as the full balance. Pay this charge at the office or to your collector."]
+            });
+
         // The requested period must fall within one of the stall's contract terms. Without this a payor
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
         // expiry, or arbitrary future months), creating obligation rows for uncovered periods.
         var periodStart = new DateOnly(request.Year, request.Month, 1);
-        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket && request.Kind != PayorPayableKind.NpmUtility
-            && monthly is not null && await monthly.IsMonthActivatedAsync(stall.Id, periodStart, cancellationToken))
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "Online rent checkout is unavailable for this activated month. Use the office's reviewed month-source payment.", ResultStatus.Conflict);
         var periodEnd = new DateOnly(request.Year, request.Month, DateTime.DaysInMonth(request.Year, request.Month));
         if (!stall.Contracts.Any(c => c.OverlapsPeriod(periodStart, periodEnd)))
             return Result<InitiateOnlinePaymentResultDto>.Failure(
                 "This billing period isn't covered by an active contract for this stall.", ResultStatus.Conflict);
-
-        // NPM is daily-billed (no monthly record). Online pays a whole month of the base ₱30 daily fee —
-        // the same unpaid, elapsed, in-term, non-closed days the staff month-settle would cover (fish ₱/kg
-        // is weighed at the stall and utilities are billed separately, so both are excluded here).
-        if (stall.Facility?.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket)
-            return request.Kind switch
-            {
-                PayorPayableKind.NpmUtility => await InitiateNpmUtilityAsync(stall, payorId.Value, request, cancellationToken),
-                // Several fish days, each with the kilos declared for it. A fish day's price is that day's own weighing
-                // fee on top of the stall's daily fee, so the days are remembered one by one and settled that way.
-                PayorPayableKind.NpmFish when request.FishDays is { Count: > 1 }
-                    => await InitiateNpmFishDaysAsync(stall, payorId.Value, request, cancellationToken),
-                PayorPayableKind.NpmFish => await InitiateNpmFishDayAsync(stall, payorId.Value, request, cancellationToken),
-                _ => await InitiateNpmAsync(stall, payorId.Value, request, cancellationToken)
-            };
 
         // Find-or-create the monthly record (a current-month obligation may not have a row yet).
         var isNewRecord = false;
@@ -84,16 +87,29 @@ public class InitiateOnlinePaymentCommandHandler(
             isNewRecord = true;
         }
 
-        if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
-                ResultStatus.Conflict);
+        // A Canonical row is charged its canonical rent outstanding (the figure settlement will post and require); a
+        // transitioning row is paused; a Legacy row keeps its legacy balance.
+        decimal amount;
+        if (record.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
+        {
+            var quote = await canonicalRent.QuoteAsync(record, cancellationToken);
+            if (!quote.Payable)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "Online checkout is not available for this rent period right now. " + quote.Reason, ResultStatus.Conflict);
+            amount = quote.Amount;
+        }
+        else
+        {
+            if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
+                    ResultStatus.Conflict);
 
-        // Only an outstanding balance is payable (full balance — no partial online payments in v1).
-        if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
-
-        var amount = record.BalanceDue;
+            // Only an outstanding balance is payable (full balance — no partial online payments in v1).
+            if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
+                return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
+            amount = record.BalanceDue;
+        }
 
         // If the payor already has an unfinished checkout for this period (e.g. they backed out), send them back to the
         // SAME session rather than opening a duplicate — that is the double-payment guard. Only while it still asks for
@@ -139,336 +155,6 @@ public class InitiateOnlinePaymentCommandHandler(
         // Persist only after the gateway accepted the session.
         if (isNewRecord)
             await paymentRepository.AddAsync(record, cancellationToken);
-
-        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
-        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result<InitiateOnlinePaymentResultDto>.Success(
-            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
-    }
-
-    // NPM stall-rent checkout: the rest of the month's rent (or, when the payor names a day count, those earliest days),
-    // from the shared settlement service, so the charge equals what settlement will mark. No PaymentRecord.
-    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmAsync(
-        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
-    {
-        // THE SAME REFUSAL THE OFFICE'S OWN SETTLEMENT MAKES (SettleNpmMonthCommandHandler). A fee the office has never
-        // stated cannot be raised against a payor, and must not be quietly taken as zero either — and taken as zero is
-        // exactly what happens without this, because NpmDailyFee.ForStall ends in "?? 0m". Where the office has stated a
-        // monthly rent but no daily rate, the month's obligation still resolves (₱900) and the whole of it would ride on
-        // one day as a month-end difference: a payor charged a figure the office never expressed as a rate, through a
-        // gateway, with no daily detail for the office to reconcile against by hand.
-        //
-        // No live municipality is in that state — each of the three has stated its daily rate — so this closes a
-        // disagreement between the two settlement paths rather than a fault anyone has met. Asked of the STALL, so an
-        // office that prices its market's areas apart is answered for the area this stall stands in.
-        var snapshot = await feeRateResolver.GetSnapshotAsync(cancellationToken);
-        if (NpmDailyFee.ForStallOrNull(stall, snapshot, clock.PhilippineToday) is null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                FeeRateMessages.NotStated(FeeRateKey.NpmDailyStall), ResultStatus.Conflict);
-
-        // Online stall rent is the REST of the month (Clint, 2026-10-25): ₱900, or ₱840 once ₱60 was collected, never the
-        // elapsed days alone. The same quote the office's whole-payment path uses, so the charge equals what settlement marks.
-        // A payor-chosen day count is still honoured as it was.
-        var wholeMonth = request.Days is not { } requestedDays || requestedDays <= 0;
-        // The rest of THIS month or an earlier one - never a month that has not begun, which the elapsed-days quote also never priced.
-        var today = clock.PhilippineToday;
-        if (wholeMonth && (request.Year, request.Month).CompareTo((today.Year, today.Month)) > 0)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", ResultStatus.Conflict);
-        var payable = !wholeMonth
-            ? await npmMonthSettlementService.ComputePayableForDaysAsync(stall, request.Year, request.Month, request.Days!.Value, cancellationToken)
-            : await npmMonthSettlementService.ComputeWholeMonthPayableAsync(stall, request.Year, request.Month, cancellationToken);
-
-        // Asked for a number of days and the month cannot answer for that many: some were collected at the stall since
-        // the payor looked, or the month has closed and is settled as one figure. Refused rather than quietly charging
-        // for a different number of days than the payor was shown, which is the same rule the stale-checkout guard below
-        // applies to money.
-        if (!wholeMonth && payable.Days != request.Days)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "Those days have changed since you last looked. Reload your balances and try again.", ResultStatus.Conflict);
-
-        // An amount with no days is legitimate: a closed short month whose every day was collected still owes its
-        // month-end adjustment, and refusing it would leave the payor no way to settle the month online.
-        if (payable.Amount <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding daily balance.", ResultStatus.Conflict);
-
-        // Resume an unfinished checkout for the same stall+month rather than opening a duplicate, but only while it still
-        // asks for the same money. A market stall owes another day's fee every day, so a session opened earlier in the
-        // month is priced for fewer days than the payor now owes: that is how the balance read ₱240 and the gateway
-        // charged ₱180 for a session started two days before.
-        var kind = wholeMonth ? OnlinePaymentTargetKind.NpmWholeMonth : OnlinePaymentTargetKind.NpmDailyMonth;
-        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, kind, cancellationToken);
-        if (resumable is { IsResumable: true })
-        {
-            if (resumable.Amount == payable.Amount)
-                return Result<InitiateOnlinePaymentResultDto>.Success(
-                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
-
-            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, payable.Amount));
-        }
-
-        // An open checkout of the OTHER kind for the same month is retired too: a payor holding both links could otherwise
-        // pay the same days twice.
-        var otherKind = wholeMonth ? OnlinePaymentTargetKind.NpmDailyMonth : OnlinePaymentTargetKind.NpmWholeMonth;
-        if (await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, otherKind, cancellationToken)
-            is { IsResumable: true } other)
-            other.MarkExpired(StaleCheckoutNote(other.Amount, payable.Amount));
-
-        string reference;
-        do
-        {
-            reference = GenerateReference(clock.PhilippineNow);
-        }
-        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
-
-        var transaction = OnlinePaymentTransaction.CreateForNpmMonth(
-            reference, payorId, stall.Id, request.Year, request.Month, payable.Amount, paymentGateway.Provider, wholeMonth: wholeMonth);
-
-        var periodKey = $"{request.Year:0000}-{request.Month:00}";
-        // A part-month payment says how many days it covers, so the line on the gateway and on the office's own record
-        // reads as what it is rather than as a month settled short.
-        var description = !wholeMonth
-            ? $"MEEDO online payment · NPM daily · {periodKey} · {request.Days} {(request.Days == 1 ? "day" : "days")}"
-            : $"MEEDO online payment · NPM stall rent · {periodKey}";
-        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
-            new CreateCheckoutSessionRequest(
-                payable.Amount,
-                reference,
-                description,
-                urlBuilder.BuildSuccessUrl(reference),
-                urlBuilder.BuildCancelUrl(reference)),
-            cancellationToken);
-
-        if (!checkout.IsSuccess || checkout.Value is null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
-
-        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
-        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result<InitiateOnlinePaymentResultDto>.Success(
-            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
-    }
-
-    // NPM electricity + water: charge the current outstanding balance of the month's UtilityBill (elec +
-    // water together, full balance). No PaymentRecord; settlement marks the bill's unpaid utilities Paid.
-    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmUtilityAsync(
-        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
-    {
-        var bill = await utilityBillRepository.GetByStallAndMonthAsync(stall.Id, request.Year, request.Month, cancellationToken);
-        if (bill is null || bill.BalanceDue <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding utility balance.", ResultStatus.Conflict);
-
-        if (bill.ElectricitySettlementAuthorityState != SettlementAuthority.Legacy
-            || bill.WaterSettlementAuthorityState != SettlementAuthority.Legacy)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "Combined online utility checkout is paused while either utility source is transitioning to canonical settlement. Contact the office for reconciliation.",
-                ResultStatus.Conflict);
-
-        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmUtilityBill, cancellationToken);
-        if (resumable is { IsResumable: true })
-        {
-            // A meter reading corrected, or part of the bill paid at the office, changes what is owed. Resume only while
-            // the old session still asks for it.
-            if (resumable.Amount == bill.BalanceDue)
-                return Result<InitiateOnlinePaymentResultDto>.Success(
-                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
-
-            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, bill.BalanceDue));
-        }
-
-        string reference;
-        do
-        {
-            reference = GenerateReference(clock.PhilippineNow);
-        }
-        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
-
-        var amount = bill.BalanceDue;
-        var transaction = OnlinePaymentTransaction.CreateForNpmUtility(
-            reference, payorId, stall.Id, request.Year, request.Month, amount, paymentGateway.Provider);
-
-        var periodKey = $"{request.Year:0000}-{request.Month:00}";
-        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
-            new CreateCheckoutSessionRequest(
-                amount,
-                reference,
-                $"MEEDO online payment · NPM utilities · {periodKey}",
-                urlBuilder.BuildSuccessUrl(reference),
-                urlBuilder.BuildCancelUrl(reference)),
-            cancellationToken);
-
-        if (!checkout.IsSuccess || checkout.Value is null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
-
-        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
-        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result<InitiateOnlinePaymentResultDto>.Success(
-            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
-    }
-
-    // NPM fish DAY: the payor self-declares kilos for ONE uncollected day; amount = base ₱30 + kilos ×
-    // fish ₱/kg, both resolved as-of the day from the current municipality's snapshot (tenant-aware, so
-    // custom LGUs use their own rates). Settlement marks just that day paid with the declared kilos.
-    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmFishDayAsync(
-        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
-    {
-        // One declaration is the same request said the newer way, so a caller need not carry two shapes for one day.
-        var single = request.FishDays is { Count: 1 } only ? only[0] : null;
-        var requestedDay = request.Day ?? single?.Day;
-        var requestedKilos = request.FishKilos ?? single?.Kilos ?? (single is not null ? 0m : null);
-
-        if (requestedDay is not { } dayOfMonth
-            || dayOfMonth < 1 || dayOfMonth > DateTime.DaysInMonth(request.Year, request.Month))
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick a valid day to pay for.", ResultStatus.Invalid);
-        if (requestedKilos is not { } kilos || kilos < 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Enter the kilos for that day.", ResultStatus.Invalid);
-
-        var day = new DateOnly(request.Year, request.Month, dayOfMonth);
-        var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, day, kilos, cancellationToken);
-        if (!quote.IsPayable)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(quote.Error ?? "That day can't be paid online.", ResultStatus.Conflict);
-        if (quote.Amount <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This day has no outstanding balance.", ResultStatus.Conflict);
-
-        // Resume an unfinished checkout for the SAME stall + exact day rather than opening a duplicate, but only while it
-        // asks for the same money. A payor who declared five kilos, backed out, and now declares eight must be charged for
-        // eight, not sent back to the earlier session's amount.
-        var resumable = await onlinePaymentRepository.GetResumableNpmFishDayTransactionAsync(stall.Id, request.Year, request.Month, dayOfMonth, cancellationToken);
-        if (resumable is { IsResumable: true })
-        {
-            if (resumable.Amount == quote.Amount)
-                return Result<InitiateOnlinePaymentResultDto>.Success(
-                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
-
-            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, quote.Amount));
-        }
-
-        string reference;
-        do
-        {
-            reference = GenerateReference(clock.PhilippineNow);
-        }
-        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
-
-        var transaction = OnlinePaymentTransaction.CreateForNpmFishDay(
-            reference, payorId, stall.Id, request.Year, request.Month, dayOfMonth, kilos, quote.Amount, paymentGateway.Provider);
-
-        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
-            new CreateCheckoutSessionRequest(
-                quote.Amount,
-                reference,
-                $"MEEDO online payment · NPM fish · {day:yyyy-MM-dd}",
-                urlBuilder.BuildSuccessUrl(reference),
-                urlBuilder.BuildCancelUrl(reference)),
-            cancellationToken);
-
-        if (!checkout.IsSuccess || checkout.Value is null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
-
-        transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
-        await onlinePaymentRepository.AddAsync(transaction, cancellationToken);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result<InitiateOnlinePaymentResultDto>.Success(
-            new InitiateOnlinePaymentResultDto(checkout.Value.CheckoutUrl, reference));
-    }
-
-    /// <summary>
-    /// Several NPM fish days in one payment, each priced from the kilos declared for THAT day.
-    ///
-    /// <para>
-    /// The office's collectors have long settled several owed days at once. Online could pay only one, so a payor three
-    /// days behind opened three checkouts and the office received three payments to receipt apart. Each day is priced by
-    /// the same service that prices a single day, so the figure charged is the office's own; every day must still be
-    /// payable, because a day collected at the stall since the payor looked would otherwise be paid for twice.
-    /// </para>
-    /// </summary>
-    private async Task<Result<InitiateOnlinePaymentResultDto>> InitiateNpmFishDaysAsync(
-        Domain.Entities.Facilities.Stall stall, Guid payorId, InitiateOnlinePaymentCommand request, CancellationToken cancellationToken)
-    {
-        var daysInMonth = DateTime.DaysInMonth(request.Year, request.Month);
-
-        // One entry per day, in date order, kilos left out meaning none were sold. Ordered here so the same selection
-        // always stores the same text, which is what the resume guard below compares.
-        var declarations = new List<NpmFishDayDeclarations.Declaration>();
-        foreach (var asked in request.FishDays!.GroupBy(f => f.Day).Select(g => g.First()).OrderBy(f => f.Day))
-        {
-            if (asked.Day < 1 || asked.Day > daysInMonth)
-                return Result<InitiateOnlinePaymentResultDto>.Failure("Pick valid days to pay for.", ResultStatus.Invalid);
-
-            var kilos = asked.Kilos ?? 0m;
-            if (kilos < 0m)
-                return Result<InitiateOnlinePaymentResultDto>.Failure("Kilos can't be negative.", ResultStatus.Invalid);
-
-            declarations.Add(new NpmFishDayDeclarations.Declaration(asked.Day, kilos));
-        }
-
-        if (declarations.Count == 0)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("Pick at least one day to pay for.", ResultStatus.Invalid);
-
-        // Priced day by day by the office's own rule, and every day has to be payable: not future, inside the term, not
-        // a market closure, not already collected or excused.
-        var amount = 0m;
-        foreach (var declaration in declarations)
-        {
-            var day = new DateOnly(request.Year, request.Month, declaration.Day);
-            var quote = await npmMonthSettlementService.QuoteFishDayAsync(stall, day, declaration.Kilos, cancellationToken);
-            if (!quote.IsPayable)
-                return Result<InitiateOnlinePaymentResultDto>.Failure(
-                    quote.Error ?? "One of those days can't be paid online.", ResultStatus.Conflict);
-
-            amount += quote.Amount;
-        }
-
-        if (amount <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("These days have no outstanding balance.", ResultStatus.Conflict);
-
-        var stored = NpmFishDayDeclarations.Format(declarations);
-
-        // Resume an unfinished checkout only while it asks for the SAME money for the SAME days with the SAME kilos. A
-        // payor who declared eight kilos for one of the days, backed out and now declares twelve must be charged for
-        // twelve, and one who has since added another day must be charged for that day too.
-        var resumable = await onlinePaymentRepository.GetResumableNpmTransactionAsync(
-            stall.Id, request.Year, request.Month, OnlinePaymentTargetKind.NpmFishDays, cancellationToken);
-        if (resumable is { IsResumable: true })
-        {
-            if (resumable.Amount == amount && resumable.FishDayDeclarations == stored)
-                return Result<InitiateOnlinePaymentResultDto>.Success(
-                    new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
-
-            resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, amount));
-        }
-
-        string reference;
-        do
-        {
-            reference = GenerateReference(clock.PhilippineNow);
-        }
-        while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
-
-        var transaction = OnlinePaymentTransaction.CreateForNpmFishDays(
-            reference, payorId, stall.Id, request.Year, request.Month, declarations, amount, paymentGateway.Provider);
-
-        var periodKey = $"{request.Year:0000}-{request.Month:00}";
-        var checkout = await paymentGateway.CreateCheckoutSessionAsync(
-            new CreateCheckoutSessionRequest(
-                amount,
-                reference,
-                $"MEEDO online payment · NPM fish · {periodKey} · {declarations.Count} days",
-                urlBuilder.BuildSuccessUrl(reference),
-                urlBuilder.BuildCancelUrl(reference)),
-            cancellationToken);
-
-        if (!checkout.IsSuccess || checkout.Value is null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                checkout.Error ?? "Unable to start the online payment.", ResultStatus.UpstreamFailed);
 
         transaction.SetPending(checkout.Value.GatewayReference, checkout.Value.CheckoutUrl);
         await onlinePaymentRepository.AddAsync(transaction, cancellationToken);

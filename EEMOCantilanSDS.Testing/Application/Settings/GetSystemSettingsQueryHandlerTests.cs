@@ -80,6 +80,26 @@ public class GetSystemSettingsQueryHandlerTests
     }
 
     [Fact]
+    public async Task An_unresolved_tenant_is_an_explicit_error_never_the_default_municipalitys_profile()
+    {
+        // ST-11 #5: the tenant code does not resolve, but a default (Cantilan) municipality exists.
+        var handler = new GetSystemSettingsQueryHandler(
+            new FakeMunicipalityRepository(Municipality.Create(
+                "CANTILAN", "Cantilan", "Surigao del Sur", MunicipalityStatus.Active, tenantCode: "cantilan-sds", isDefault: true),
+                resolvesTenant: false),
+            new FakeFacilityRepository(FacilityCatalog.AllCodes),
+            CacheTestDoubles.Tenant,
+            CacheTestDoubles.FeeRateResolver,
+            new FixedClock(DateTime.UtcNow),
+            CacheTestDoubles.TpmMarketDay);
+
+        var result = await handler.Handle(new GetSystemSettingsQuery("Production"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(EEMOCantilanSDS.Application.Common.ResultStatus.NotFound, result.Status);
+    }
+
+    [Fact]
     public async Task Includes_head_added_custom_facilities_as_monthly_rental()
     {
         // A tenant with the 8 canonical facilities PLUS one Head-added custom facility (Custom1).
@@ -241,14 +261,14 @@ public class GetSystemSettingsQueryHandlerTests
     }
 
     // Minimal fake — the handler only calls GetDefaultAsync to source the LGU name/province.
-    private sealed class FakeMunicipalityRepository(Municipality? def) : IMunicipalityRepository
+    private sealed class FakeMunicipalityRepository(Municipality? def, bool resolvesTenant = true) : IMunicipalityRepository
     {
         public Task<IReadOnlyList<Municipality>> GetAllAsync(CancellationToken ct) =>
             Task.FromResult<IReadOnlyList<Municipality>>(def is null ? Array.Empty<Municipality>() : new[] { def });
 
         public Task<Municipality?> GetDefaultAsync(CancellationToken ct) => Task.FromResult(def);
 
-        public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult(def);
+        public Task<Municipality?> GetByIdentifierAsync(string identifier, CancellationToken ct) => Task.FromResult(resolvesTenant ? def : null);
 
         public Task<Municipality?> GetByIdAsync(Guid id, CancellationToken ct) => Task.FromResult(def);
 

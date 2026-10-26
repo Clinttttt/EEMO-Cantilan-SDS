@@ -287,7 +287,11 @@ public sealed class SettlementCutoverWorkflow(
         // ECF has its own canonical Mobile writer, so an assigned collector is not a standing blocker for it: the per-collector
         // evidence below (device version, drained legacy queue) is what gates it.
         var isEcf = source.Scope.SourceKind == CollectionSourceKind.UtilityBill && source.Scope.SourcePart == CollectionSourcePart.Electricity;
-        if (affectedCollectors.Count > 0 && !requiresWcfPayload && !isEcf)
+        // Monthly rent now has both halves ECF has: a canonical Mobile writer (RentCollection / MobileRent) and a durable late-payload adapter
+        // (LegacyRentPayloadReconciliation: an older cumulative payload after cutover is preserved as a ReconciliationRequired PostingOperation, never
+        // applied). An assigned collector is therefore not a standing blocker for it; the per-collector device-version and drained-queue evidence is.
+        var isRent = source.Scope.SourceKind == CollectionSourceKind.PaymentRecord;
+        if (affectedCollectors.Count > 0 && !requiresWcfPayload && !isEcf && !isRent)
             blockers.Add(source.MobileWriterStatus);
         AddEvidenceBlockers(evidence, affectedCollectors, blockers, requiresWcfPayload);
         var missingCollectorEvidence = GetMissingCollectorEvidence(evidence, affectedCollectors, requiresWcfPayload);
@@ -390,13 +394,13 @@ public sealed class SettlementCutoverWorkflow(
             decimal? outstanding = settled.HasValue ? record.BaseRentalAmount - settled.Value : null;
             var writerStatus = mixed
                 ? "Mixed legacy utility/fish components make the single PaymentRecord status unsafe to attribute to rent; this source remains blocked until separately reconciled."
-                : "The late legacy PaymentRecord Mobile path must be drained and confirmed before freeze; it has no canonical rent offline reconciliation registry yet.";
+                : "Late legacy PaymentRecord payloads are refused after cutover and preserved as ReconciliationRequired operations; the legacy Mobile queue must still be attested drained before freeze.";
             return new SourceState(scope, null, record, record.SettlementAuthorityState, record.SettlementVersion,
                 record.BaseRentalAmount, settled, outstanding, RevenueClassificationCodes.ForMonthlyRental(record.Stall!.Facility!.Code),
                 RevenueInstrumentType.OfficialReceipt, record.Stall?.FacilityId,
                 $"PaymentRecord {record.Id:N} / {record.BillingYear:D4}-{record.BillingMonth:D2}",
                 record.ORNumber, writerStatus, hasMixedLegacyComponents: mixed,
-                mobileWriterStatus: "PaymentRecord Mobile still uses the cumulative legacy settlement payload and lacks a durable late-issued-document reconciliation adapter; affected collector scopes remain blocked.");
+                mobileWriterStatus: "Monthly rent posts canonically from Collector Mobile (no serial, server SRC, replay-safe); a late legacy payload is preserved for reconciliation. Each affected collector must still attest the device version and a drained legacy queue.");
         }
 
         throw new CutoverProblem("Phase 5A supports only exact UtilityBill Electricity/Water parts and monthly PaymentRecord rent sources.", ResultStatus.Invalid);

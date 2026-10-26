@@ -15,6 +15,14 @@ public interface ICollectionSessionSources
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct);
     Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item,
         Guid childOperationId, CancellationToken ct);
+    /// <summary>
+    /// Stamps the checkout's one optional reference on every Official Receipt collection it just posted (Cash Ticket and other instruments are left as they are, and a
+    /// collection that already carries a registered accountable document keeps that document as its receipt). Same unit of work as the posting.
+    /// </summary>
+    Task StampReceiptReferenceAsync(IReadOnlyList<CollectionSessionCollection> collections, string reference, CancellationToken ct) => Task.CompletedTask;
+    /// <summary>Several months of one space account under ONE physical OR: one Collection, one line per month.</summary>
+    Task<CollectionSessionCollection> PostObligationMonthsAsync(CollectionSessionIntent session, IReadOnlyList<CollectionSessionItemIntent> items,
+        Guid operationId, CancellationToken ct) => throw new NotSupportedException();
 }
 public interface ICollectionSessionStore
 {

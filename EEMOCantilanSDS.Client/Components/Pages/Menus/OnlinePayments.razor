@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Client.Components.Shared
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @inject IOnlinePaymentsApiClient OnlinePaymentsApi
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @inject ISettingsApiClient SettingsApi
 @inject AuthenticationStateProvider AuthState
 @inject IJSRuntime JS
@@ -404,7 +405,7 @@
                                 <div class="op-muted">@(item.Method ?? "PayMongo")</div>
                             </td>
                             <td>
-                                <div class="op-strong">@SpaceNumber.Line(item.Facility.ToString(), SpaceNumber.Describe(item.StallNo))</div>
+                                <div class="op-strong">@SpaceNumber.Line(FacilityCatalog.ShortNameOf(item.Facility), SpaceNumber.Describe(item.StallNo))</div>
                                 <div class="op-muted">@item.Period</div>
                             </td>
                             <td class="op-mono">@item.Reference</td>
@@ -669,6 +670,7 @@
     {
         // Payment-account section (Head only) — load before the cached-items early return so it always shows.
         await Branding.EnsureLoadedAsync();
+        await FacilityCatalog.EnsureLoadedAsync();   // the Awaiting OR list names each facility by the office's own acronym
         _isDefaultTenant = Branding.IsDefaultTenant;
         var authState = await AuthState.GetAuthenticationStateAsync();
         _isHead = authState.User.IsInRole("SuperAdmin")

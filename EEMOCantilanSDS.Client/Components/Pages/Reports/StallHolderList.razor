@@ -1051,7 +1051,7 @@
                             <td>@(string.IsNullOrWhiteSpace(a.ContractName) ? "—" : a.ContractName)</td>
                             <td class="sh-c">@(SpaceAccountPresentation.Reference(a) is { Length: > 0 } reference ? reference : "—")</td>
                             <td class="sh-c">@((a.ContractEffectiveDate ?? a.ActiveFrom).ToString("M/d/yyyy"))</td>
-                            <td class="sh-c">@(a.ContractYears is > 0 ? a.ContractYears + " yr" + (a.ContractYears != 1 ? "s" : "") : "—")</td>
+                            <td class="sh-c">@(a.ContractMonths is > 0 ? EEMOCantilanSDS.Domain.Constants.DomainRules.DescribeTerm(a.ContractYears, a.ContractMonths) : a.ContractYears is > 0 ? a.ContractYears + " yr" + (a.ContractYears != 1 ? "s" : "") : "—")</td>
                             <td class="sh-c">@(a.AreaSqm is > 0 ? $"{a.AreaSqm} sq.m." : "—")</td>
                         }
                         <td class="sh-r">@(a.CurrentAmount is { } amount ? Money(amount) : "—")</td>

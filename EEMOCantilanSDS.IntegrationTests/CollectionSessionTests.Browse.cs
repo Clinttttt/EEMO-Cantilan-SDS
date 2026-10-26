@@ -118,6 +118,72 @@ public sealed partial class CollectionSessionTests
         Assert.Empty(spaces.Items); Assert.Equal(0, spaces.Total);
     }
 
+    [SkippableFact]
+    public async Task ARenewedSpacesEarlierTermMonths_ReadAsArrearsOnTheCollectorsChoice_WithoutChangingWhatIsCollectedOrHowItIsKeyed()
+    {
+        var today = PhilippineTime.Today;
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        var classification = RevenueClassification.Create(ObligationAccount.ClassificationCodeFor(ObligationKind.KanmanggaySpaceRental), w.TenantId);
+        db.AddRange(classification, RevenueClassificationPolicy.Create(classification.Id, new DateOnly(2020, 1, 1), "Space", RevenueInstrumentType.OfficialReceipt, w.TenantId),
+            CollectorOperationAssignment.Assign(w.TenantId, w.CollectorId, CollectorOperationCodes.KanmanggaySpaceRental, "Head"));
+        await db.SaveChangesAsync();
+
+        // A signed term 2021-2023, renewed from 2024 for three years; one month owed in each term, and one current-year month.
+        var open = await SpaceTestKit.AddAsync(database, w.TenantId, "7", new DateOnly(2021, 1, 1), signed: true, amount: 1000m);
+        foreach (var month in new[] { new DateOnly(2023, 11, 1), new DateOnly(2024, 2, 1), new DateOnly(today.Year, 1, 1) })
+            await SpaceTestKit.AssessAsync(database, w.TenantId, open.Account, open.Rate, month);
+        await using (var renewalContext = database.CreateContext(w.TenantId))
+        {
+            var workflow = SpaceTestKit.Workflow(renewalContext, w.TenantId);
+            var command = new EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleCommand(EEMOCantilanSDS.Application.Common.Lifecycle.LifecycleAction.Renew,
+                new DateOnly(2024, 1, 1), "Renewal", "Res. 1", TermYears: 3, ContractName: "Signed Lessee", Reference: "KM-2");
+            var preview = await workflow.PreviewAsync(open.Account.Id, command);
+            Assert.True((await workflow.ExecuteAsync(open.Account.Id, new(Guid.NewGuid(), preview.Value!.Version, command))).IsSuccess);
+        }
+
+        var sources = new CollectionSessionSources(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today), null!, new NoMarketDays());
+        var identity = new CollectionSourceIdentity(SourceIdentityKind.SpaceAccount, open.Account.Id);
+        async Task<Dictionary<DateOnly, CollectionSessionSourceChoice>> ChoicesAsync() =>
+            (await sources.DiscoverNativeAsync(identity, today, default)).Operations.SelectMany(o => o.Choices ?? []).ToDictionary(c => c.Identity.PeriodStart!.Value);
+
+        var before = await ChoicesAsync();
+        var earlierMonth = new DateOnly(2023, 11, 1); var currentTermMonth = new DateOnly(2024, 2, 1); var thisYear = new DateOnly(today.Year, 1, 1);
+        // The collector sees why, per original billing month; the amount and key are the server's own, unchanged by the label.
+        Assert.EndsWith("· Arrears, expired contract", before[earlierMonth].Context);
+        Assert.EndsWith("· Arrears, previous year", before[currentTermMonth].Context);
+        Assert.DoesNotContain("Arrears", before[thisYear].Context);
+        Assert.All(before.Values, c => Assert.Equal((CollectionSessionItemKind.Obligation, 1000m), (c.Kind, c.ServerAmount)));
+        Assert.StartsWith($"{CollectorOperationCodes.KanmanggaySpaceRental}|{open.Account.Id:N}|2023-11-01", before[earlierMonth].SelectionKey);
+        Assert.Equal((open.Account.Id, 2023, 11), (before[earlierMonth].Identity.AccountId!.Value, before[earlierMonth].Identity.Year!.Value, before[earlierMonth].Identity.Month!.Value));
+
+        await using var beforeContext = database.CreateContext(w.TenantId);
+        var termsBefore = (await new ObligationWorkflow(beforeContext, new Caller(w.CollectorId, w.TenantId, "SuperAdmin"), new Tenant(w.TenantId), new Clock(today))
+            .GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Single().Terms!;
+        // Collecting part of the earlier term's month posts against THAT month only, and a retry with the same operation id replays it.
+        var posting = new CollectionComposerWorkflow(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today));
+        var operationId = Guid.NewGuid();
+        var request = new MobileObligationPostRequest(operationId, open.Account.Id, 2023, 11, 400m, today);
+        var posted = await posting.PostMobileObligationAsync(request);
+        Assert.True(posted.IsSuccess, posted.Error);
+        var replay = await posting.PostMobileObligationAsync(request);
+        Assert.True(replay.IsSuccess, replay.Error);
+        Assert.Equal(posted.Value!.ReferenceCode, replay.Value!.ReferenceCode);
+        Assert.Single(await db.Collections.ToListAsync());                                              // never twice
+
+        var after = await ChoicesAsync();
+        Assert.Equal(600m, after[earlierMonth].ServerAmount);                                           // the posted collection reduced only that month
+        Assert.EndsWith("· Arrears, expired contract", after[earlierMonth].Context);                    // and it is still read as earlier-term Arrears
+        Assert.Equal(before[earlierMonth].SelectionKey, after[earlierMonth].SelectionKey);
+        Assert.Equal(1000m, after[currentTermMonth].ServerAmount);
+        // The office's per-term balances moved by exactly that amount and no other.
+        await using var office = database.CreateContext(w.TenantId);
+        var account = (await new ObligationWorkflow(office, new Caller(w.CollectorId, w.TenantId, "SuperAdmin"), new Tenant(w.TenantId), new Clock(today))
+            .GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!.Single();
+        Assert.Equal((2, termsBefore[0].Outstanding - 400m, termsBefore[1].Outstanding), (account.Terms!.Count, account.Terms![0].Outstanding, account.Terms![1].Outstanding));
+        Assert.Equal(account.OutstandingToDate, account.Terms.Sum(t => t.Outstanding));
+    }
+
     [SkippableTheory]
     [InlineData(LotRentalEvent.Fiesta)]
     [InlineData(LotRentalEvent.Araw)]
@@ -169,6 +235,10 @@ public sealed partial class CollectionSessionTests
         var late = await sources.DiscoverNativeAsync(new(SourceIdentityKind.SpaceAccount, closed.Id), today, default);
         Assert.Contains(late.Operations, x => x.OperationCode == CollectorOperationCodes.FiestaArawLotRental
             && x.EligibleChoiceCount > 0 && x.Choices!.Any(c => c.Identity?.PeriodStart == past));
+        // The collector sees why it is owed: an ended occupancy's balance is Arrears, by the office's own rule. Display only — key and amount unchanged.
+        var lateChoice = late.Operations.SelectMany(x => x.Choices ?? []).Single(c => c.Identity?.PeriodStart == past);
+        Assert.EndsWith("· Arrears, ended occupancy", lateChoice.Context);
+        Assert.Equal(450m, lateChoice.ServerAmount);
         Assert.Empty(await db.CollectionAllocations.ToListAsync());
         Assert.Empty(await db.Collections.ToListAsync());
         var latePosting = new CollectionComposerWorkflow(db, new Caller(w.CollectorId, w.TenantId), new Tenant(w.TenantId), new Clock(today));

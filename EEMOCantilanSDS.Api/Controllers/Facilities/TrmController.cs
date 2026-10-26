@@ -67,6 +67,7 @@ public class TrmController(ISender sender, GovernedServiceWorkflow collections) 
             request.Remarks)));
 
     [HttpPatch("trips/{tripId:guid}/or-number")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber(Guid tripId, [FromBody] SaveTripOrNumberRequest request)
         => HandleResponse(await Sender.Send(new SaveTripOrNumberCommand(tripId, request.ORNumber)));
 }

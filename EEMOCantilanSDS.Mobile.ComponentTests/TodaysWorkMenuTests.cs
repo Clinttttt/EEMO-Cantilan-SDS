@@ -68,9 +68,13 @@ public sealed class TodaysWorkMenuTests : TestContext
         Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
 
         var view = RenderComponent<Menu>();
-        view.WaitForAssertion(() => Assert.Single(view.FindAll("button.menu-row")));
+        var name = code == CollectorOperationCodes.KanmanggaySpaceRental ? "Kanmanggay" : "Fiesta / Araw";
+        // The separate Arrears & Delinquency shortcut is not an operation and must remain visible.
+        view.WaitForAssertion(() => Assert.Single(view.FindAll("button.menu-row"),
+            button => button.TextContent.Contains(name, StringComparison.Ordinal)));
+        Assert.Contains(view.FindAll("button.menu-row"), button => button.TextContent.Contains("Arrears & Delinquency"));
         Assert.DoesNotContain("Collected from the stall sheet", view.Markup);
-        view.Find("button.menu-row").Click();
+        view.FindAll("button.menu-row").Single(button => button.TextContent.Contains(name, StringComparison.Ordinal)).Click();
         Assert.EndsWith("/collections/new?operation=" + code, Services.GetRequiredService<NavigationManager>().Uri);
     }
 

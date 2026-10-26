@@ -11,4 +11,6 @@ public interface IOperationSettingsApiClient
     Task<Result<IReadOnlyList<EEMOCantilanSDS.Application.Common.Revenue.TerminalSectionSettingsStore.SectionView>>> UpdateTerminalSectionAsync(EEMOCantilanSDS.Application.Dtos.Settings.TerminalSectionUpdateRequest request);
 
     Task<Result<TenantOperationSettingsDto>> UpdateAsync(string operationCode, UpdateTenantOperationSettingRequest request);
+    Task<Result<OperationSetupOverviewDto>> GetSetupAsync();
+    Task<Result<AddTenantOperationResultDto>> AddAsync(string operationCode, AddTenantOperationRequest request);
 }

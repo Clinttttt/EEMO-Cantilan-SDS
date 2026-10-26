@@ -1,0 +1,227 @@
+@page "/arrears"
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Application.Dtos.Payors
+@using EEMOCantilanSDS.Mobile.Presentation
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder Held
+
+@* Arrears and Delinquency: one row per liable ACCOUNT (never per month), read from the same sources as the Head's Arrears page. Amounts are the server's;
+   this page filters and words them. Collecting opens the ordinary checkout on the original contract / obligation account. Online only: it never shows stale debt. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Collection</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" aria-label="Back to Menu" @onclick='() => Navigation.NavigateTo("/menu")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">Arrears &amp; Delinquency</div><div class="header-sub">@Session.CollectorName</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+    <main class="content">
+        @if (_loading)
+        {
+            <div role="status" aria-busy="true" aria-label="Loading accounts">
+                <span class="sk sk-input"></span><span class="sk sk-seg"></span><span class="sk sk-sum"></span>
+                <ul class="ar-list">
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                </ul>
+            </div>
+        }
+        else if (_failed) { <p class="ar-note" role="alert">Connect to view arrears and delinquency.</p><button type="button" class="ar-more" @onclick="LoadAsync">Try again</button> }
+        else if (_all.Count == 0) { <p class="ar-note" role="status">No account assigned to you has arrears or delinquency.</p> }
+        else
+        {
+            <input class="ar-input" type="search" autocomplete="off" enterkeyhint="search" placeholder="Search name, stall or space" aria-label="Search accounts" value="@_search" @oninput="OnSearch" />
+            <div class="ar-seg" role="group" aria-label="Show">
+                <button type="button" class="ar-seg-btn @(_filter.Reason == ArrearsView.AllReasons ? "on" : "")" aria-pressed="@(_filter.Reason == ArrearsView.AllReasons)" @onclick="() => Reason(ArrearsView.AllReasons)">All</button>
+                <button type="button" class="ar-seg-btn @(_filter.Reason == ArrearsView.ArrearsOnly ? "on" : "")" aria-pressed="@(_filter.Reason == ArrearsView.ArrearsOnly)" @onclick="() => Reason(ArrearsView.ArrearsOnly)">Arrears</button>
+                <button type="button" class="ar-seg-btn @(_filter.Reason == ArrearsView.DelinquentOnly ? "on" : "")" aria-pressed="@(_filter.Reason == ArrearsView.DelinquentOnly)" @onclick="() => Reason(ArrearsView.DelinquentOnly)">Delinquent</button>
+            </div>
+            @if (_operations.Count > 1)
+            {
+                <button type="button" class="ar-input ar-pick" aria-haspopup="dialog" @onclick="() => _pickOp = true"><span>@OperationLabel</span><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg></button>
+            }
+            <section class="ar-summary" role="status" aria-label="Totals for the list below">
+                <div class="ar-summary-main"><strong>@Peso(_totals.Total)</strong><span>@_totals.Accounts @(_totals.Accounts == 1 ? "account" : "accounts")</span></div>
+                <dl class="ar-summary-split">
+                    <div><dt>Arrears</dt><dd>@Peso(_totals.Arrears)</dd></div>
+                    <div><dt>Delinquent</dt><dd>@Peso(_totals.Delinquent)</dd></div>
+                </dl>
+            </section>
+            @if (_shown.Count == 0) { <p class="ar-note" role="status">No account matches.</p> }
+            else
+            {
+                <ul class="ar-list">
+                    @foreach (var a in _shown)
+                    {
+                        <li @key="a.AccountKey" class="ar-item">
+                            <button type="button" class="ar-row" aria-label="@($"{a.Payer}, {a.OperationName}, {Peso(a.Total)}. Open details")" @onclick="() => _detail = a">
+                                <span class="ar-text"><strong>@a.Payer</strong><small>@a.OperationName</small></span>
+                                <span class="ar-amount">@Peso(a.Total)</span>
+                            </button>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@* Operation filter: a sheet, not the device's own dropdown, so it looks and behaves like the rest of the app. *@
+@if (_pickOp)
+{
+    <div class="ar-overlay" @onclick="() => _pickOp = false">
+        <div class="ar-sheet" role="dialog" aria-modal="true" aria-label="Operation" @onclick:stopPropagation="true">
+            <h2 class="ar-sheet-title ar-pick-title">Operation</h2>
+            <ul class="ar-opts">
+                <li><button type="button" class="ar-opt @(_filter.OperationCode is null ? "on" : "")" @onclick="() => PickOp(null)">All operations</button></li>
+                @foreach (var op in _operations)
+                {
+                    var code = op.Code;
+                    <li><button type="button" class="ar-opt @(_filter.OperationCode == code ? "on" : "")" @onclick="() => PickOp(code)">@op.Name</button></li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+@* Account details: everything about one liable account in one place, so the list stays two lines per account. The figures are the server's. *@
+@if (_detail is { } d)
+{
+    <div class="ar-overlay" @onclick="CloseDetail">
+        <div class="ar-sheet" role="dialog" aria-modal="true" aria-labelledby="ar-detail-title" @onclick:stopPropagation="true">
+            <header class="ar-sheet-head">
+                <div class="ar-sheet-who"><h2 id="ar-detail-title" class="ar-sheet-title">@d.Payer</h2><p>@d.OperationName · @d.Space@(d.Section is null ? "" : " · " + d.Section)</p></div>
+                <strong class="ar-sheet-amount">@Peso(d.Total)</strong>
+            </header>
+            <dl class="ar-facts">
+                <div><dt>Status</dt><dd>@d.Status</dd></div>
+                <div><dt>Unpaid</dt><dd>@ArrearsView.MonthsLabel(d)@(ArrearsView.Span(d) is { } span ? " · " + span : "")</dd></div>
+                @if (d.ArrearsAmount > 0m) { <div><dt>Arrears@(d.ArrearsBasis is null ? "" : $" · {d.ArrearsBasis.ToLowerInvariant()}")</dt><dd>@Peso(d.ArrearsAmount)</dd></div> }
+                @if (d.DelinquentAmount > 0m) { <div><dt>Delinquent</dt><dd>@Peso(d.DelinquentAmount)</dd></div> }
+                @if (d.PriorTermAmount > 0m) { <div><dt>Earlier term</dt><dd>@Peso(d.PriorTermAmount)</dd></div><div><dt>Current term</dt><dd>@Peso(d.CurrentTermAmount)</dd></div> }
+            </dl>
+            @if (ArrearsView.CollectBlockedReason(d) is { } blocked) { <p class="ar-hint">@blocked</p> }
+            <div class="ar-actions">
+                @if (d.CanCollect) { <button type="button" class="ar-primary" @onclick="() => Collect(d)">Collect arrears</button> }
+                else if (ArrearsView.FacilityMonthlyRoute(d) is not null && d.StallId is { } stallId) { <button type="button" class="ar-primary" @onclick="() => OpenMonths(d, stallId)">Collect unpaid months</button> }
+                else if (ArrearsView.FacilityMonthlyRoute(d) is { } route) { <button type="button" class="ar-primary" @onclick="() => OpenFacility(route)">Open @route collections</button> }
+                <button type="button" class="ar-secondary" @onclick="() => OpenIssue(d)">Payor code</button>
+                <button type="button" class="ar-cancel" @onclick="CloseDetail">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* Payor code: a one-time code for THIS liable account (the original contract / obligation account). The server decides whether the payor activates a
+   new account or links an existing one, and refuses unless the account still has an unpaid balance you may see. Online only. *@
+@if (_issuing is { } target)
+{
+    <div class="ar-overlay" @onclick="CloseIssue">
+        <div class="ar-sheet" role="dialog" aria-modal="true" aria-labelledby="ar-issue-title" @onclick:stopPropagation="true">
+            <header class="ar-sheet-head">
+                <div class="ar-sheet-who"><h2 id="ar-issue-title" class="ar-sheet-title">Payor code</h2><p>@target.Payer · @target.OperationName</p></div>
+            </header>
+            @if (_issued is null)
+            {
+                <label class="ar-field" for="ar-phone">Mobile number</label>
+                <input id="ar-phone" class="ar-input" type="tel" inputmode="numeric" maxlength="20" placeholder="09xx xxx xxxx" value="@_phone" @oninput="e => _phone = e.Value?.ToString() ?? string.Empty" />
+                <label class="ar-confirm"><input type="checkbox" checked="@_confirmed" @onchange="e => _confirmed = e.Value is true" /><span>This is <strong>@target.Payer</strong>, the liable payer.</span></label>
+                @if (!string.IsNullOrWhiteSpace(_issueError)) { <p class="ar-error" role="alert">@_issueError</p> }
+                <div class="ar-actions ar-actions-row">
+                    <button type="button" class="ar-cancel" disabled="@_busy" @onclick="CloseIssue">Cancel</button>
+                    <button type="button" class="ar-primary" disabled="@(_busy || !_confirmed)" @onclick="IssueAsync">@(_busy ? "Generating…" : "Generate")</button>
+                </div>
+            }
+            else
+            {
+                <div class="ar-code-box"><small>@(_issued.Mode == "Link" ? "Link code" : "Activation code")</small><strong>@_issued.Code</strong></div>
+                <dl class="ar-facts">
+                    <div><dt>Mobile</dt><dd>@_issued.ContactNumber</dd></div>
+                    <div><dt>Expires</dt><dd>@_issued.ExpiresAt.ToLocalTime().ToString("MMM d, yyyy", System.Globalization.CultureInfo.InvariantCulture)</dd></div>
+                </dl>
+                <p class="ar-hint">@(_issued.Mode == "Link" ? "This number already has a Payor Portal account; the payor signs in and links this account with the code." : "The payor activates a Payor Portal account with this code and the number above.") A new code voids this one.</p>
+                <div class="ar-actions"><button type="button" class="ar-primary" @onclick="CloseIssue">Done</button></div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private IReadOnlyList<ArrearsAccountDto> _all = [];
+    private IReadOnlyList<ArrearsAccountDto> _shown = [];
+    private IReadOnlyList<(string Code, string Name)> _operations = [];
+    private (int Accounts, decimal Total, decimal Arrears, decimal Delinquent) _totals;
+    private ArrearsFilter _filter = new();
+    private string _search = "";
+    private ArrearsAccountDto? _detail;
+    private bool _loading = true, _failed;
+
+    private void OnSearch(ChangeEventArgs e) { _search = e.Value?.ToString() ?? ""; Refresh(); }
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true; _failed = false;
+        try
+        {
+            var result = await Api.GetArrearsWorkspaceAsync();
+            if (result.IsSuccess && result.Value is { } workspace) { _all = workspace.Accounts; _operations = ArrearsView.Operations(_all); Held.Set(Session.Menu!.CollectorId, _all); }
+            else _failed = true;
+        }
+        catch { _failed = true; }
+        _loading = false;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        _filter = _filter with { Search = _search };
+        _shown = ArrearsView.Apply(_all, _filter);
+        _totals = ArrearsView.Totals(_shown);
+    }
+    private void Reason(string reason) { _filter = _filter with { Reason = reason }; Refresh(); }
+    private void Operation(string? code) { _filter = _filter with { OperationCode = code }; Refresh(); }
+    private bool _pickOp;
+    private string OperationLabel => _filter.OperationCode is null ? "All operations" : _operations.FirstOrDefault(o => o.Code == _filter.OperationCode).Name ?? "All operations";
+    private void PickOp(string? code) { Operation(code); _pickOp = false; }
+    private void OpenMonths(ArrearsAccountDto a, Guid stallId) => Navigation.NavigateTo($"/arrears/months?stall={stallId}&contract={a.Identity.Id}");
+    private void CloseDetail() => _detail = null;
+    private void OpenFacility(string facility) => Navigation.NavigateTo("/collect/" + facility);
+    private ArrearsAccountDto? _issuing;
+    private HistoricalAccessCodeDto? _issued;
+    private string _phone = string.Empty, _issueError = string.Empty;
+    private bool _confirmed, _busy;
+    private void OpenIssue(ArrearsAccountDto a) { _detail = null; _issuing = a; _issued = null; _phone = string.Empty; _issueError = string.Empty; _confirmed = false; }
+    private void CloseIssue() { if (!_busy) { _issuing = null; _issued = null; } }
+    private async Task IssueAsync()
+    {
+        if (_issuing is not { } a || !_confirmed) return;
+        if (string.IsNullOrWhiteSpace(_phone)) { _issueError = "Enter the payor's mobile number."; return; }
+        _busy = true; _issueError = string.Empty;
+        try
+        {
+            var liable = a.Kind == ArrearsAccountKind.StallRent ? a.ContractId : a.ObligationAccountId;
+            var result = await Api.IssueHistoricalAccessCodeAsync(new(a.Kind, liable ?? Guid.Empty, _phone.Trim(), a.Payer, null));
+            if (result.IsSuccess && result.Value is not null) _issued = result.Value;
+            else _issueError = result.Error ?? "Could not generate the code. Please try again.";
+        }
+        catch { _issueError = "Couldn't reach the server. Check your connection and try again."; }
+        finally { _busy = false; }
+    }
+    private void Collect(ArrearsAccountDto a) => Navigation.NavigateTo($"/arrears/collect?kind={(int)a.Kind}&id={a.Identity.Id}");
+}

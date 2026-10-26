@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Enums;
@@ -33,7 +34,7 @@ public class HandlePaymentWebhookCommandHandlerTests
     private static (HandlePaymentWebhookCommandHandler handler, Mock<IUnitOfWork> uow, Mock<IPaymentGateway> gateway, Mock<IOnlinePaymentNotifier> notifier)
         Build(OnlinePaymentTransaction? txn, PaymentRecord? record, PaymentGatewayEvent? evt,
             bool signatureValid = true, bool namedWebhook = false, bool signedForAnotherTenant = false,
-            bool isDefault = true)
+            bool isDefault = true, Mock<IUtilityBillRepository>? util = null, Mock<INpmMonthSettlementService>? npm = null, Stall? stall = null)
     {
         var gateway = new Mock<IPaymentGateway>();
         gateway.Setup(g => g.VerifyWebhookSignature(It.IsAny<string>(), It.IsAny<string>())).Returns(signatureValid);
@@ -51,7 +52,10 @@ public class HandlePaymentWebhookCommandHandlerTests
 
         var notifier = new Mock<IOnlinePaymentNotifier>();
 
-        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, new Mock<IStallRepository>().Object, new Mock<INpmMonthSettlementService>().Object, new Mock<IUtilityBillRepository>().Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var stallRepo = new Mock<IStallRepository>();
+        if (stall is not null)
+            stallRepo.Setup(r => r.GetByIdAsync(stall.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        var settlement = new OnlinePaymentSettlementService(paymentRepo.Object, stallRepo.Object, (npm ?? new Mock<INpmMonthSettlementService>()).Object, (util ?? new Mock<IUtilityBillRepository>()).Object, notifier.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
 
         var municipalityRepo = new Mock<IMunicipalityRepository>();
         var owner = Municipality.Create("OWNER", "Owner", "PH", MunicipalityStatus.Active, "owner", isDefault: isDefault);
@@ -135,6 +139,44 @@ public class HandlePaymentWebhookCommandHandlerTests
         Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
         Assert.Equal(PaymentStatus.Paid, record.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    // ST-13: new checkouts for these kinds are refused, but a transaction created before that must still settle via the webhook.
+    [Fact]
+    public async Task PreExistingNpmUtilityTransaction_StillSettlesThroughTheWebhook()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "3", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var bill = UtilityBill.Create(stall.Id, 2026, 6, 0m, 10m, 12m, 0m, 5m, 20m);   // 220 due
+        var txn = OnlinePaymentTransaction.CreateForNpmUtility("EEMO-OP-UTIL", Guid.NewGuid(), stall.Id, 2026, 6, 220m, "PayMongo");
+        txn.SetPending(GatewayRef, "https://checkout.test/cs");
+        var util = new Mock<IUtilityBillRepository>();
+        util.Setup(u => u.GetByStallAndMonthAsync(stall.Id, 2026, 6, It.IsAny<CancellationToken>())).ReturnsAsync(bill);
+        var (handler, uow, _, _) = Build(txn, null, PaidEvent(220m), util: util);
+
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, bill.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PreExistingNpmFishDayTransaction_StillSettlesThroughTheWebhook()
+    {
+        var stall = Stall.Create(Guid.NewGuid(), "7", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
+        var txn = OnlinePaymentTransaction.CreateForNpmFishDay("EEMO-OP-FISH", Guid.NewGuid(), stall.Id, 2026, 6, 15, 54m, 84m, "PayMongo");
+        txn.SetPending(GatewayRef, "https://checkout.test/cs");
+        var npm = new Mock<INpmMonthSettlementService>();
+        npm.Setup(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, "Online", It.IsAny<CancellationToken>()))
+            .ReturnsAsync((DailyCollection?)null);
+        var (handler, _, _, _) = Build(txn, null, PaidEvent(84m), npm: npm, stall: stall);
+
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        npm.Verify(s => s.SettleFishDayAsync(stall, new DateOnly(2026, 6, 15), 54m, "Online", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

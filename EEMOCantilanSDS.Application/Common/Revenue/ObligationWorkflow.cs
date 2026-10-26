@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using System.Text.Json;
@@ -53,14 +54,15 @@ public sealed class ObligationWorkflow(
                 .ToDictionaryAsync(x => x.Id, x => x.StallNo, ct);
             // A renewal appends a term and leaves the account's recorded term as it was. The term in force is the latest appended one (the
             // same rule the lifecycle workflow decides by), so a renewed space reads as current rather than "term ended" for ever.
-            var latestTerms = (await db.SpaceContractTerms.AsNoTracking()
+            var appendedTerms = (await db.SpaceContractTerms.AsNoTracking()
                     .Where(x => x.MunicipalityId == actor.TenantId && ids.Contains(x.ObligationAccountId)).ToListAsync(ct))
                 .GroupBy(x => x.ObligationAccountId)
-                .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Commencement).ThenByDescending(x => x.RecordedAtUtc).First());
+                .ToDictionary(g => g.Key, g => SpaceTermSplit.Ordered(g));
 
             var rows = accounts.OrderBy(x => x.SubjectLabel, StringComparer.OrdinalIgnoreCase).Select(account =>
             {
-                latestTerms.TryGetValue(account.Id, out var term);
+                var ordered = appendedTerms.GetValueOrDefault(account.Id) ?? [];
+                var term = ordered.Count > 0 ? ordered[^1] : null;
                 // A future approved successor must show its effective rental rate, not ₱0
                 // merely because its occupancy has not started yet. Closed occupancies
                 // show their rate as of closure; live occupancies show today's rate.
@@ -76,7 +78,8 @@ public sealed class ObligationWorkflow(
                     current?.Amount, current?.EffectiveFrom,
                     accountQuotes.Sum(x => x.AssessedAmount), accountQuotes.Sum(x => x.SettledAmount),
                     accountQuotes.Sum(x => x.OutstandingAmount), account.Arrangement, term?.Reference ?? account.ContractReference, account.ActualOccupant, term?.ContractName ?? account.ContractName,
-                    term?.Commencement ?? account.ContractEffectiveDate, term?.Years ?? account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate, account.RetiredAtUtc is not null);
+                    term?.Commencement ?? account.ContractEffectiveDate, term?.Years ?? account.ContractYears, account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate, account.RetiredAtUtc is not null,
+                    SpaceTermSplit.Split(account, ordered, accountQuotes), term is not null ? term.Months : account.ContractMonths);
             }).ToList();
             return Result<IReadOnlyList<ObligationAccountDto>>.Success(rows);
         }, ct);
@@ -223,8 +226,10 @@ public sealed class ObligationWorkflow(
             if (start < earliest || start > BusinessToday.AddDays(366))
                 return Result<ObligationAccountDto>.Failure("Choose a realistic start or event date (not more than a year ahead).", ResultStatus.Invalid);
 
+            if (request.ContractMonths is > 0)
+                return Result<ObligationAccountDto>.Failure(DomainRules.WholeYearsOnlyNotice, ResultStatus.Invalid);
             var durationProblem = await SignedContractDurationProblemAsync(
-                actor.TenantId, request.Kind, request.Arrangement, request.ContractYears, recordedYears: null, ct);
+                actor.TenantId, request.Kind, request.Arrangement, request.ContractYears, recordedYears: null, ct, request.ContractMonths);
             if (durationProblem is not null) return Result<ObligationAccountDto>.Failure(durationProblem, ResultStatus.Conflict);
 
             ObligationAccount account;
@@ -236,7 +241,7 @@ public sealed class ObligationWorkflow(
                 account.SetOccupancyBasis(request.Arrangement, request.ContractReference);
                 if (ObligationAccount.IsMonthlySpaceKind(request.Kind))
                     account.SetLeaseDetails(request.ContractName, request.ContractEffectiveDate,
-                        request.ContractYears, request.AreaSqm, request.AreaLocation, request.ContractMonthlyRate);
+                        request.ContractYears, request.AreaSqm, request.AreaLocation, request.ContractMonthlyRate, request.ContractMonths);
                 // Preserve the actual rate start. Kanmanggay's first period resolves at occupancy start;
                 // subsequent monthly periods use their first day. Contract metadata never prices the account.
                 rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, request.Amount, actor.Username);
@@ -398,8 +403,10 @@ public sealed class ObligationWorkflow(
             {
                 if (!ObligationAccount.IsSpaceKind(input.Kind))
                     throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                if (input.ContractMonths is > 0)
+                    throw new ArgumentException(DomainRules.WholeYearsOnlyNotice);
                 if (input.Kind == ObligationKind.KanmanggaySpaceRental && input.Arrangement == OccupancyArrangement.SignedContract
-                    && input.ContractYears is not null && !durationConfirmed)
+                    && (input.ContractYears is not null || input.ContractMonths is not null) && !durationConfirmed)
                     throw new ArgumentException("No duration policy has been confirmed for this municipality. Save the contract without a duration.");
                 if (input.Kind == ObligationKind.VegetableFruitSpaceRental && origin == SpaceNumberOrigin.Supplied)
                     throw new ArgumentException("Vegetable / Fruits space numbers are assigned by the server.");
@@ -414,7 +421,7 @@ public sealed class ObligationWorkflow(
                 // The same lease evidence a single Add New records (name on the signed contract, effectivity, years, area, the contract's own
                 // rate): an imported register keeps what the office wrote on it instead of silently dropping it. It prices nothing.
                 if (ObligationAccount.IsMonthlySpaceKind(input.Kind))
-                    account.SetLeaseDetails(input.ContractName, input.ContractEffectiveDate, input.ContractYears, input.AreaSqm, input.AreaLocation, input.ContractMonthlyRate);
+                    account.SetLeaseDetails(input.ContractName, input.ContractEffectiveDate, input.ContractYears, input.AreaSqm, input.AreaLocation, input.ContractMonthlyRate, input.ContractMonths);
                 var rate = ObligationRate.Create(actor.TenantId, account.Id, account.ActiveFrom, input.Amount, actor.Username);
                 if (row!.ClosedOn is { } closed) account.Close(closed);
                 if (!seen.Add(account.Kind, account.SubjectLabel, account.Event, account.EventDate))
@@ -441,10 +448,12 @@ public sealed class ObligationWorkflow(
     /// to ask for it.
     /// </remarks>
     private async Task<string?> SignedContractDurationProblemAsync(
-        Guid tenantId, ObligationKind kind, OccupancyArrangement? arrangement, int? requestedYears, int? recordedYears, CancellationToken ct)
+        Guid tenantId, ObligationKind kind, OccupancyArrangement? arrangement, int? requestedYears, int? recordedYears, CancellationToken ct,
+        int? requestedMonths = null, int? recordedMonths = null)
     {
         if (kind != ObligationKind.KanmanggaySpaceRental || arrangement != OccupancyArrangement.SignedContract) return null;
-        if (requestedYears is null || requestedYears == recordedYears) return null;
+        if (requestedYears is null && requestedMonths is null) return null;
+        if (requestedYears == recordedYears && requestedMonths == recordedMonths) return null;
 
         var isDefaultMunicipality = await db.Municipalities.AsNoTracking()
             .Where(m => m.Id == tenantId).Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
@@ -468,11 +477,19 @@ public sealed class ObligationWorkflow(
             var hasHistory = await db.ObligationPeriods.AsNoTracking().AnyAsync(x =>
                 x.MunicipalityId == actor.TenantId && x.ObligationAccountId == accountId, ct);
             var before = new { account.ActualOccupant, account.Arrangement, account.ContractReference,
-                account.ContractName, account.ContractEffectiveDate, account.ContractYears,
+                account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.ContractMonths,
                 account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate };
             var previous = JsonSerializer.Serialize(before);
+            // Months are no longer recorded. A term already stored in months is left exactly as it is by an edit that does not touch the duration; nothing is converted.
+            var keepStoredTerm = account.ContractMonths is not null && request.ContractMonths is null
+                && (request.ContractYears is null || request.ContractYears == account.ContractYears);
+            if (request.ContractMonths is > 0 && request.ContractMonths != account.ContractMonths)
+                return Result<bool>.Failure(DomainRules.WholeYearsOnlyNotice, ResultStatus.Invalid);
+            var requestedYears = keepStoredTerm ? account.ContractYears : request.ContractYears;
+            var requestedMonths = keepStoredTerm ? account.ContractMonths : request.ContractMonths;
             var durationProblem = await SignedContractDurationProblemAsync(
-                actor.TenantId, account.Kind, request.Arrangement, request.ContractYears, account.ContractYears, ct);
+                actor.TenantId, account.Kind, request.Arrangement, requestedYears, account.ContractYears, ct,
+                requestedMonths, account.ContractMonths);
             if (durationProblem is not null) return Result<bool>.Failure(durationProblem, ResultStatus.Conflict);
             if (request.RateChange is { } rate)
             {
@@ -480,15 +497,15 @@ public sealed class ObligationWorkflow(
                 if (!rated.IsSuccess) return rated;
             }
             try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
-                request.ContractName, request.ContractEffectiveDate, request.ContractYears,
-                request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate); }
+                request.ContractName, request.ContractEffectiveDate, requestedYears,
+                request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate, requestedMonths); }
             catch (ArgumentException ex)
             {
                 if (request.RateChange is not null) db.ChangeTracker.Clear();
                 return Result<bool>.Failure(ex.Message, ResultStatus.Conflict);
             }
             var revised = JsonSerializer.Serialize(new { account.ActualOccupant, account.Arrangement, account.ContractReference,
-                account.ContractName, account.ContractEffectiveDate, account.ContractYears,
+                account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.ContractMonths,
                 account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate });
             if (previous == revised)
             {

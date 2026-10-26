@@ -112,7 +112,7 @@
                 {
                     // The Closed chip counts the register, which stands outside the period; every other chip counts
                     // the snapshot on screen.
-                    var count = f.Key == ClosedReason ? CountFor(_closed, f.Key) : CountFor(allItems, f.Key);
+                    var count = f.Key == ClosedReason ? CountFor(_closed, f.Key) : CountFor(allItems, f.Key) + SpaceRows(f.Key).Count;
                     <button type="button" class="fh-chip @(_reason == f.Key ? "fh-chip-active" : "")"
                             disabled="@(count == 0 && f.Key != "all" && _reason != f.Key)"
                             @onclick="@(() => _reason = f.Key)">
@@ -256,7 +256,7 @@
             .Where(x => x.Items.Count > 0)
             .ToList();
 
-        if (visibleSections.Count == 0)
+        if (visibleSections.Count == 0 && ShownSpaces.Count == 0)
         {
             var narrowed = ActiveItems.Count > 0;   // there ARE items; the filters on screen are hiding them
             <div class="fh-empty">
@@ -331,7 +331,7 @@
                                                 case "payor":
                                                     <td>
                                                         <div class="fh-person">@r.Person</div>
-                                                        <div class="fh-sub">@r.Identifier · @r.Facility · @r.Model</div>
+                                                        <div class="fh-sub">@r.Identifier · @FacilityCatalog.ShortNameOf(r.Facility) · @r.Model</div>
                                                     </td>
                                                     break;
                                                 case "periodstatus":
@@ -366,6 +366,40 @@
                 </section>
             }
         }
+
+        @if (ShownSpaces.Count > 0)
+        {
+            @* Space rentals come from their own typed feed: one row per account and reason, the current term's months and an earlier
+               renewed term's months stated apart, so a lifetime balance is never read as the current term's. *@
+            <section class="fh-section" aria-labelledby="fh-space-title">
+                <div class="fh-sec-head fh-sec-normal">
+                    <span class="fh-sec-rail"></span>
+                    <span class="fh-sec-count">@ShownSpaces.Count</span>
+                    <div class="fh-sec-info">
+                        <div class="fh-sec-title" id="fh-space-title">Space rentals</div>
+                        <div class="fh-sec-sub">Unpaid months per account · current and earlier terms stated apart</div>
+                    </div>
+                </div>
+                <div class="fh-table-wrap">
+                    <table class="fh-table">
+                        <thead><tr><th>Payor</th><th>Period &amp; status</th><th>Current term</th><th>Earlier terms</th><th>Outstanding</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (var s in ShownSpaces)
+                            {
+                                <tr class="fh-row fh-pri-@(s.ArrearsMonths > 0 ? "high" : "normal")" @key="@($"{s.First.AccountId}|{s.ReasonKind}")">
+                                    <td><div class="fh-person">@s.Name</div><div class="fh-sub">@s.First.Scope.DisplayName · Space @s.First.SpaceNumber</div></td>
+                                    <td><div class="fh-period">@s.PeriodText</div><div class="fh-sub">@s.ReasonText · @s.MonthsText</div></td>
+                                    <td><span class="fh-note">@(s.CurrentMonths > 0 ? $"₱{s.CurrentOutstanding:N0} · {s.CurrentMonths} mo" : "—")</span></td>
+                                    <td><span class="fh-note">@(s.EarlierMonths > 0 ? $"₱{s.EarlierOutstanding:N0} · {s.EarlierMonths} mo" : "—")</span></td>
+                                    <td><span class="fh-amount">₱@s.Outstanding.ToString("N0")</span></td>
+                                    <td><div class="fh-action-cell"><button type="button" class="fh-action fh-action-btn" @onclick="() => _review = new(null, s.First, _data?.AsOf ?? PhilippineTime.Today)">Review account<span class="fh-action-arrow">→</span></button></div></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        }
     }
 </div>
 
@@ -376,7 +410,7 @@
             <div class="fq-modal-head">
                 <div>
                     <div class="fq-modal-title">Add OR — @_orItem.Person</div>
-                    <div class="fq-modal-sub">@_orItem.Identifier · @_orItem.Facility · @_orItem.Period</div>
+                    <div class="fq-modal-sub">@_orItem.Identifier · @FacilityCatalog.ShortNameOf(_orItem.Facility) · @_orItem.Period</div>
                 </div>
                 <button type="button" class="fq-modal-x" @onclick="CloseAddOr" aria-label="Close">&times;</button>
             </div>
@@ -979,6 +1013,13 @@
     /// period snapshot.
     /// </summary>
     private IReadOnlyList<FollowUpItemDto> ActiveItems => _reason == ClosedReason ? _closed : AllItems;
+
+    // Space accounts under a reason chip, matching the search. Not a facility, so a facility filter or the Closed register shows none.
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceRows(string key) =>
+        key == ClosedReason || _facility is not null ? []
+        : EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.For(_data?.ObligationItems ?? [], key)
+            .Where(a => a.Matches(_search)).ToList();
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> ShownSpaces => SpaceRows(_reason);
 
     private const string ClosedReason = "closed";
 

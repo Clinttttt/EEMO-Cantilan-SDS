@@ -40,6 +40,9 @@ namespace EEMOCantilanSDS.Infrastructure.Services
                 .FirstOrDefault();
             if (string.IsNullOrWhiteSpace(tenantCode))
             {
+                // A user pointing at a municipality that does not resolve must not be filed under Cantilan (ST-11 #9).
+                if (user.MunicipalityId != Guid.Empty)
+                    throw new InvalidOperationException("The user's municipality has no tenant code.");
                 tenantCode = TenantConstants.DefaultTenantCode;
             }
 

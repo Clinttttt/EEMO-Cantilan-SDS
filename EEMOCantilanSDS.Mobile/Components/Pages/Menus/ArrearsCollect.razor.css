@@ -1,0 +1,12 @@
+/* The checkout is a column, as on New Collection. Page-scoped on purpose. */
+.collection-workspace { display: flex; flex-direction: column; }
+
+/* The loading / offline / missing line sits on the light page surface: it reads as secondary text, not the pale text of the header above it. */
+.collection-message { margin: 16px 4px; color: var(--mobile-text-secondary); font-size: 14px; line-height: 1.45; text-align: center; }
+
+/* Loading: the two cards of the checkout that is coming. */
+.sk { display: block; border-radius: 6px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.sk-source { height: 84px; margin-bottom: 12px; border-radius: 16px; }
+.sk-items { height: 220px; border-radius: 16px; }

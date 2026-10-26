@@ -14,6 +14,7 @@ namespace EEMOCantilanSDS.Api.Controllers;
 public class CollectorAuthController(ISender sender) : ApiBaseController(sender)
 {
     [HttpPost("login")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> LoginAsync([FromBody] CollectorLoginCommand request)
     {
@@ -22,6 +23,7 @@ public class CollectorAuthController(ISender sender) : ApiBaseController(sender)
     }
 
     [HttpPost("refresh-token")]
+    [AllowAnonymous]
     [EnableRateLimiting("auth")]
     public async Task<ActionResult<TokenResponseDto>> RefreshAsync([FromBody] RefreshTokenCommand request)
     {

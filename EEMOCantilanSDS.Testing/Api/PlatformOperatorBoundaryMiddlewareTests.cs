@@ -75,6 +75,7 @@ public class PlatformOperatorBoundaryMiddlewareTests
     [InlineData("/api/activation/municipality")]
     [InlineData("/api/onboarding/by-request/abc")]
     [InlineData("/api/municipalities")]
+    [InlineData("/api/database-health")]
     [InlineData("/health")]
     public async Task ThePlatformsOwnWorkStillReachesTheOperator(string path)
     {

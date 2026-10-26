@@ -106,18 +106,53 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var tx in Visible)
+                        @foreach (var row in Rows)
                         {
-                            <tr @key="tx.CollectionId">
-                                <td>@tx.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td><button type="button" class="cr-link" @ref="_triggers[tx.CollectionId]" @onclick="() => Open(tx)">@tx.Reference</button></td>
-                                <td>@(tx.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
-                                <td>@(string.IsNullOrWhiteSpace(tx.Payor) ? "—" : tx.Payor)</td>
-                                <td>@(tx.Collector ?? "Office")</td>
-                                <td>@tx.Source</td>
-                                <td class="v3-num">@Money(tx.Amount)</td>
-                                <td><span class="cr-status cr-status-@tx.Status.ToLowerInvariant()">@tx.Status</span></td>
-                            </tr>
+                            @if (row.SessionId is { } sessionId)
+                            {
+                                var expanded = _openSessions.Contains(sessionId);
+                                var first = row.Items[0];
+                                var payors = row.Items.Select(t => t.Payor).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+                                var lines = row.Items.Select(t => t.Source).Distinct().ToList();
+                                <tr @key="sessionId" class="cr-group" tabindex="0" aria-expanded="@(expanded ? "true" : "false")" aria-label="@($"One checkout, {row.Items.Count} collections {Money(row.Items.Sum(t => t.Amount))}")"
+                                    @onclick="() => ToggleSession(sessionId)" @onkeydown="e => OnGroupKey(e, sessionId)">
+                                    <td>@first.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td><span class="cr-group-title"><span class="cr-chevron" aria-hidden="true">@(expanded ? "▾" : "▸")</span>One checkout · @row.Items.Count SRCs</span></td>
+                                    <td>@(row.Items.Select(t => t.Instrument).Distinct().Count() == 1 ? (first.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" }) : "OR / CT")</td>
+                                    <td>@(payors.Count == 0 ? "—" : payors.Count == 1 ? payors[0] : $"{payors[0]} + {payors.Count - 1} more")</td>
+                                    <td>@(first.Collector ?? "Office")</td>
+                                    <td>@(lines.Count <= 2 ? string.Join(" · ", lines) : $"{lines[0]} + {lines.Count - 1} more")</td>
+                                    <td class="v3-num">@Money(row.Items.Sum(t => t.Amount))</td>
+                                    <td><span class="cr-status cr-status-@(row.Items.All(t => t.Status == "Posted") ? "posted" : "corrected")">@(row.Items.All(t => t.Status == "Posted") ? "Posted" : "Contains corrections")</span></td>
+                                </tr>
+                                @foreach (var tx in row.Items)
+                                {
+                                    <tr @key="tx.CollectionId" class="cr-child" hidden="@(!expanded)">
+                                        <td>@tx.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                        <td class="cr-child-src"><button type="button" class="cr-link" @ref="_triggers[tx.CollectionId]" @onclick="() => Open(tx)">@tx.Reference</button></td>
+                                        <td>@(tx.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
+                                        <td>@(string.IsNullOrWhiteSpace(tx.Payor) ? "—" : tx.Payor)</td>
+                                        <td>@(tx.Collector ?? "Office")</td>
+                                        <td>@tx.Source</td>
+                                        <td class="v3-num">@Money(tx.Amount)</td>
+                                        <td><span class="cr-status cr-status-@tx.Status.ToLowerInvariant()">@tx.Status</span></td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                var tx = row.Items[0];
+                                <tr @key="tx.CollectionId">
+                                    <td>@tx.Date.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td><button type="button" class="cr-link" @ref="_triggers[tx.CollectionId]" @onclick="() => Open(tx)">@tx.Reference</button></td>
+                                    <td>@(tx.Instrument switch { RevenueInstrumentType.OfficialReceipt => "OR", RevenueInstrumentType.CashTicket => "CT", _ => "—" })</td>
+                                    <td>@(string.IsNullOrWhiteSpace(tx.Payor) ? "—" : tx.Payor)</td>
+                                    <td>@(tx.Collector ?? "Office")</td>
+                                    <td>@tx.Source</td>
+                                    <td class="v3-num">@Money(tx.Amount)</td>
+                                    <td><span class="cr-status cr-status-@tx.Status.ToLowerInvariant()">@tx.Status</span></td>
+                                </tr>
+                            }
                         }
                         @if (Visible.Count == 0)
                         {
@@ -166,6 +201,31 @@
     private string _search = string.Empty;
     private DateOnly _loadedFrom;
     private DateOnly _loadedTo;
+
+    // One checkout with several collections reads as one expandable row when every one of its SRCs is listed; each SRC stays itemized beneath it.
+    private sealed record RegisterRow(Guid? SessionId, IReadOnlyList<Transaction> Items);
+    private readonly HashSet<Guid> _openSessions = [];
+    private IEnumerable<RegisterRow> Rows
+    {
+        get
+        {
+            var items = Visible;
+            var shown = items.Select(t => t.CollectionId).ToHashSet();
+            var sessionOf = new Dictionary<Guid, Guid>();
+            foreach (var session in _data?.Sessions ?? [])
+                if (session.CollectionIds.Count > 1 && session.CollectionIds.All(shown.Contains))
+                    foreach (var id in session.CollectionIds) sessionOf[id] = session.SessionId;
+            var emitted = new HashSet<Guid>();
+            foreach (var tx in items)
+            {
+                if (!sessionOf.TryGetValue(tx.CollectionId, out var sid)) { yield return new(null, [tx]); continue; }
+                if (!emitted.Add(sid)) continue;
+                yield return new(sid, items.Where(t => sessionOf.TryGetValue(t.CollectionId, out var other) && other == sid).ToList());
+            }
+        }
+    }
+    private void ToggleSession(Guid id) { if (!_openSessions.Remove(id)) _openSessions.Add(id); }
+    private void OnGroupKey(KeyboardEventArgs e, Guid id) { if (e.Key is "Enter" or " ") ToggleSession(id); }
 
     private List<Transaction> Visible => _search.Length == 0 ? _transactions : _transactions.Where(Matches).ToList();
 

@@ -94,6 +94,7 @@ public class TenantExportRepository(AppDbContext context, ITenantRestoreSchemaRe
             ["TrmTransporters"] = await context.TrmTransporters.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["TrmTrips"] = await context.TrmTrips.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["PayorStallLinks"] = await context.PayorStallLinks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
+            ["PayorLiabilityLinks"] = await context.PayorLiabilityLinks.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectorFacilityAssignments"] = await context.CollectorFacilityAssignments.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectorOperationAssignments"] = await context.CollectorOperationAssignments.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),
             ["CollectorOperationActivations"] = await context.CollectorOperationActivations.AsNoTracking().Where(x => x.MunicipalityId == mid).ToListAsync(ct),

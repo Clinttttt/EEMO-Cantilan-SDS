@@ -225,6 +225,15 @@ public class ApplicationEfBoundaryTests
         // the existing SettlementCutoverWorkflow; it writes nothing itself.
         "WcfActivationWorkflow.cs",
         "EcfActivationWorkflow.cs",
+        // Revenue Sources: adding an operation lists it and creates its revenue source in one transaction (tenant-scoped, version-checked, idempotent); the setup
+        // read reuses the Collector app's own capability evaluation and writes nothing.
+        "AddTenantOperationCommandHandler.cs",
+        "GetOperationSetupQueryHandler.cs",
+        // ST-20: the facility-month rent activation reads one facility's stalls and month rows, creates the missing Unpaid rows and proves readiness in one
+        // serializable transaction, then drives each row through SettlementCutoverWorkflow; it writes no Collection, authority state or revenue itself.
+        "RentActivationWorkflow.cs",
+        // ST-20: preserves one older legacy monthly-rent payload as a ReconciliationRequired PostingOperation (idempotent, no Collection or balance).
+        "LegacyRentPayloadReconciliation.cs",
         "BusinessPayorWorkflow.cs",
         // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
@@ -286,6 +295,10 @@ public class ApplicationEfBoundaryTests
         // shared unit of work. Tabo batch is a partial of the existing canonical writer, not a second calculation engine.
         "ReportGovernanceWorkflow.cs",
         "SpaceFollowUpWorkflow.cs",
+        "HistoricalArrearsReader.cs",
+        "HistoricalAccessWorkflow.cs",
+        // ST-17: the online monthly-rent poster is the same atomic canonical posting as the Mobile rent path, entered from the gateway settlement.
+        "OnlineRentCanonicalPoster.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
         "FeeScheduleCollectionWorkflow.Office.cs",

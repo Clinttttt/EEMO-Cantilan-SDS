@@ -321,9 +321,9 @@
                                 <div class="txn-ref">@(string.IsNullOrWhiteSpace(child.DocumentNumber) ? "None recorded" : child.DocumentNumber)</div>
                                 @if (child.ReplacementDocumentNumbers.Count > 0)
                                 { <div class="txn-ref">Replacement: @string.Join(", ", child.ReplacementDocumentNumbers)</div> }
-                            </td><td class="txn-num">&#8369;@child.Amount.ToString("N2")
-                                @if (child.CorrectionEffect != 0m) { <div class="txn-net">Net &#8369;@child.NetAmount.ToString("N2")</div> }
-                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenSessionChild(child)">Details</button>
+                            </td><td class="txn-num"><div class="txr-amount"><div class="txr-amount-fig">&#8369;@child.Amount.ToString("N2")
+                                @if (child.CorrectionEffect != 0m) { <div class="txn-net">Net &#8369;@child.NetAmount.ToString("N2")</div> }</div>
+                                <button class="v3-btn v3-btn-sm" type="button" @onclick="() => OpenSessionChild(child)">Details</button></div>
                             </td></tr>
                     }
                     </tbody>

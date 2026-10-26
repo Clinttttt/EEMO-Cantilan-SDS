@@ -78,6 +78,33 @@ public sealed class SpaceAccountProfileTests : TestContext
     }
 
     [Fact]
+    public void ARenewedSpaceStatesItsEarlierTermsApart_LikeTheStallProfile_AndTheTwoBalancesAddBackToTheAccount()
+    {
+        var account = Signed() with
+        {
+            CollectedToDate = 2_000m, OutstandingToDate = 7_000m,
+            Terms =
+            [
+                new(1, new DateOnly(2022, 10, 25), 1, new DateOnly(2023, 10, 24), new DateOnly(2025, 10, 24), "Estate of Elena Ramos", "KMG-006", 6_000m, 1_000m, 5_000m, false),
+                new(2, new DateOnly(2025, 10, 25), 3, new DateOnly(2028, 10, 24), null, "Estate of Elena Ramos", "KMG-007", 3_000m, 1_000m, 2_000m, true)
+            ]
+        };
+        var cut = Open(account, "kanmanggay");
+
+        cut.WaitForAssertion(() =>
+        {
+            var text = cut.Find(".rental-profile").TextContent;
+            Assert.Contains("Earlier Terms on This Space", text);
+            Assert.Contains("Oct 2022 – Oct 24, 2025", text);
+            Assert.Contains("₱5,000 owed", text);
+            Assert.Contains("Current Term Balance", text);
+            Assert.Contains("Earlier Terms Balance", text);
+            Assert.Contains("₱2,000", text);
+            Assert.DoesNotContain("Balance To Date", text);
+        }, Timeout);
+    }
+
+    [Fact]
     public void AnAccountWithoutAContractShowsNoContractOnFile_NotAnInventedLessee()
     {
         var account = Signed(ObligationKind.VegetableFruitSpaceRental) with { Arrangement = OccupancyArrangement.SpaceOnly, ContractReference = null, ContractName = null, ContractEffectiveDate = null,

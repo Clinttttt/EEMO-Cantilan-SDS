@@ -72,10 +72,15 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
 
         // Mirror the OR onto the ledger record (so it surfaces in normal reports) and complete the
         // online transaction. The OR is manual staff input — never auto-generated.
-        record.SetOrNumber(request.ORNumber, actor);
+        // A Canonical row's money is the Collection posted at settlement (ST-17); the legacy OR mirror is not writable there,
+        // so the staff OR is kept on the transaction only.
+        if (record.SettlementAuthorityState == SettlementAuthority.Legacy)
+        {
+            record.SetOrNumber(request.ORNumber, actor);
+            await paymentRepository.UpdateAsync(record, cancellationToken);
+        }
         transaction.CompleteWithOr(request.ORNumber, actor);
 
-        await paymentRepository.UpdateAsync(record, cancellationToken);
         await unitOfWork.SaveChangesAsync(cancellationToken);
         await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
             tenantContext.TenantCode,

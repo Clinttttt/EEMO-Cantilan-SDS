@@ -134,7 +134,7 @@ else
                         <div><dt>Occupancy basis</dt><dd>@(selectedAccount.Event is not null ? $"{selectedAccount.Event} · {selectedAccount.EventDate}" : SpaceAccountPresentation.Basis(selectedAccount))</dd></div>
                         @if (!string.IsNullOrWhiteSpace(selectedAccount.ContractName)) { <div><dt>Name on signed contract</dt><dd>@selectedAccount.ContractName</dd></div> }
                         @if (selectedAccount.ContractEffectiveDate is { } contractDate) { <div><dt>Contract effectivity</dt><dd>@contractDate.ToString("MMM d, yyyy")</dd></div> }
-                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@contractYears years</dd></div> }
+                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@(DomainRules.DescribeTerm(contractYears, selectedAccount.ContractMonths) ?? contractYears + " years")</dd></div> }
                         @if (selectedAccount.AreaSqm is { } spaceArea) { <div><dt>Recorded area</dt><dd>@spaceArea.ToString("N2") sq.m</dd></div> }
                         @if (!string.IsNullOrWhiteSpace(selectedAccount.AreaLocation)) { <div><dt>Area location / note</dt><dd>@selectedAccount.AreaLocation</dd></div> }
                         @if (SpaceAccountPresentation.Reference(selectedAccount) is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
@@ -602,7 +602,7 @@ else
                         {
                             <div class="avm-group">
                                 <span class="avm-label">Contract Duration</span>
-                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{kept} years, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
+                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{DomainRules.DescribeTerm(kept, _editFor?.ContractMonths) ?? kept + " years"}, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
                             </div>
                         }
                         else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)

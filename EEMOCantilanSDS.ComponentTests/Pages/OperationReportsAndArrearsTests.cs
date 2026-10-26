@@ -207,6 +207,76 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.NotNull(cut.Find("details.arr-note-disclosure summary"));
         }, Timeout);
     }
+    private static ObligationFollowUpItemDto SpacePeriod(string payer, Guid account, string code, string display, DateOnly period, decimal assessed, decimal collected,
+        string reason, string? basis, bool earlier = false) =>
+        new(account, Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, code, display), period, assessed, collected, assessed - collected,
+            "Normal", null, "/operations", reason, basis, earlier, new DateOnly(2025, 10, 24));
+
+    [Fact]
+    public void ThePrintedReportIncludesSpaceRentals_ByOperationName_ReconcilesWithTheWorkspace_AndLeavesTheFinancialReportFiguresAlone()
+    {
+        ArrearsData();
+        var greggor = Guid.NewGuid(); var loren = Guid.NewGuid(); var ana = Guid.NewGuid();
+        var history = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+            [new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m, false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4")],
+            ObligationItems:
+            [
+                SpacePeriod("Greggor Dal", greggor, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", new(2025, 11, 1), 10_000m, 0m, "arrears", "Expired contract"),
+                SpacePeriod("Greggor Dal", greggor, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", new(2025, 12, 1), 10_000m, 0m, "arrears", "Expired contract"),
+                // A renewed account: an earlier-term month part-paid, and a current-year month.
+                SpacePeriod("Lorenofs Brando", loren, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2025, 9, 1), 1_000m, 400m, "arrears", "Expired contract", earlier: true),
+                SpacePeriod("Lorenofs Brando", loren, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2026, 8, 1), 1_000m, 0m, "delinquent", null),
+                SpacePeriod("Ana Cruz", ana, "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2026, 8, 1), 500m, 0m, "delinquent", null)
+            ]));
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(history);
+
+        var report = RenderComponent<ArrearsReport>();
+        var workspace = RenderComponent<Arrears>();
+        report.WaitForAssertion(() => Assert.Contains("space rentals (account register)", report.Markup), Timeout);
+        workspace.WaitForAssertion(() => Assert.Contains("Ana Cruz", workspace.Markup), Timeout);
+
+        // The financial report's own position (stall rentals) is untouched: 7 + 2 accounts, ₱12,345 + ₱8,000.
+        var positions = report.FindAll(".v3-report-section").Where(s => s.QuerySelector("h3")!.TextContent.StartsWith("Position")).ToList();
+        Assert.Contains("stall rentals (financial report)", positions[0].QuerySelector("h3")!.TextContent);
+        Assert.Contains("₱12,345.00", positions[0].TextContent);
+        Assert.Contains("₱8,000.00", positions[0].TextContent);
+        Assert.Contains("₱20,345.00", positions[0].TextContent);
+
+        // Space position: Delinquent = Lorenofs ₱1,000 + Ana ₱500; Arrears = Greggor ₱20,000 + Lorenofs' earlier term ₱600 (part-paid month).
+        var space = positions[1].TextContent;
+        Assert.Contains("₱1,500.00", space);
+        Assert.Contains("₱20,600.00", space);
+        Assert.Contains("₱22,100.00", space);
+        // All sources reconcile: the stall position plus the space position, and the same total the workspace hero states.
+        Assert.Contains("₱20,345.00 stall rentals + ₱22,100.00 space rentals = ₱42,445.00", System.Text.RegularExpressions.Regex.Replace(positions[1].TextContent, @"\s+", " "));
+        workspace.WaitForAssertion(() => Assert.Contains("₱42,445.00", workspace.Find(".v3-page").TextContent), Timeout);
+
+        // By facility and operation: each space operation by its server name, counted as accounts per reason; the footer adds the rows above it.
+        var bySource = report.Find("#arrr-by-source").Closest("section")!;
+        var rows = bySource.QuerySelectorAll("tbody tr").Select(r => r.TextContent.Trim()).ToList();
+        Assert.Contains(rows, r => r.Contains("Kanmanggay") && r.Contains("₱2,100.00"));                 // Lorenofs ₱1,000 + earlier term ₱600 + Ana ₱500
+        Assert.Contains(rows, r => r.Contains("Vegetable / Fruits") && r.Contains("₱20,000.00"));
+        Assert.DoesNotContain(rows, r => r.Contains("SPACE_RENTAL"));
+        Assert.Contains("₱30,100.00", bySource.QuerySelector("tfoot")!.TextContent);                   // the rows above: stall register ₱8,000 + space ₱22,100
+
+        // Register: one row per account and reason, the earlier term stated, the amount that reason's own months.
+        var register = report.Find("#arrr-register").Closest("section")!.TextContent;
+        Assert.Contains("Greggor Dal", register);
+        Assert.Contains("₱20,000.00", register);
+        Assert.Contains("earlier terms ₱600", register);
+        Assert.Contains("Space 4", register);
+    }
+
+    [Fact]
+    public void ThePrintedReportWithNoSpaceRentals_IsTheStallReportAsBefore()
+    {
+        ArrearsData();
+        var cut = RenderComponent<ArrearsReport>();
+        cut.WaitForAssertion(() => Assert.Contains("Rosa Magbanua", cut.Markup), Timeout);
+        Assert.DoesNotContain("space rentals (account register)", cut.Markup);
+        Assert.Null(cut.Find("#arrr-by-source").Closest("section")!.QuerySelector("tfoot"));
+    }
+
     [Fact]
     public void TheArrearsReport_StatesNoFixedInstrument()
     {
@@ -224,6 +294,102 @@ public sealed class OperationReportsAndArrearsTests : TestContext
             Assert.Contains("Rosa Magbanua", cut.Find("section[aria-labelledby='arrr-register']").TextContent);
         }, Timeout);
     }
+    [Fact]
+    public void SpaceRentalsJoinTheRegister_UnderTheirOwnCondition_OneRowPerAccount_AndCountInTheFigures()
+    {
+        ArrearsData();
+        ObligationFollowUpItemDto Month(string payer, Guid account, DateOnly period, decimal owed, string reason, string? basis, bool earlier = false) =>
+            new(account, Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits"), period, owed, 0m, owed,
+                "Normal", null, "/operations/vegetable-fruit", reason, basis, earlier, new DateOnly(2025, 10, 24));
+        var greggor = Guid.NewGuid();
+        var history = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+            [new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m, false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4")],
+            ObligationItems:
+            [
+                Month("Greggor Dal", greggor, new(2025, 11, 1), 10_000m, "arrears", "Expired contract"),
+                Month("Greggor Dal", greggor, new(2025, 12, 1), 10_000m, "arrears", "Expired contract"),
+                Month("Ana Cruz", Guid.NewGuid(), new(2026, 8, 1), 500m, "delinquent", null)
+            ]));
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(history);
+
+        var cut = RenderComponent<Arrears>();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Cruz", cut.Markup), Timeout);                       // Delinquent space month on the Delinquent register
+        Assert.DoesNotContain("Greggor Dal", cut.Find("table").TextContent);
+        Assert.Contains("8", cut.Find(".v3-hero, header").TextContent);                                    // 7 delinquent rentals + 1 space account
+
+        cut.Find("select").Change("arrears");
+        cut.WaitForAssertion(() =>
+        {
+            var row = cut.FindAll("tbody tr").Single(r => r.TextContent.Contains("Greggor Dal"));
+            Assert.Contains("₱20,000.00", row.TextContent);                                                // one row, both months
+            Assert.Contains("Arrears · term ended Oct 24, 2025 · 2 months", row.TextContent);
+            Assert.Contains("2 of 2 Arrears accounts shown", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void EachSpaceOperationIsItsOwnSource_ByTheServersName_FilteredStrictly_AndASwitchedConditionDropsAStaleSource()
+    {
+        ArrearsData();
+        ObligationFollowUpItemDto Month(string payer, Guid account, string code, string display, DateOnly period, decimal owed, string reason) =>
+            new(account, Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, code, display), period, owed, 0m, owed,
+                "Normal", null, "/operations", reason, reason == "arrears" ? "Previous year" : null);
+        var history = Result<FollowUpQueueDto>.Success(new FollowUpQueueDto("October 2026", DateOnly.FromDateTime(DateTime.Today),
+            [new(1, "Critical", "Delinquent", "delinquent", FacilityCode.NCC, "Monthly rental", "Rosa Magbanua", "Stall 3", 2_700m, false, "3 months to September 2026", "Unpaid · 3 months", "Record payment", "/profile/ncc/3"),
+             new(1, "High", "Arrears", "arrears", FacilityCode.TCC, "Monthly rental", "Pedro Reyes", "Stall 4", 8_000m, false, "Nov 2025 – Dec 2025", "Arrears · 2 months · previous year", "Record payment", "/profile/tcc/4")],
+            ObligationItems:
+            [
+                Month("Greggor Dal", Guid.NewGuid(), "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits", new(2025, 11, 1), 10_000m, "arrears"),
+                Month("Lorenofs Brando", Guid.NewGuid(), "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2025, 9, 1), 1_000m, "arrears"),
+                Month("Ana Cruz", Guid.NewGuid(), "KANMANGGAY_SPACE_RENTAL", "Kanmanggay", new(2026, 8, 1), 500m, "delinquent")
+            ]));
+        _reports.Setup(x => x.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(history);
+        var cut = RenderComponent<Arrears>();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Cruz", cut.Markup), Timeout);
+        var condition = () => cut.FindAll("select")[0];
+        var source = () => cut.FindAll("select")[1];
+        string[] Options() => source().QuerySelectorAll("option").Select(o => o.TextContent.Trim()).ToArray();
+
+        // Delinquent: only Kanmanggay has accounts, so only it is offered; no internal code, no generic "Space rentals".
+        Assert.Contains("Kanmanggay", Options());
+        Assert.DoesNotContain("Vegetable / Fruits", Options());
+        Assert.DoesNotContain(Options(), o => o.Contains("SPACE_RENTAL") || o == "Space rentals");
+        source().Change("op:KANMANGGAY_SPACE_RENTAL");
+        cut.WaitForAssertion(() =>
+        {
+            var body = cut.Find("tbody").TextContent;
+            Assert.Contains("Ana Cruz", body);
+            Assert.DoesNotContain("Rosa Magbanua", body);                                                   // a stall row is not a Kanmanggay account
+        }, Timeout);
+
+        // Arrears: both operations offered; the Kanmanggay choice still applies and shows only Kanmanggay's Arrears account.
+        condition().Change("arrears");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Vegetable / Fruits", Options());
+            var body = cut.Find("tbody").TextContent;
+            Assert.Contains("Lorenofs Brando", body);
+            Assert.DoesNotContain("Greggor Dal", body);
+            Assert.DoesNotContain("Pedro Reyes", body);
+        }, Timeout);
+        source().Change("op:VEGETABLE_FRUIT_SPACE_RENTAL");
+        cut.WaitForAssertion(() => Assert.Contains("Greggor Dal", cut.Find("tbody").TextContent), Timeout);
+
+        // Back to Delinquent: Vegetable / Fruits has no Delinquent account, so the stale choice falls back to All sources.
+        condition().Change("delinquent");
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("", source().GetAttribute("value") ?? "");
+            var body = cut.Find("tbody").TextContent;
+            Assert.Contains("Rosa Magbanua", body);
+            Assert.Contains("Ana Cruz", body);
+        }, Timeout);
+
+        source().Change("");
+        cut.Find("input[type=search]").Input("Ana");
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll("tbody tr")), Timeout);
+    }
+
     [Fact]
     public void TheArrearsFilterListsTheServersArrearsRows_NotTheDelinquentOnesAndNotAnEmptyRegister()
     {

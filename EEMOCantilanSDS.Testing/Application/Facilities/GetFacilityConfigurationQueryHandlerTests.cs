@@ -36,6 +36,29 @@ public class GetFacilityConfigurationQueryHandlerTests
     }
 
     [Fact]
+    public async Task TheSuggestedNamesAreMunicipalityNeutral_AndTheCommercialCentersStayDistinct()
+    {
+        var repo = new Mock<IFacilityRepository>();
+        repo.Setup(r => r.GetConfiguredFacilitiesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<ConfiguredFacilityDto>());
+
+        var result = await new GetFacilityConfigurationQueryHandler(repo.Object).Handle(new GetFacilityConfigurationQuery(), CancellationToken.None);
+
+        var byCode = result.Value!.Available.Where(a => !a.IsCustom).ToDictionary(a => a.Code);
+        // Stable codes and billing models are unchanged; only the suggested wording is neutral.
+        Assert.Equal(new[] { "NPM", "TCC", "NCC", "BBQ", "ICE", "SLH", "TRM", "TPM" }, byCode.Keys.ToArray());
+        Assert.Equal("Commercial Center", byCode["TCC"].Name);
+        Assert.Equal("New Commercial Center", byCode["NCC"].Name);
+        Assert.Equal("Weekly Market", byCode["TPM"].Name);
+        Assert.Equal("Public Market", byCode["NPM"].Name);
+        Assert.NotEqual(byCode["TCC"].Name, byCode["NCC"].Name);
+        Assert.All(byCode.Values, a =>
+        {
+            foreach (var place in new[] { "Tampak", "Tabo", "Cantilan", "EEMO" })
+                Assert.DoesNotContain(place, a.Name, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
     public async Task AllCanonicalConfigured_StillOffersACustomSlot()
     {
         var all = new[] { "NPM", "TCC", "NCC", "BBQ", "ICE", "SLH", "TRM", "TPM" }

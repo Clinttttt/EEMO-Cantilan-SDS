@@ -101,6 +101,7 @@ public sealed class ContractsMonitoringQueries(AppDbContext db, ICurrentMunicipa
                                OccupancyStart = contract.EffectivityDate,
                                EffectivityDate = contract.Arrangement == OccupancyArrangement.SignedContract ? contract.EffectivityDate : null,
                                DurationYears = contract.Arrangement == OccupancyArrangement.SignedContract && contract.DurationYears > 0 ? contract.DurationYears : null,
+                               DurationMonths = null,
                                Ended = stall.Status == StallStatus.Closed || contract.EndedOn < today || !contract.IsActive && (contract.EndedOn == null || contract.EndedOn < today),
                                ClosureDate = stall.Status == StallStatus.Closed ? stall.ClosedAt : contract.EndedOn,
                                ApprovedCharge = facility.Archetype == BillingArchetype.MonthlyRental ? contract.ActualMonthlyRental ?? contract.MonthlyRentalRate : null,
@@ -126,6 +127,7 @@ public sealed class ContractsMonitoringQueries(AppDbContext db, ICurrentMunicipa
                                  OccupancyStart = account.ActiveFrom,
                                  EffectivityDate = account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractEffectiveDate : null,
                                  DurationYears = account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractYears : null,
+                                 DurationMonths = account.Arrangement == OccupancyArrangement.SignedContract ? account.ContractMonths : null,
                                  Ended = account.ActiveTo != null && account.ActiveTo < today, ClosureDate = account.ActiveTo,
                                  ApprovedCharge = db.ObligationRates.Where(r => r.MunicipalityId == tenant && r.ObligationAccountId == account.Id && r.EffectiveFrom <= today)
                                      .OrderByDescending(r => r.EffectiveFrom).ThenByDescending(r => r.Id).Select(r => (decimal?)r.Amount).FirstOrDefault(),

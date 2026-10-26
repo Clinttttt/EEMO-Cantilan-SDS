@@ -148,6 +148,20 @@
                     </ul>
                     }
                 }
+                @* Not an operation: the account-level list of overdue rent, in the same row language as the operations above. *@
+                <h3 class="menu-section-title">Others</h3>
+                <ul class="menu-list">
+                    <li>
+                        <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/arrears")'>
+                            <span class="menu-tile ready" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg></span>
+                            <span class="menu-row-main">
+                                <span class="menu-row-name">Arrears &amp; Delinquency</span>
+                                <span class="menu-row-status">Overdue rent and balances</span>
+                            </span>
+                            <span class="menu-row-chevron" aria-hidden="true">›</span>
+                        </button>
+                    </li>
+                </ul>
             </section>
 
             @if (Work.AssignedUnavailable.Count > 0)

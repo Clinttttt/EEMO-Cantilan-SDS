@@ -14,7 +14,7 @@ public static class RentalAccountStatus
     public static RentalAccountState Of(ObligationAccountDto a)
     {
         DateOnly? termLast = a.Arrangement == OccupancyArrangement.SignedContract && a.ContractEffectiveDate is { } start && a.ContractYears is { } years
-            ? DomainRules.TermLastDay(start, years) : null;
+            ? DomainRules.TermLastDay(start, years, a.ContractMonths) : null;
         return RentalAccountStates.Classify(a.ActiveTo, a.Retired, false, termLast, PhilippineTime.Today);
     }
 
@@ -33,7 +33,7 @@ public static class RentalAccountStatus
     /// <summary>The last day of the recorded signed term, if there is one.</summary>
     public static DateOnly? TermLastDay(ObligationAccountDto a) =>
         a.Arrangement == OccupancyArrangement.SignedContract && a.ContractEffectiveDate is { } start && a.ContractYears is { } years
-            ? DomainRules.TermLastDay(start, years) : null;
+            ? DomainRules.TermLastDay(start, years, a.ContractMonths) : null;
 
     /// <summary>The register's short status: Active, Ending, Retired or Closed (the term having run out does not close an account).</summary>
     public static string Label(ObligationAccountDto a) => Of(a) switch

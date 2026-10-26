@@ -240,8 +240,8 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             for (var i = 0; i < rows.Count; i++)
                 if (rows[i].Kind is CollectionSessionItemKind.VendorFee or CollectionSessionItemKind.Weighing)
                     rows[i] = rows[i] with { CanAdd = false, ReasonCode = "RequiresSourceIdentity", Reason = "Select a Fish or Meat Vendor Registration." };
-        return CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
-            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources));
+        return await LabelSpaceArrearsAsync(CollectionSessionChoiceProjection.Apply(new(payorId, date, rows, waterSources, electricitySources, obligationSources,
+            terms, weighingSources, weighingRates, slaughterOptions, payerName, vendorSources, npmSources, npmWholeSources)), date, ct);
     }
 
     public async Task<(CollectionSessionItemQuote? Quote, CollectionSessionProblem? Problem)> QuoteAsync(
@@ -418,6 +418,12 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
                     return Fail("SourceNotAvailable", "No approved Official Receipt policy is effective for this rental.");
+                // Only a REGISTERED Official Receipt needs the operation to support OR custody; a typed reference is descriptive, unverified, and allowed for every space rental.
+                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) && !CollectorOperationCodes.IsSpaceObligation(operationCode))
+                    return Fail("ReceiptNotSupported", "A registered Official Receipt cannot be used for this rental yet. Clear it to record the SRC.");
+                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber)
+                    && (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false })
+                    return Fail("ReceiptUnavailable", "The Official Receipt must be registered, unused and in your accountable-form custody.");
                 return (Q(operationCode, quote.KindLabel, $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
                     RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, new { quote.AccountId, quote.PeriodId,
                         quote.RateId, quote.AssessedAmount, quote.SettledAmount, quote.OutstandingAmount, Policy = policy.Id }), null);
@@ -439,6 +445,32 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             }
             default: return Fail("NotSupportedYet", "This source has no itemized adapter yet.");
         }
+    }
+
+    public async Task StampReceiptReferenceAsync(IReadOnlyList<CollectionSessionCollection> collections, string reference, CancellationToken ct)
+    {
+        var ids = collections.Where(c => c.Instrument == RevenueInstrumentType.OfficialReceipt).Select(c => c.CollectionId).Distinct().ToArray();
+        if (ids.Length == 0) return;
+        var withDocument = (await db.AccountableDocuments.AsNoTracking().Where(d => d.MunicipalityId == Tenant && d.CollectionId != null && ids.Contains(d.CollectionId.Value))
+            .Select(d => d.CollectionId!.Value).ToListAsync(ct)).ToHashSet();
+        var text = reference?.Trim();
+        if (string.IsNullOrEmpty(text) || text.Length > 100) throw new ArgumentException("The optional reference must be 1 to 100 characters.", nameof(reference));
+        // Set once, in the unit of work that created the collection, through the store: the domain entity stays free of any public mutation API.
+        foreach (var collection in await db.Collections.Where(c => c.MunicipalityId == Tenant && ids.Contains(c.Id)).ToListAsync(ct))
+            if (collection.ReceiptReference is null && !withDocument.Contains(collection.Id)) db.Entry(collection).Property(nameof(Collection.ReceiptReference)).CurrentValue = text;
+        await db.SaveChangesAsync(ct);
+    }
+
+    public async Task<CollectionSessionCollection> PostObligationMonthsAsync(CollectionSessionIntent session,
+        IReadOnlyList<CollectionSessionItemIntent> items, Guid operation, CancellationToken ct)
+    {
+        var account = items[0].Obligation!.AccountId;
+        var posted = await Composer.PostMobileObligationMonthsAsync(new(operation, account,
+            items.Select(i => new MobileObligationMonthAmount(i.Obligation!.Year, i.Obligation.Month, i.ConfirmedAmount)).ToArray(),
+            session.BusinessDate, session.OfficialReceiptNumber ?? "", session.ReceiptReference), ct);
+        if (!posted.IsSuccess) throw new CollectionSessionPostingException(items[0].ClientItemId, "The account or receipt changed during posting. Review the checkout.");
+        return new(posted.Value!.CollectionId, posted.Value.ReferenceCode, RevenueInstrumentType.OfficialReceipt, posted.Value.Amount,
+            items.Select(i => i.ClientItemId).ToArray(), "Posted");
     }
 
     public async Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)

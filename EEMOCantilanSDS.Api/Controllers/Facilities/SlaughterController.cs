@@ -96,6 +96,7 @@ public class SlaughterController(ISender sender, ApprovedSlaughterAnimalWorkflow
     }
 
     [HttpPost("or")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveSlaughterOrNumberCommand command)
     {
         var result = await sender.Send(command);

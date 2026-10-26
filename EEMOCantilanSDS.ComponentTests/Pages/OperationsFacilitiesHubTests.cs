@@ -82,6 +82,49 @@ public sealed class OperationsFacilitiesHubTests : TestContext
     }
 
     [Fact]
+    public void CustomFacilitiesShowTheirOwnAcronym_NeverTheInternalSlotCode_WhetherSavedOrDerived()
+    {
+        var summaries = new[]
+        {
+            Summary(FacilityCode.Custom1, "Rest Rooms", "RR"),
+            Summary(FacilityCode.Custom2, "Cold Storage", ""),                      // no acronym saved: derived from the name
+            new FacilitySidebarSummaryDto(FacilityCode.Custom3, "Night Market", "NM", 0, CustomCategory: CustomFacilityCategory.SpaceRental)
+        };
+        Services.AddSingleton(FacilityApi(summaries).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            foreach (var (code, name, acronym) in new[] { (FacilityCode.Custom1, "Rest Rooms", "RR"), (FacilityCode.Custom2, "Cold Storage", "CS"), (FacilityCode.Custom3, "Night Market", "NM") })
+            {
+                var row = cut.Find($"[data-facility-code='{code}']").TextContent;
+                Assert.Contains(name, row);
+                Assert.Contains(acronym, row);
+                Assert.DoesNotContain("Custom", row);                               // the internal slot code is identity, not wording
+            }
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AFacilityPageForAnAcronymTheOfficeDoesNotHave_StatesNotFound_InsteadOfSilentlyRedirecting()
+    {
+        var api = FacilityApi([Summary(FacilityCode.Custom1, "Rest Rooms", "RR")]);
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(new EEMOCantilanSDS.Client.Services.FacilityState(api.Object, retryAfterFailure: TimeSpan.Zero));
+        var navigation = Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>();
+        var start = navigation.Uri;
+
+        var cut = RenderComponent<CustomFacilityPage>(p => p.Add(x => x.Slug, "zz"));
+
+        cut.WaitForAssertion(() => Assert.Contains("That facility was not found", cut.Markup), Timeout);
+        Assert.Equal(start, navigation.Uri);                                        // no bounce to /menu
+        Assert.Contains("/operations", cut.Find("a.btn-outline").GetAttribute("href"));
+        // The catalogue was re-read once before giving up (a facility created a moment ago would have been found).
+        api.Verify(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>()), Times.AtLeast(2));
+    }
+
+    [Fact]
     public void RendersOnlyTenantSummaryFacilities_WithTenantNamesAndExistingSlugs()
     {
         var summaries = new[]

@@ -170,6 +170,8 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
         public DbSet<PayorActivationCode> PayorActivationCodes { get; set; }
         public DbSet<PayorStallLink> PayorStallLinks { get; set; }
+        public DbSet<PayorHistoricalAccessCode> PayorHistoricalAccessCodes { get; set; }
+        public DbSet<PayorLiabilityLink> PayorLiabilityLinks { get; set; }
 
       
         public DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; set; }

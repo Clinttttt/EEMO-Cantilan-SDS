@@ -17,7 +17,8 @@ public class RecordPaymentCommandHandler(
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext, IClock clock) : IRequestHandler<RecordPaymentCommand, Result<bool>>
+    ITenantContext tenantContext, IClock clock,
+    Common.Revenue.LegacyRentPayloadReconciliation? lateLegacyPayloads = null) : IRequestHandler<RecordPaymentCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordPaymentCommand request, CancellationToken ct)
     {
@@ -103,7 +104,17 @@ public class RecordPaymentCommandHandler(
                 return Result<bool>.NotFound();
 
             if (existingPayment.SettlementAuthorityState != SettlementAuthority.Legacy)
+            {
+                // The payload is not dropped: what was submitted is preserved durably for office reconciliation (no Collection, SRC or balance is created).
+                if (lateLegacyPayloads is not null)
+                {
+                    var actorId = (collectorId ?? currentUser.UserId)?.ToString("N") ?? recordedBy;
+                    var preserved = await lateLegacyPayloads.PreserveAsync(existingPayment.MunicipalityId, existingPayment, request, actorId, fromWeb: !isCollectorRequest, ct);
+                    if (!preserved.IsSuccess)
+                        return Result<bool>.Failure(preserved.Error ?? "The old monthly-rent payload requires reconciliation.", preserved.Status);
+                }
                 return Result<bool>.Failure("RECONCILIATION_REQUIRED: This monthly source is transitioning or canonical. Refresh and use its reviewed rent receipt; legacy status changes are disabled.", ResultStatus.Conflict);
+            }
 
             // Stamp the offline idempotency key on the UPDATE path too (not just create), so a lost-ack
             // retry of the same queued op is caught by the sync pre-check instead of re-applying the write.

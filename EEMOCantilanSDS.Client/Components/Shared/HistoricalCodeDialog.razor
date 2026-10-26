@@ -1,0 +1,159 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Common
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Mobile
+@using EEMOCantilanSDS.Application.Dtos.Payors
+@using EEMOCantilanSDS.Domain.Common
+@inject IActivationCodesApiClient Codes
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@* Issue a single-use code for ONE historical liable account (the original stall contract, or the space obligation account).
+   Mounted only when the office opens it, so the Arrears page loads nothing for it. The server decides eligibility, the payer
+   confirmation and Activation vs Link; this dialog gathers the contact number, the payer confirmation and the expiry, and states
+   what the server answered. The issued code lives only in this component's state, so it is shown once. *@
+<div class="v3-modal-backdrop" role="presentation" @ref="_root" @onclick="Close">
+    <section class="v3-modal hcd-modal" role="dialog" aria-modal="true" aria-labelledby="hcd-title" @onclick:stopPropagation="true" @onkeydown="OnKey">
+        <header class="v3-modal-header">
+            <h2 id="hcd-title">Issue activation code</h2>
+            <button class="hcd-close" type="button" aria-label="Close" disabled="@_busy" @onclick="Close">×</button>
+        </header>
+        @if (_issued is null)
+        {
+            <form class="v3-modal-body" id="hcd-form" @onsubmit="IssueAsync" @onsubmit:preventDefault="true">
+                <p class="hcd-hint">A single-use code so the person liable for this account can see what they owe in the Payor Portal. Nothing is paid or changed on the account.</p>
+                <div class="hcd-account">
+                    <strong>@Payer</strong>
+                    <span>@Description</span>
+                </div>
+                <label class="v3-field"><span>Payor's mobile number</span>
+                    <input id="hcd-phone" type="tel" inputmode="numeric" maxlength="20" autocomplete="off" placeholder="09xx xxx xxxx" aria-describedby="hcd-phone-hint" @bind="_phone" @bind:event="oninput" />
+                </label>
+                <p id="hcd-phone-hint" class="hcd-hint">The payor must enter this exact number when using the code. If it already has a Payor Portal account, the code links this account to it.</p>
+                <label class="v3-field hcd-days"><span>Valid for (days)</span>
+                    <input id="hcd-days" type="number" min="1" max="90" step="1" inputmode="numeric" @bind="_days" @bind:event="oninput" />
+                </label>
+                <label class="hcd-confirm"><input type="checkbox" @bind="_confirmed" /> <span>I confirmed the person is <strong>@Payer</strong>, the liable payer of this account.</span></label>
+                @if (_error is not null)
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+                    @if (_stale)
+                    {
+                        <p><button class="v3-btn v3-btn-sm" type="button" @onclick="Refresh">Refresh the Arrears list</button></p>
+                    }
+                }
+            </form>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" disabled="@_busy" @onclick="Close">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="submit" form="hcd-form" disabled="@(_busy || !_confirmed)">@(_busy ? "Generating…" : "Generate code")</button>
+            </footer>
+        }
+        else
+        {
+            <div class="v3-modal-body">
+                <div class="hcd-code" role="status" tabindex="-1" @ref="_codeBox">
+                    <small>@(_issued.Mode == "Link" ? "Link code" : "Activation code")</small>
+                    <strong id="hcd-code-value">@_issued.Code</strong>
+                </div>
+                <dl class="hcd-facts">
+                    <div><dt>For</dt><dd>@_issued.PayerName · @_issued.OperationName · @_issued.Space</dd></div>
+                    <div><dt>Mobile number</dt><dd>@_issued.ContactNumber</dd></div>
+                    <div><dt>Expires</dt><dd>@PhilippineTime.ToPhilippineTime(_issued.ExpiresAt).ToString("MMM d, yyyy h:mm tt", CultureInfo.InvariantCulture)</dd></div>
+                </dl>
+                <p class="hcd-hint">@(_issued.Mode == "Link"
+                    ? "This number already has a Payor Portal account, so no second account is created. The payor signs in and links this account with the code."
+                    : "This number has no Payor Portal account yet. The payor activates one with this code and the number above.")</p>
+                <ul class="hcd-notes">
+                    <li>Single-use: it stops working once it is used.</li>
+                    <li>Expires on the date above.</li>
+                    <li>Replaces any earlier unused code for this account.</li>
+                    <li>This is the only time the code is shown. Copy it now.</li>
+                </ul>
+                @if (_copyNote is not null) { <p class="hcd-hint" role="status">@_copyNote</p> }
+            </div>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CopyAsync">Copy code</button>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="Close">Done</button>
+            </footer>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ArrearsAccountKind Kind { get; set; }
+    /// <summary>The ORIGINAL contract id (stall rent) or the obligation account id (space rental).</summary>
+    [Parameter, EditorRequired] public Guid LiableId { get; set; }
+    [Parameter, EditorRequired] public string Payer { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>The server refused because the row is out of date; the page reloads its data.</summary>
+    [Parameter] public EventCallback OnStale { get; set; }
+
+    private ElementReference _root, _codeBox;
+    private IJSObjectReference? _focus;
+    private HistoricalAccessCodeDto? _issued;
+    private string _phone = string.Empty;
+    private int? _days = 30;
+    private bool _confirmed, _busy, _stale, _bound, _refocus;
+    private string? _error, _copyNote;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_refocus) { _refocus = false; try { await _codeBox.FocusAsync(); } catch (InvalidOperationException) { } catch (JSException) { } }
+        if (_bound) return;
+        _bound = true;
+        try
+        {
+            _focus = await JS.InvokeAsync<IJSObjectReference>("import", "./js/account-review.js");
+            await _focus.InvokeVoidAsync("bind", _root);
+        }
+        catch (InvalidOperationException) { }   // prerender has no browser focus
+        catch (JSException) { }
+    }
+
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Escape") await Close(); }
+
+    private async Task Close() { if (!_busy) await OnClose.InvokeAsync(); }
+
+    private async Task Refresh() { await OnStale.InvokeAsync(); await OnClose.InvokeAsync(); }
+
+    private async Task IssueAsync()
+    {
+        if (_busy || !_confirmed) return;
+        if (string.IsNullOrWhiteSpace(_phone)) { _error = "Enter the payor's mobile number."; _stale = false; return; }
+        if (_days is not (>= 1 and <= 90)) { _error = "Validity must be between 1 and 90 days."; _stale = false; return; }
+        _busy = true; _error = null; _stale = false;
+        try
+        {
+            var result = await Codes.IssueHistoricalAsync(new(Kind, LiableId, _phone.Trim(), Payer, _days));
+            if (result.IsSuccess && result.Value is not null) { _issued = result.Value; _refocus = true; }
+            else
+            {
+                _stale = result.Status == ResultStatus.Conflict;
+                _error = result.Status switch
+                {
+                    ResultStatus.Forbidden => "You are not allowed to issue codes for this account.",
+                    ResultStatus.NotFound => "This account is no longer an unpaid account you can issue a code for. Refresh the Arrears list.",
+                    _ => string.IsNullOrWhiteSpace(result.Error) ? "Could not generate the code. Please try again." : result.Error,
+                };
+                if (result.Status == ResultStatus.NotFound) _stale = true;
+            }
+        }
+        catch { _error = "Couldn't reach the server. Check the connection and try again."; }
+        finally { _busy = false; }
+    }
+
+    private async Task CopyAsync()
+    {
+        try { await JS.InvokeVoidAsync("navigator.clipboard.writeText", _issued!.Code); _copyNote = "Code copied."; }
+        catch { _copyNote = "Copy is not available here. Select the code and copy it by hand."; }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_focus is null) return;
+        try { await _focus.InvokeVoidAsync("release", _root); await _focus.DisposeAsync(); }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+    }
+}

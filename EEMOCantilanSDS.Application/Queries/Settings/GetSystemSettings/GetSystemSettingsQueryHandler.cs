@@ -35,10 +35,12 @@ public class GetSystemSettingsQueryHandler(
         // LGU identity (office label, name, province, receipt line) is sourced from the CURRENT tenant's
         // Municipality record — resolved the same way as the branding endpoint (JWT tenant claim → identifier)
         // — rather than the default LGU or hardcoded constants, so each municipality sees its own profile.
-        // Cantilan is unchanged: its seeded record (OfficeName/Name/Province/OfficeAcronym) equals the
-        // OfficeProfile constants, and the whole thing falls back to those constants if the registry is empty.
-        var lgu = await municipalityRepository.GetByIdentifierAsync(tenantContext.TenantCode, ct)
-                  ?? await municipalityRepository.GetDefaultAsync(ct);
+        // An unresolved tenant is an explicit error (ST-11 #5), never the default LGU's profile.
+        var lgu = await municipalityRepository.GetByIdentifierAsync(tenantContext.TenantCode, ct);
+        if (lgu is null)
+        {
+            return Result<SystemSettingsDto>.NotFound();
+        }
 
         var officeLabel = string.IsNullOrWhiteSpace(lgu?.OfficeName) ? OfficeProfile.Office : lgu!.OfficeName;
         var municipality = string.IsNullOrWhiteSpace(lgu?.Name) ? OfficeProfile.Municipality : lgu!.Name;

@@ -50,6 +50,8 @@ public class TenantUsageRepository(AppDbContext context) : ITenantUsageRepositor
         ["Users"] = "User accounts",
         ["PayorActivationCodes"] = "Payor activation codes",
         ["PayorStallLinks"] = "Payor–stall links",
+        ["PayorLiabilityLinks"] = "Payor historical-account links",
+        ["PayorHistoricalAccessCodes"] = "Payor historical access codes",
         ["AuditLogs"] = "Audit log",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",

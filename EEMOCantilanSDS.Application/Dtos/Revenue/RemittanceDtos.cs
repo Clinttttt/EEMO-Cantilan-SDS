@@ -27,7 +27,9 @@ public sealed record RemittanceScopeDto(
     decimal ExpectedAmount,
     IReadOnlyList<RemittanceBreakdownDto> Breakdown,
     string? FirstReferenceCode,
-    string? LastReferenceCode);
+    string? LastReferenceCode,
+    // Presentation only: collections of this scope that came from one Mobile checkout (every child is in the scope). Selection and totals stay per collection.
+    IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup>? Sessions = null);
 
 public sealed record RecordRemittanceRequest(
     Guid ClientOperationId,
@@ -116,7 +118,9 @@ public sealed record RemittanceDetailDto(
     string? FirstReferenceCode,
     string? LastReferenceCode,
     bool NeedsReview,
-    IReadOnlyList<RemittancePriorCoverageDto>? PriorVoidedCoverage = null);
+    IReadOnlyList<RemittancePriorCoverageDto>? PriorVoidedCoverage = null,
+    // Presentation only: covered collections that came from one Mobile checkout, all of them covered by this remittance.
+    IReadOnlyList<global::EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup>? Sessions = null);
 
 public sealed record RemittancePriorCoverageDto(Guid RemittanceId, string? Reference, string? VoidReason,
     string? VoidedBy, DateTime? VoidedAtUtc, int SharedCollectionCount);

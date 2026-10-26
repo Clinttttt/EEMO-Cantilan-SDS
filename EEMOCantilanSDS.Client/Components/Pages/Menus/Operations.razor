@@ -62,8 +62,8 @@
                     var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
                     var href = service.Route ?? (workspace is not null ? FacilityHref(workspace) : null);
                     <li class="ops-item" data-facility-code="@workspace?.Code">
-                        @Line(ServiceLabel(service, workspace), service.Code ?? workspace?.Code.ToString(), service.Receipts, href,
-                              workspace is not null ? $"{workspace.Name} ({workspace.Code})" : null,
+                        @Line(ServiceLabel(service, workspace), service.Code ?? (workspace is null ? null : Acronym(workspace)), service.Receipts, href,
+                              workspace is not null ? $"{workspace.Name} ({Acronym(workspace)})" : null,
                               ExtraLinks(service, workspace), Absence(service))
                     </li>
                 }
@@ -100,8 +100,8 @@
                 @foreach (var facility in RentIncomeFacilities)
                 {
                     <li class="ops-item" data-facility-code="@facility.Code">
-                        @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", FacilityLinks(facility), NoWorkspace)
+                        @Line(facility.Name, Acronym(facility), OfficialReceipt, FacilityHref(facility),
+                              $"{facility.Name} ({Acronym(facility)})", FacilityLinks(facility), NoWorkspace)
                     </li>
                 }
             </ul>
@@ -119,8 +119,8 @@
                 @foreach (var facility in SpaceRentalFacilities)
                 {
                     <li class="ops-item" data-facility-code="@facility.Code">
-                        @Line(facility.Name, facility.Code.ToString(), OfficialReceipt, FacilityHref(facility),
-                              $"{facility.Name} ({facility.Code})", FacilityLinks(facility), NoWorkspace)
+                        @Line(facility.Name, Acronym(facility), OfficialReceipt, FacilityHref(facility),
+                              $"{facility.Name} ({Acronym(facility)})", FacilityLinks(facility), NoWorkspace)
                     </li>
                 }
                 @foreach (var service in SpaceLines)
@@ -162,8 +162,8 @@
                 </h2>
                 <ul class="ops-rows">
                     <li class="ops-item" data-facility-code="@slaughterhouse.Code">
-                        @Line(slaughterhouse.Name, slaughterhouse.Code.ToString(), OfficialReceipt, FacilityHref(slaughterhouse),
-                              $"{slaughterhouse.Name} ({slaughterhouse.Code})", FacilityLinks(slaughterhouse), NoWorkspace)
+                        @Line(slaughterhouse.Name, Acronym(slaughterhouse), OfficialReceipt, FacilityHref(slaughterhouse),
+                              $"{slaughterhouse.Name} ({Acronym(slaughterhouse)})", FacilityLinks(slaughterhouse), NoWorkspace)
                     </li>
                 </ul>
             </section>
@@ -253,6 +253,10 @@
             OperationCode: "FIESTA_ARAW_LOT_RENTAL",
             Links: [new("Space holders", "/operations/fiesta-araw/space-holders"), new("Report", "/operations/fiesta-araw/report")]),
     ];
+
+    // The tenant's own acronym for a facility ("RR"), never its internal slot code ("Custom1"): the saved short name, else one derived from its name.
+    private string Acronym(FacilitySidebarSummaryDto facility) =>
+        EEMOCantilanSDS.Client.Services.FacilityState.AcronymOf(facility);
 
     private IReadOnlyList<FacilitySidebarSummaryDto> _facilities = Array.Empty<FacilitySidebarSummaryDto>();
     private bool _loading = true;

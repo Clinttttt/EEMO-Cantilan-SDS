@@ -39,7 +39,8 @@ public sealed class RemittanceWorkflow(
             if (Validate(from, to) is { } problem) return Result<RemittanceScopeDto>.Failure(problem, ResultStatus.Invalid);
             if (!await CollectorExistsAsync(actor.TenantId, collectorId, ct)) return Result<RemittanceScopeDto>.NotFound();
             var eligible = await EligibleAsync(actor.TenantId, collectorId, from, to, instrument, ct);
-            return Result<RemittanceScopeDto>.Success(BuildScope(collectorId, from, to, instrument, eligible));
+            var scope = BuildScope(collectorId, from, to, instrument, eligible);
+            return Result<RemittanceScopeDto>.Success(scope with { Sessions = await SessionsAsync(actor.TenantId, collectorId, eligible, ct) });
         }, ct);
 
     public Task<Result<RemittanceReviewDto>> GetReviewAsync(RemittanceReviewRequest request, CancellationToken ct = default) =>
@@ -53,9 +54,12 @@ public sealed class RemittanceWorkflow(
             if (valid.Count != selected.Length) return Result<RemittanceReviewDto>.Forbidden();
             var facts = await LoadCollectionFactsAsync(actor.TenantId, null, request.From, request.To, request.Instrument, ct,
                 selectedCollectors: selected);
-            var groups = facts.Where(x => !x.Covered && x.Net > 0m).GroupBy(x => x.CollectorId!.Value).OrderBy(g => g.Key)
-                .Select(g => BuildScope(g.Key, request.From, request.To, request.Instrument,
-                    g.OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode).Select(ToCollectionDto).ToArray())).ToArray();
+            var groups = new List<RemittanceScopeDto>();
+            foreach (var g in facts.Where(x => !x.Covered && x.Net > 0m).GroupBy(x => x.CollectorId!.Value).OrderBy(g => g.Key))
+            {
+                var collections = g.OrderBy(x => x.BusinessDate).ThenBy(x => x.ReferenceCode).Select(ToCollectionDto).ToArray();
+                groups.Add(BuildScope(g.Key, request.From, request.To, request.Instrument, collections) with { Sessions = await SessionsAsync(actor.TenantId, g.Key, collections, ct) });
+            }
             return Result<RemittanceReviewDto>.Success(new(groups, groups.Sum(g => g.ExpectedAmount), groups.Sum(g => g.Collections.Count)));
         }, ct);
 
@@ -549,6 +553,18 @@ public sealed class RemittanceWorkflow(
                 .Select(p => p.DisplayName).FirstOrDefault() ?? codes.GetValueOrDefault(id, "Unclassified"));
     }
 
+    /// <summary>
+    /// The checkouts whose collections are ALL among these (same collector and date). A checkout that is only partly here - another part
+    /// remitted, filtered out, voided to zero, or from an incomplete session - stays individual. Presentation only: no amount is derived.
+    /// </summary>
+    private async Task<IReadOnlyList<CollectionSessionDisplayGroup>> SessionsAsync(
+        Guid tenantId, Guid collectorId, IReadOnlyCollection<RemittanceCollectionDto> collections, CancellationToken ct)
+    {
+        if (collections.Count < 2) return [];
+        return await CollectionSessionReadGroups.LoadAsync(db, tenantId, collections.Min(x => x.BusinessDate), collections.Max(x => x.BusinessDate),
+            collections.Select(x => (x.CollectionId, x.BusinessDate, (Guid?)collectorId)).ToArray(), collectorId, ct);
+    }
+
     private static RemittanceCollectionDto ToCollectionDto(CollectionFact x) =>
         new(x.CollectionId, x.BusinessDate, x.ReferenceCode, x.Instrument, x.PayerName, x.Net, x.Lines, x.CorrectedAfterRemittance);
 
@@ -595,7 +611,8 @@ public sealed class RemittanceWorkflow(
             ToRow(remittance, names), remittance.PeriodFrom, remittance.PeriodTo, remittance.Remarks, remittance.RecordedBy,
             remittance.VoidReason, remittance.VoidedBy, remittance.VoidedAtUtc, collections, Breakdown(collections),
             FirstDocument(collections), LastDocument(collections),
-            remittance.NeedsReview || collections.Any(x => x.CorrectedAfterRemittance), lineage));
+            remittance.NeedsReview || collections.Any(x => x.CorrectedAfterRemittance), lineage,
+            await SessionsAsync(tenantId, remittance.CollectorId, collections, ct)));
     }
 
     /// <summary>The covered collections of one remittance, read with the same net/breakdown rules, whether or not still active.</summary>

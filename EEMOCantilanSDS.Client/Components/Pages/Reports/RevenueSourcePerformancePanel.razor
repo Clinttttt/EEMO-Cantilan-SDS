@@ -296,8 +296,12 @@
     private static string Attention(RevenueSourcePerformanceRowDto row, FinancialFacilityRowDto? facility)
     {
         if (row.AwaitingPlacement) return "Needs official placement";
-        if (row.Model == RevenueSourceModel.RecurringObligation && facility is { PaidOnService: false, Unpaid: > 0m } f)
-            return $"{Money(f.Unpaid.Value)} outstanding";
+        if (row.Model == RevenueSourceModel.RecurringObligation && row.Facility is not null)
+        {
+            if (facility is { PaidOnService: false, Unpaid: { } unpaid })
+                return unpaid > 0m ? $"{Money(unpaid)} outstanding" : "No outstanding balance";
+            return "Balance unavailable";
+        }
         if (row.LegacyCollected != 0m && row.TransactionCount is null) return "Legacy data included";
         return "—";
     }

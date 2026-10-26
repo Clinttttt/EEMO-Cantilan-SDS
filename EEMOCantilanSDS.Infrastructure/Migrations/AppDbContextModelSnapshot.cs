@@ -2165,6 +2165,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid?>("PayorUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ReceiptReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("RecordedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -3804,6 +3808,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<int?>("ContractMonths")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ContractName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -4539,6 +4546,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("LifecycleEventId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Months")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
@@ -4575,7 +4585,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.ToTable("SpaceContractTerms", null, t =>
                         {
-                            t.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 1 AND 50");
+                            t.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 0 AND 50 AND (\"Years\" >= 1 OR \"Months\" IS NOT NULL) AND (\"Months\" IS NULL OR \"Months\" BETWEEN 1 AND 11)");
                         });
                 });
 
@@ -6326,6 +6336,148 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.ToTable("PayorActivationCodes", (string)null);
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorHistoricalAccessCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("ContactNumber")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ObligationAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PayerName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("PayorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("TermStart")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime?>("UsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.HasIndex("MunicipalityId", "ContractId");
+
+                    b.HasIndex("MunicipalityId", "ObligationAccountId");
+
+                    b.ToTable("PayorHistoricalAccessCodes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayorHistoricalAccessCodes_OneIdentity", "(\"ContractId\" IS NOT NULL) <> (\"ObligationAccountId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorLiabilityLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ContractId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("LinkedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LinkedBy")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("MunicipalityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ObligationAccountId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PayorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("SourceCodeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("TermStart")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MunicipalityId", "ContractId");
+
+                    b.HasIndex("MunicipalityId", "ObligationAccountId");
+
+                    b.HasIndex("MunicipalityId", "PayorUserId");
+
+                    b.HasIndex("PayorUserId", "ContractId")
+                        .IsUnique()
+                        .HasFilter("\"ContractId\" IS NOT NULL");
+
+                    b.HasIndex("PayorUserId", "ObligationAccountId")
+                        .IsUnique()
+                        .HasFilter("\"ObligationAccountId\" IS NOT NULL");
+
+                    b.ToTable("PayorLiabilityLinks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PayorLiabilityLinks_OneIdentity", "(\"ContractId\" IS NOT NULL) <> (\"ObligationAccountId\" IS NOT NULL)");
+                        });
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorStallLink", b =>
                 {
                     b.Property<Guid>("Id")
@@ -7289,6 +7441,55 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Stall");
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorHistoricalAccessCode", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ObligationAccountId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorLiabilityLink", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ObligationAccountId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Users.PayorUser", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "PayorUserId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorStallLink", b =>

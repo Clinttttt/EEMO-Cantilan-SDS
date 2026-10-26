@@ -45,6 +45,129 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         api.Verify(a => a.GetFollowUpQueueAsync(It.IsAny<int>(), It.IsAny<int>()), Times.Once);
     }
 
+    private static ObligationFollowUpItemDto SpaceMonth(string payer, DateOnly period, decimal owed, string reason, string? basis = null, DateOnly? termEnded = null, bool earlier = false) =>
+        new(Guid.NewGuid(), Guid.Empty, payer, "4", new(FollowUpScopeKind.MonthlySpace, "VEGETABLE_FRUIT_SPACE_RENTAL", "Vegetable / Fruits"),
+            period, owed, 0m, owed, "Normal", null, "/operations/vegetable-fruit", reason, basis, earlier, termEnded);
+
+    [Fact]
+    public void SpaceRentalMonthsCountUnderTheirOwnReasonChips_SoAllNeverReadsZeroWhileTheSpaceTableListsItems()
+    {
+        var queue = SampleQueue() with
+        {
+            ObligationItems =
+            [
+                SpaceMonth("Greggor Dal", new(2026, 3, 1), 10_000m, "arrears", "Expired contract", new(2025, 10, 24)),
+                SpaceMonth("Ana Cruz", new(2026, 8, 1), 500m, "delinquent")
+            ]
+        };
+        var (cut, _) = RenderQueue(queue);
+        cut.WaitForAssertion(() =>
+        {
+            var chips = cut.FindAll(".fq-reasons .fq-chip");
+            int Count(string label) => int.Parse(chips.Single(c => c.TextContent.Trim().StartsWith(label)).QuerySelector(".fq-chip-count")!.TextContent.Trim());
+            Assert.Equal(9, Count("All"));                                                         // the seven facility rows plus the two space months
+            Assert.Contains("Arrears · term ended Oct 24, 2025", cut.Find("#fq-space-title").Closest("section")!.TextContent);
+        }, RenderTimeout);
+
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("Arrears")).Click();
+        var spaces = cut.Find("#fq-space-title").Closest("section")!;
+        Assert.Contains("Greggor Dal", spaces.TextContent);
+        Assert.DoesNotContain("Ana Cruz", spaces.TextContent);                                     // a Delinquent month is not listed under Arrears
+    }
+
+    [Fact]
+    public void ASpaceAccountsFortyEightMonthsAreOneRow_AMixedAccountIsOneRowUnderAll_AndEachReasonStatesItsOwnPart()
+    {
+        var greggor = Guid.NewGuid();
+        var ana = Guid.NewGuid();
+        var months = Enumerable.Range(0, 48)
+            .Select(i => SpaceMonth("Greggor Dal", new DateOnly(2022, 10, 1).AddMonths(i), 10_000m, "arrears", "Expired contract", new(2025, 10, 24)) with { AccountId = greggor })
+            .Concat(
+            [
+                SpaceMonth("Ana Cruz", new(2025, 12, 1), 500m, "arrears", "Previous year") with { AccountId = ana },
+                SpaceMonth("Ana Cruz", new(2026, 8, 1), 300m, "delinquent") with { AccountId = ana },
+                // Same payer name, a different account: stays its own row.
+                SpaceMonth("Ana Cruz", new(2026, 8, 1), 800m, "delinquent") with { SpaceNumber = "9" }
+            ]).ToArray();
+        var (cut, _) = RenderQueue(SampleQueue() with { ObligationItems = months });
+
+        IReadOnlyList<AngleSharp.Dom.IElement> SpaceRows() => cut.Find("#fq-space-title").Closest("section")!.QuerySelectorAll("tbody tr").ToList();
+        int Chip(string label) => int.Parse(cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith(label)).QuerySelector(".fq-chip-count")!.TextContent.Trim());
+        cut.WaitForAssertion(() => Assert.Equal(3, SpaceRows().Count), RenderTimeout);              // three accounts, not 51 months
+
+        var greggorRow = Assert.Single(SpaceRows(), r => r.TextContent.Contains("Greggor Dal"));
+        Assert.Contains("₱480,000", greggorRow.TextContent);
+        Assert.Contains("Oct 2022 – Sep 2026", greggorRow.TextContent);
+        Assert.Contains("48 months", greggorRow.TextContent);
+        Assert.Contains("Space 4", greggorRow.TextContent);
+        Assert.Contains("Arrears · term ended Oct 24, 2025", greggorRow.TextContent);
+        var anaRows = SpaceRows().Where(r => r.TextContent.Contains("Ana Cruz")).ToList();
+        Assert.Equal(2, anaRows.Count);
+        Assert.Contains(anaRows, r => r.TextContent.Contains("₱800") && r.TextContent.Contains("Space 9"));
+        var mixed = Assert.Single(anaRows, r => r.TextContent.Contains("Arrears · previous year ₱500 · Delinquent ₱300"));
+        Assert.Contains("₱800", mixed.TextContent);                                                 // the whole account, once
+        Assert.Contains("3 accounts · 51 unpaid or partial months", cut.Find("#fq-space-title").Closest("section")!.TextContent);
+        Assert.Equal(7 + 3, Chip("All"));                                                           // accounts, like the facility rows
+        Assert.Equal(FacilityRows("arrears") + 2, Chip("Arrears"));                                 // Greggor + Ana's Arrears part
+        Assert.Equal(FacilityRows("delinquent") + 2, Chip("Delinquent"));                           // Ana's Delinquent part + the other Ana account
+
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("Delinquent")).Click();
+        var delinquent = SpaceRows();
+        Assert.Equal(2, delinquent.Count);
+        Assert.DoesNotContain(delinquent, r => r.TextContent.Contains("Greggor"));
+        Assert.Contains(delinquent, r => r.TextContent.Contains("₱300") && !r.TextContent.Contains("₱500"));   // only Ana's Delinquent part
+
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("All")).Click();
+        cut.Find("input[type=search]").Input("Greggor");
+        Assert.Single(SpaceRows());
+
+        // Review opens the right account with every month (the drawer reads the account's own register).
+        SpaceRows()[0].QuerySelector("button")!.Click();
+        Assert.Equal(greggor, cut.FindComponent<FollowUpAccountReview>().Instance.Context.ObligationItem!.AccountId);
+
+        int FacilityRows(string reason) => SampleQueue().Items.Count(i => i.ReasonKind == reason);
+    }
+
+    [Fact]
+    public void TheHeroCountsSpaceAccountsOnce_InTheirMostUrgentBand_AndIsUnmovedByFiltersAndSearch()
+    {
+        ObligationFollowUpItemDto[] Months(string payer, Guid id, int count, string reason, string? basis, DateOnly first) => Enumerable.Range(0, count)
+            .Select(i => SpaceMonth(payer, first.AddMonths(i), 100m, reason, basis, new DateOnly(2025, 10, 24)) with { AccountId = id }).ToArray();
+        var greggor = Guid.NewGuid(); var ana = Guid.NewGuid(); var bea = Guid.NewGuid(); var cal = Guid.NewGuid();
+        var queue = SampleQueue() with
+        {
+            ObligationItems = Months("Greggor Dal", greggor, 48, "arrears", "Expired contract", new(2022, 10, 1))      // Arrears        -> Action required
+                .Concat(Months("Ana Cruz", ana, 2, "arrears", "Previous year", new(2025, 11, 1)))                        // Arrears + 1 delinquent month: ONE account, Action required
+                .Concat(Months("Ana Cruz", ana, 1, "delinquent", null, new(2026, 8, 1)))
+                .Concat(Months("Bea Lim", bea, 2, "delinquent", null, new(2026, 7, 1)))                                    // 2 delinquent months -> This period
+                .Concat(Months("Cal Ong", cal, 3, "delinquent", null, new(2026, 5, 1))).ToArray()                          // 3 delinquent months -> Action required
+        };
+        var (cut, _) = RenderQueue(queue);
+        string Hero(string label) => cut.FindAll(".v3h-figure").Single(f => f.QuerySelector(".v3h-key")!.TextContent.Trim() == label).QuerySelector(".v3h-val")!.TextContent.Trim();
+
+        // Stall items today: 2 Action required, 5 This period. Space accounts: Greggor, Ana, Cal -> Action required; Bea -> This period.
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("5", Hero("Action required"));                    // 2 stall items + 3 accounts (Ana once, not twice)
+            Assert.Equal("6", Hero("This period"));                        // 5 stall items + Bea
+            Assert.Equal("0", Hero("Verify"));
+            Assert.Equal("0", Hero("Operational"));                         // the missing-OR shortcut item is not in the queue
+        }, RenderTimeout);
+
+        // A global summary: a reason chip, a source filter or a search does not move it.
+        cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith("Arrears")).Click();
+        cut.Find("input[type=search]").Input("Greggor");
+        Assert.Equal(("5", "6"), (Hero("Action required"), Hero("This period")));
+
+        // The chips count accounts under their own reason, so a mixed account is in both Arrears and Delinquent but ONCE under All:
+        // 4 space accounts + 7 stall rows under All; Arrears 2 space accounts (Greggor, Ana); Delinquent 3 (Ana, Bea, Cal).
+        cut.Find("input[type=search]").Input("");
+        int Chip(string label) => int.Parse(cut.FindAll(".fq-reasons .fq-chip").Single(c => c.TextContent.Trim().StartsWith(label)).QuerySelector(".fq-chip-count")!.TextContent.Trim());
+        Assert.Equal(7 + 4, Chip("All"));
+        Assert.Equal(0 + 2, Chip("Arrears"));
+        Assert.Equal(3 + 3, Chip("Delinquent"));
+    }
+
     [Fact]
     public void Missing_optional_OR_is_not_an_action_required_alert_and_priority_badges_are_hidden()
     {
@@ -167,8 +290,8 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Contains("All sources", cut.Find(".fq-source-select .fh-dd-trigger").TextContent);
             Assert.Empty(cut.FindAll("[aria-label='Filter by source'] .fq-chip"));
             Assert.Single(cut.FindAll(".fq-source-select .fh-dd-trigger"));
-            Assert.Contains("Unpaid and partial periods", cut.Markup);
-            Assert.Contains("August 2026", cut.Markup);                       // monthly period
+            Assert.Contains("unpaid or partial month", cut.Markup);            // one row per account; months counted apart
+            Assert.Contains("Aug 2026", cut.Markup);                          // monthly period
             Assert.Contains("Fiesta · Aug 15, 2026", cut.Markup);             // event period
             Assert.Contains("Partial · ₱400 paid", cut.Markup);
             Assert.DoesNotContain("KANMANGGAY_SPACE_RENTAL", cut.Markup);       // no raw code
@@ -272,6 +395,59 @@ public sealed class FollowUpQueueCompositionTests : TestContext
             Assert.Contains("9", chips[0]); // All includes all nine source rows.
         }, RenderTimeout);
         reports.Verify(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), true), Times.Once);
+    }
+
+    [Fact]
+    public void WholeTimeHistoryListsSpaceAccounts_OneRowPerAccount_CurrentAndEarlierTermsApart_AndSearchFindsThem()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var greggor = SpaceMonth("Greggor Dal", new(2025, 11, 1), 10_000m, "arrears", "Expired contract", new(2025, 10, 24));
+        var lorenofs = Guid.NewGuid();
+        var history = SampleQueue() with
+        {
+            ObligationItems =
+            [
+                greggor, greggor with { PeriodStart = new(2025, 12, 1) },
+                // A renewed space: an earlier-term month and a current-term month, stated apart.
+                SpaceMonth("Lorenofs Brando", new(2025, 9, 1), 700m, "arrears", "Expired contract", new(2028, 10, 24), earlier: true) with { AccountId = lorenofs },
+                SpaceMonth("Lorenofs Brando", new(2025, 12, 1), 300m, "arrears", "Previous year", new(2028, 10, 24)) with { AccountId = lorenofs }
+            ]
+        };
+        var reports = new Mock<IReportsApiClient>();
+        reports.Setup(a => a.GetFollowUpHistoryYearsAsync()).ReturnsAsync(Result<IReadOnlyList<int>>.Success([2026]));
+        reports.Setup(a => a.GetFollowUpHistoryAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<bool>())).ReturnsAsync(Result<FollowUpQueueDto>.Success(history));
+        Services.AddSingleton(reports.Object);
+        var stalls = new Mock<IStallsApiClient>();
+        stalls.Setup(a => a.GetClosedStallAccountsAsync()).ReturnsAsync(Result<IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Stalls.ClosedStallAccountDto>>.Success([]));
+        Services.AddSingleton(stalls.Object);
+        var facilities = new Mock<IFacilitiesApiClient>();
+        facilities.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Failure("Unavailable", 500));
+        Services.AddSingleton(facilities.Object);
+        Services.AddSingleton(new FacilityState(facilities.Object));
+        var branding = new Mock<IMunicipalitiesApiClient>();
+        branding.Setup(a => a.GetCurrentBrandingAsync()).ReturnsAsync(Result<MunicipalityBrandingDto>.Failure("Unavailable", 500));
+        Services.AddSingleton(new BrandingState(branding.Object));
+        foreach (var mock in new object[] { Mock.Of<ISetupApiClient>(), Mock.Of<IPaymentsApiClient>(), Mock.Of<IObligationsApiClient>(), Mock.Of<IPenaltiesApiClient>(),
+                     Mock.Of<IDailyCollectionApiClient>(), Mock.Of<ITrmApiClient>(), Mock.Of<ITpmApiClient>(), Mock.Of<ISlaughterApiClient>() })
+            Services.AddSingleton(mock.GetType().GetInterfaces().First(i => i.Name.EndsWith("ApiClient")), mock);
+        this.AddTestAuthorization().SetAuthorized("SuperAdmin");
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Pages.Reports.PastFollowUpQueue>();
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("#fh-space-title")), RenderTimeout);
+        var rows = cut.Find("#fh-space-title").Closest("section")!.QuerySelectorAll("tbody tr");
+        Assert.Equal(2, rows.Length);                                                               // per account, not per month
+        var greggorRow = rows.Single(r => r.TextContent.Contains("Greggor Dal"));
+        Assert.Contains("₱20,000", greggorRow.TextContent);
+        Assert.Contains("term ended Oct 24, 2025", greggorRow.TextContent);
+        var lorenofsRow = rows.Single(r => r.TextContent.Contains("Lorenofs Brando"));
+        Assert.Contains("₱300 · 1 mo", lorenofsRow.TextContent);                                    // current term
+        Assert.Contains("₱700 · 1 mo", lorenofsRow.TextContent);                                    // earlier term, apart
+        Assert.Contains("₱1,000", lorenofsRow.TextContent);                                         // lifetime, each period once
+
+        cut.Find(".fh-search input[type=search], input[aria-label='Search history']").Input("Greggor");
+        var found = cut.Find("#fh-space-title").Closest("section")!.QuerySelectorAll("tbody tr");
+        Assert.Single(found);
+        Assert.Contains("Greggor Dal", found[0].TextContent);
     }
 
     [Fact]

@@ -134,6 +134,24 @@ public sealed class StallTermRenewalsTests : TestContext
     }
 
     [Fact]
+    public void AnAccountLeftOutIsNotRenewed_StaysListedToPutBack_AndIsNotChanged()
+    {
+        var ice1 = Row(FacilityCode.ICE, "Iceplant", InactiveAccountState.Expired, "Ice A", "1");
+        var ice2 = Row(FacilityCode.ICE, "Iceplant", InactiveAccountState.Expired, "Ice B", "2");
+        var cut = Open("ice", ice1, ice2);
+        cut.WaitForElement(".str-form button", Wait);
+
+        cut.Find($"button[aria-label='Leave out Stall 2'], button[aria-label^='Leave out'][aria-label$=' 2']").Click();
+        Assert.Contains("Renew 1 term", cut.Find(".str-form button").TextContent);
+        Assert.Contains("Left out", cut.FindAll(".str-table tbody tr")[1].TextContent);
+        Assert.Equal(2, cut.FindAll(".str-table tbody tr").Count);                                         // still listed
+
+        cut.Find(".str-form").Submit();
+        cut.WaitForAssertion(() => Assert.Single(_renewed), Wait);
+        Assert.Equal(ice1.StallId, _renewed[0].Id);                                                         // the left-out account is never sent
+    }
+
+    [Fact]
     public void AnUnknownFacilityIsStated_NotAnEmptyList()
     {
         var cut = Open("nonsense");

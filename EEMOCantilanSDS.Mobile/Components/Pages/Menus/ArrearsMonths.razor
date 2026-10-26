@@ -1,0 +1,257 @@
+@page "/arrears/months"
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Domain.Enums
+@using global::EEMOCantilanSDS.Mobile.Collections
+@using System.Globalization
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject ArrearsWorkspaceHolder Held
+
+@* Collect arrears for a stall of a monthly facility whose rent is still collected on that facility's own monthly operation. New Collection takes only canonical
+   rent, so these months are settled on the office's own monthly record; what the collector sees and does is the SAME screen as New Collection: the Source card,
+   the Items card with "+ Add item" and its "Select charges" sheet (the shared month picker), the optional receipt reference, Review collection, and the recorded
+   sheet. Several months are collected in full, each as its own record; one month may take a part payment. Online only: what is owed is never shown from a device cache. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Arrears and delinquency</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" aria-label="Back to Arrears and Delinquency" @onclick='() => Navigation.NavigateTo("/arrears")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">Collect arrears</div><div class="header-sub">@Session.CollectorName</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+    <main class="content collection-workspace">
+        @if (_state == State.Loading)
+        {
+            <div role="status" aria-busy="true" aria-label="Loading unpaid months">
+                <span class="sk sk-source"></span><span class="sk sk-items"></span>
+            </div>
+        }
+        else if (_state == State.Offline)
+        {
+            <section class="collection-entry"><p class="collection-message" role="status">Connect to collect unpaid months. They are checked with the office before any payment is taken.</p>
+                <div class="collection-actions collection-actions-one"><button class="collection-secondary" type="button" @onclick="LoadAsync">Try again</button></div></section>
+        }
+        else
+        {
+            <section class="collection-entry collection-payer">
+                <h2>Source</h2>
+                <div class="payer-selected">
+                    <span class="payer-option-text"><strong class="payer-name">@(_account?.Payer ?? "Account")</strong><small>@SourceContext</small></span>
+                    <button class="collection-small" type="button" disabled="@_busy" @onclick='() => Navigation.NavigateTo("/arrears")'>Change</button>
+                </div>
+            </section>
+
+            <section class="collection-entry">
+                <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@(_busy || Remaining.Count == 0)" @onclick="OpenPicker">+ Add item</button></div>
+                @if (_items.Count == 0)
+                {
+                    <p>@(_months.Count == 0 ? "No unpaid month is left to collect for this stall here." : "No items added.")</p>
+                    @if (Remaining.Count > 0)
+                    {
+                        <div class="collection-available-fees" role="group" aria-label="Available charges">
+                            <span class="collection-available-caption">Available charges</span>
+                            <button type="button" class="collection-option" disabled="@_busy" @onclick="OpenPicker">
+                                <span class="option-text"><strong>Monthly rent</strong><small>@Remaining.Count unpaid @(Remaining.Count == 1 ? "month" : "months") · @Peso(Remaining.Sum(m => m.BalanceDue))</small></span>
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        </div>
+                    }
+                }
+                @foreach (var m in _items)
+                {
+                    <div class="item-row">
+                        <div class="item-main">
+                            <strong class="item-name">@Label(m)</strong>
+                            <span class="item-context">@ItemContext</span>
+                            <span class="item-actions"><button class="collection-link" type="button" disabled="@_busy" @onclick="() => Remove(m)">Remove</button></span>
+                        </div>
+                        <div class="item-amount"><strong>@Peso(AmountOf(m))</strong><span>OR</span></div>
+                    </div>
+                }
+                @if (_items.Count > 0)
+                {
+                    <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_reference" @onchange="OnReferenceChanged" /></label>
+                    <div class="sheet-note">@(_items.Count > 1 ? "One reference for these charges. It is for reference only; registration is not required." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
+                }
+            </section>
+
+            @if (_reviewed && _items.Count > 0)
+            {
+                <section class="collection-entry review-summary" aria-live="polite" aria-label="Collection total">
+                    <div class="review-row"><span>Official Receipt</span><strong>@Peso(Total)</strong></div>
+                    <div class="review-row review-total"><span>Total</span><strong>@Peso(Total)</strong></div>
+                </section>
+            }
+            @if (!string.IsNullOrWhiteSpace(_error)) { <p class="review-problem" role="alert"><strong>Needs review</strong>@_error</p> }
+
+            <div class="collection-actions collection-actions-one">
+                @if (!_reviewed)
+                {
+                    <button class="collection-primary" type="button" disabled="@(_busy || _items.Count == 0)" @onclick="Review">Review collection</button>
+                }
+                else
+                {
+                    <button class="collection-primary" type="button" disabled="@_busy" @onclick="RecordAsync">@(_busy ? "Saving..." : "Record collection")</button>
+                }
+            </div>
+        }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@if (_picker)
+{
+    <div class="sheet-overlay" @onclick="ClosePicker">
+        <section class="sheet sheet-flex" role="dialog" aria-modal="true" aria-label="Add item" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <header class="sheet-head">
+                <h2 class="sheet-title">Select charges</h2>
+                <div class="sheet-context">@SourceContext</div>
+            </header>
+            <div class="sheet-body">
+                <SpaceMonthsView Choices="Choices" Selected="_picked" OnToggle="Toggle" OnToggleMany="ToggleMany" Label="Unpaid months" />
+                @if (PickedMonths.Count == 1 && _items.Count == 0)
+                {
+                    <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="text" inputmode="decimal" autocomplete="off" value="@_amount" @oninput="e => _amount = e.Value?.ToString() ?? string.Empty" /></label>
+                    @if (PickedMonths[0].AmountPaid > 0m) { <div class="sheet-note">Something was already paid on this month, so the full remaining balance is collected.</div> }
+                }
+                @if (!string.IsNullOrWhiteSpace(_pickError)) { <div class="sheet-note" role="alert">@_pickError</div> }
+            </div>
+            <div class="sheet-actions">
+                <button class="btn-cancel" type="button" @onclick="ClosePicker">Close</button>
+                <button class="btn-primary" type="button" disabled="@(_picked.Count == 0)" @onclick="AddPicked">@(_picked.Count > 1 ? $"Add {_picked.Count} months" : "Add item")</button>
+            </div>
+        </section>
+    </div>
+}
+
+@if (_showRecorded)
+{
+    <CollectionRecordedSheet Amount="@_recordedTotal" References="@(Array.Empty<string>())" OnClose="DismissRecorded" />
+}
+
+@code {
+    [SupplyParameterFromQuery] public Guid Stall { get; set; }
+    [SupplyParameterFromQuery] public Guid Contract { get; set; }
+    private enum State { Loading, Offline, Ready }
+    private State _state = State.Loading;
+    private IReadOnlyList<MobileUnpaidMonthDto> _months = [];
+    private readonly List<MobileUnpaidMonthDto> _items = [];
+    private readonly HashSet<string> _picked = [];
+    private ArrearsAccountDto? _account;
+    private bool _picker, _busy, _reviewed, _showRecorded;
+    private decimal _recordedTotal;
+    private string _amount = string.Empty, _reference = string.Empty, _error = string.Empty, _pickError = string.Empty;
+    // What was typed for a single month's part payment; several months are always collected in full.
+    private string _itemAmount = string.Empty;
+
+    private static string Key(int year, int month) => $"{year:0000}-{month:00}";
+    private static string Key(MobileUnpaidMonthDto m) => Key(m.Year, m.Month);
+    private IReadOnlyList<MobileUnpaidMonthDto> Remaining => _months.Where(m => !_items.Any(i => Key(i) == Key(m))).ToList();
+    private IReadOnlyList<MobileUnpaidMonthDto> PickedMonths => _months.Where(m => _picked.Contains(Key(m))).OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
+    private decimal AmountOf(MobileUnpaidMonthDto m) => _items.Count == 1 && decimal.TryParse(_itemAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var typed) && typed > 0m && typed <= m.BalanceDue ? typed : m.BalanceDue;
+    private decimal Total => _items.Sum(AmountOf);
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+    private static string Label(MobileUnpaidMonthDto m) => new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private string SourceContext => _account is null ? "Monthly rent" : $"{_account.OperationName} · {_account.Space}";
+    private string ItemContext => _account is null ? "Monthly rent" : $"{_account.OperationName} · {_account.Space}";
+
+    // The same shape New Collection's picker reads: one choice per unpaid month, the office's own balance as its amount.
+    private IReadOnlyList<CollectionSessionSourceChoice> Choices => Remaining.Select(m => new CollectionSessionSourceChoice(
+        Key(m), CollectionSessionItemKind.MonthlyRent, _account?.OperationCode ?? string.Empty, _account?.OperationName ?? "Monthly rent", string.Empty,
+        new(PeriodStart: new DateOnly(m.Year, m.Month, 1)), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, m.BalanceDue)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+        _account = Held.Find(Session.Menu.CollectorId, ArrearsAccountKind.StallRent, Contract);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _state = State.Loading;
+        try
+        {
+            var result = await Api.GetUnpaidMonthsAsync(Stall, Contract == Guid.Empty ? null : Contract);
+            if (result.IsSuccess && result.Value is { } months)
+            {
+                _months = months; _items.RemoveAll(i => !months.Any(m => Key(m) == Key(i))); _state = State.Ready;
+            }
+            else _state = State.Offline;
+        }
+        catch { _state = State.Offline; }
+    }
+
+    private void OpenPicker() { _picked.Clear(); _pickError = string.Empty; _amount = string.Empty; _picker = true; }
+    private void ClosePicker() => _picker = false;
+    private void SyncAmount() => _amount = PickedMonths.Count == 1 ? PickedMonths[0].BalanceDue.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty;
+    private void Toggle(string key) { if (!_picked.Remove(key)) _picked.Add(key); _pickError = string.Empty; SyncAmount(); }
+    private void ToggleMany(IReadOnlyList<string> keys)
+    {
+        if (keys.All(_picked.Contains)) foreach (var k in keys) _picked.Remove(k); else foreach (var k in keys) _picked.Add(k);
+        _pickError = string.Empty; SyncAmount();
+    }
+
+    private void AddPicked()
+    {
+        var chosen = PickedMonths;
+        if (chosen.Count == 0) return;
+        // A single month on its own may be a part payment: its amount is checked now, so a wrong one is never carried to the review.
+        if (_items.Count == 0 && chosen.Count == 1)
+        {
+            var (_, error) = UnpaidMonthPayment.Plan(chosen, _amount);
+            if (error is not null) { _pickError = error; return; }
+            _itemAmount = _amount;
+        }
+        else _itemAmount = string.Empty;
+        _items.AddRange(chosen);
+        _items.Sort((a, b) => (a.Year * 100 + a.Month).CompareTo(b.Year * 100 + b.Month));
+        _picked.Clear(); _picker = false; _reviewed = false; _error = string.Empty;
+    }
+
+    private void Remove(MobileUnpaidMonthDto m) { _items.RemoveAll(i => Key(i) == Key(m)); _itemAmount = string.Empty; _reviewed = false; _error = string.Empty; }
+    private void OnReferenceChanged(ChangeEventArgs e) { _reference = e.Value?.ToString() ?? string.Empty; _reviewed = false; }
+
+    private void Review()
+    {
+        var (_, error) = UnpaidMonthPayment.Plan(_items.ToList(), _itemAmount);
+        _error = error ?? string.Empty;
+        _reviewed = error is null;
+    }
+
+    private async Task RecordAsync()
+    {
+        var (charges, error) = UnpaidMonthPayment.Plan(_items.ToList(), _itemAmount);
+        if (error is not null) { _error = error; _reviewed = false; return; }
+        var reference = ReceiptReferenceEntry.Number(true, _reference);
+        _busy = true; _error = string.Empty;
+        var recorded = 0m; var count = 0;
+        try
+        {
+            // One monthly record per month, oldest first. A failure stops here: what was recorded stays recorded, the list is read again, and the rest can be retried.
+            foreach (var c in charges)
+            {
+                var result = await Api.RecordMonthlyCollectionAsync(new(Stall, c.Status, c.PartialAmount, reference, c.Year, c.Month));
+                if (!result.IsSuccess) { _error = (count > 0 ? $"Recorded {count} of {charges.Count}. " : "") + (result.Error ?? "The payment could not be recorded. Please try again."); break; }
+                recorded += c.Amount; count++;
+                _items.RemoveAll(i => Key(i) == Key(c.Year, c.Month));
+            }
+        }
+        catch { _error = (count > 0 ? $"Recorded {count} of {charges.Count}. " : "") + "Couldn't reach the server. Check your connection and try again."; }
+        finally { _busy = false; }
+
+        if (count > 0)
+        {
+            Held.Clear();                                           // the Arrears list is read again the next time it is opened
+            _recordedTotal = recorded; _showRecorded = true; _itemAmount = string.Empty;
+            await LoadAsync();
+        }
+        _reviewed = false;
+    }
+
+    private void DismissRecorded() { _showRecorded = false; if (_months.Count == 0) Navigation.NavigateTo("/arrears"); }
+}

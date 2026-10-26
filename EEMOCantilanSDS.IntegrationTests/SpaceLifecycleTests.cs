@@ -246,6 +246,31 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task Reassign_UnderASignedContract_RecordsTheNewHoldersOwnTerm_AsTheRegistrationFormDoes()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var (tenant, closed) = await ClosedSpaceAsync();
+
+        // The preview states the previous approved amount so the form can start from it.
+        var first = await PreviewAsync(tenant, closed.Account.Id, new(LifecycleAction.Reassign, null, "New holder"));
+        Assert.Equal("₱1,200.00", first.Value!.Facts["Previous approved amount"]);
+        // A term is a signed contract's: refused on a space-only basis.
+        var spaceOnlyWithTerm = new LifecycleCommand(LifecycleAction.Reassign, Jul1, "New holder", NewHolder: "Pedro Cruz", Amount: 1500m, TermYears: 3,
+            Arrangement: OccupancyArrangement.SpaceOnly);
+        Assert.Equal(SpaceLifecycleWorkflow.InvalidRequest, (await PreviewAsync(tenant, closed.Account.Id, spaceOnlyWithTerm)).Value!.ReasonCode);
+
+        var signed = new LifecycleCommand(LifecycleAction.Reassign, Jul1, "New holder", "Contract 2", NewHolder: "Pedro Cruz", Amount: 1500m, TermYears: 3,
+            ContractName: "Pedro Cruz", Reference: "KM-9", Arrangement: OccupancyArrangement.SignedContract);
+        var result = await ExecuteAsync(tenant, closed.Account.Id, signed);
+        Assert.True(result.IsSuccess, result.Error);
+        await using var after = db.CreateContext(tenant);
+        var successor = await after.ObligationAccounts.AsNoTracking().SingleAsync(a => a.Id == result.Value!.ResultAccountId);
+        Assert.Equal((OccupancyArrangement.SignedContract, "KM-9", "Pedro Cruz", Jul1, 3),
+            (successor.Arrangement!.Value, successor.ContractReference, successor.ContractName, successor.ContractEffectiveDate!.Value, successor.ContractYears!.Value));
+    }
+
+    [SkippableFact]
     public async Task Reassign_RequiresAnExplicitHolderAndAmount_RefusesASameNameWithoutConfirmation_AndALinkToAnotherTenantsPayor()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
@@ -300,6 +325,94 @@ public sealed class SpaceLifecycleTests(PostgresFixture db)
         // The new term runs to the end of 2026, so it cannot be renewed again yet (the same rule as a stall's running term).
         var again = await PreviewAsync(tenant, open.Account.Id, Renew(new DateOnly(2027, 1, 1)));
         Assert.Equal(LifecycleReason.TermStillRunning, again.Value!.ReasonCode);
+    }
+
+    [SkippableFact]
+    public async Task ARenewedSpace_StatesEachTermsOwnBalance_TheTermsAddBackToTheAccount_AndFollowUpCarriesOnlyTheCurrentTerm()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = await SeedTenantAsync(db, "Renewed terms");
+        var open = await AddAsync(db, tenant, "7", new DateOnly(2021, 1, 1), signed: true, amount: 1000m);       // term 2021-01-01 .. 2023-12-31
+        foreach (var month in new[] { new DateOnly(2023, 11, 1), new DateOnly(2023, 12, 1), new DateOnly(2024, 2, 1), new DateOnly(2026, 8, 1) })
+            await AssessAsync(db, tenant, open.Account, open.Rate, month);
+        var other = await AddAsync(db, tenant, "8", new DateOnly(2021, 1, 1), signed: true, amount: 500m);       // expired, never renewed
+        await AssessAsync(db, tenant, other.Account, other.Rate, new DateOnly(2023, 12, 1));
+
+        var renewed = await ExecuteAsync(tenant, open.Account.Id,
+            new(LifecycleAction.Renew, new DateOnly(2024, 1, 1), "Renewal", "Res. 9", TermYears: 3, ContractName: "Signed Lessee", Reference: "KM-REF-3"));
+        Assert.True(renewed.IsSuccess, renewed.Error);
+
+        await using var context = db.CreateContext(tenant);
+        var head = new Caller(tenant, "SuperAdmin");
+        var listed = (await new EEMOCantilanSDS.Application.Common.Revenue.ObligationWorkflow(context, head, new Tenant(tenant), new BusinessClock(Today))
+            .GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!;
+        var dto = listed.Single(x => x.Id == open.Account.Id);
+        var terms = dto.Terms!;
+        Assert.Equal(2, terms.Count);
+        var (earlier, current) = (terms[0], terms[1]);
+        Assert.Equal((new DateOnly(2021, 1, 1), new DateOnly(2023, 12, 31), false), (earlier.Commencement, earlier.RenewedOn!.Value, earlier.Current));
+        Assert.Equal((new DateOnly(2024, 1, 1), (DateOnly?)null, true), (current.Commencement, current.RenewedOn, current.Current));
+        var register = (await new EEMOCantilanSDS.Application.Common.Revenue.ObligationWorkflow(context, head, new Tenant(tenant), new BusinessClock(Today))
+            .GetRegisterAsync(open.Account.Id)).Value!;
+        var renewal = new DateOnly(2024, 1, 1);
+        Assert.Equal(register.Where(q => q.PeriodStart < renewal).Sum(q => q.OutstandingAmount), earlier.Outstanding);   // up to Dec 2023, the earlier term's own
+        Assert.Equal(register.Where(q => q.PeriodStart >= renewal).Sum(q => q.OutstandingAmount), current.Outstanding);
+        Assert.True(earlier.Outstanding >= 2000m && current.Outstanding >= 2000m);
+        // Every period is in exactly one term: nothing is double counted and nothing is lost.
+        Assert.Equal((dto.AssessedToDate, dto.CollectedToDate, dto.OutstandingToDate),
+            (terms.Sum(t => t.Assessed), terms.Sum(t => t.Collected), terms.Sum(t => t.Outstanding)));
+        Assert.Null(listed.Single(x => x.Id == other.Account.Id).Terms);                                     // never renewed: read as one term, as before
+
+        var followUp = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, head, new Tenant(tenant)).GetAsync(Today, null, default);
+        // The never-renewed expired account: every month is Arrears (expired contract), with the term's last day stated; nothing is removed.
+        var expired = followUp.Where(x => x.AccountId == other.Account.Id).ToList();
+        Assert.All(expired, x => Assert.Equal(("arrears", "Expired contract", false, new DateOnly(2023, 12, 31)), (x.ReasonKind, x.ArrearsBasis, x.EarlierTerm, x.TermLastDay!.Value)));
+        // The renewed account's current term (2024-2026) is still running on Oct 19, 2026: its 2026 months are Delinquent and its earlier years' Arrears (previous year).
+        Assert.Equal("delinquent", followUp.Single(x => x.AccountId == open.Account.Id && x.PeriodStart == new DateOnly(2026, 8, 1)).ReasonKind);
+        Assert.Equal(("arrears", "Previous year"), followUp.Where(x => x.AccountId == open.Account.Id && x.PeriodStart == new DateOnly(2024, 2, 1))
+            .Select(x => (x.ReasonKind, x.ArrearsBasis!)).Single());
+        // The whole-time view states the earlier term too, flagged and classified as an expired contract, and the two views never overlap.
+        var whole = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, head, new Tenant(tenant)).GetAsync(Today, null, default, includeEarlierTerms: true);
+        var earlierRows = whole.Where(x => x.AccountId == open.Account.Id && x.EarlierTerm).ToList();
+        Assert.NotEmpty(earlierRows);
+        Assert.All(earlierRows, x => Assert.True(x.PeriodStart < new DateOnly(2024, 1, 1) && x.ArrearsBasis == "Expired contract"));
+        Assert.Equal(earlier.Outstanding, earlierRows.Sum(x => x.Outstanding));
+        Assert.Equal(whole.Count - earlierRows.Count, followUp.Count);
+        var renewedFollowUp = followUp.Where(x => x.AccountId == open.Account.Id).Select(x => x.PeriodStart).ToList();
+        Assert.Contains(new DateOnly(2024, 2, 1), renewedFollowUp);                                          // the current term's debt is followed up
+        Assert.Contains(new DateOnly(2026, 8, 1), renewedFollowUp);
+        Assert.DoesNotContain(renewedFollowUp, p => p < renewal);                                            // the earlier term's debt is not
+        Assert.Contains(followUp, x => x.AccountId == other.Account.Id && x.PeriodStart == new DateOnly(2023, 12, 1));   // an expired, non-renewed debt still is
+        // Nothing was rewritten to present it this way.
+        Assert.Equal(5, await context.ObligationPeriods.CountAsync());
+        Assert.Equal(new DateOnly(2021, 1, 1), (await context.ObligationAccounts.AsNoTracking().SingleAsync(x => x.Id == open.Account.Id)).ContractEffectiveDate);
+    }
+
+    [SkippableFact]
+    public async Task TwoSpacesHeldUnderOneName_AreFollowedUpAsTwoAccounts_EachWithItsOwnPeriods()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = await SeedTenantAsync(db, "Same name");
+        var first = await AddAsync(db, tenant, "21", new DateOnly(2026, 6, 1), holder: "Ana Reyes", amount: 500m);
+        var second = await AddAsync(db, tenant, "22", new DateOnly(2026, 6, 1), holder: "Ana Reyes", amount: 800m);
+        await using var context = db.CreateContext(tenant);
+
+        var items = await new EEMOCantilanSDS.Application.Common.Revenue.SpaceFollowUpWorkflow(context, new Caller(tenant, "Admin"), new Tenant(tenant)).GetAsync(Today, null, default);
+
+        // Nothing links the two by name: each period carries its own account id, and each account's periods sum to its own register.
+        Assert.Equal([first.Account.Id, second.Account.Id], items.Select(x => x.AccountId).Distinct().OrderBy(x => x == first.Account.Id ? 0 : 1).ToArray());
+        var listed = (await new EEMOCantilanSDS.Application.Common.Revenue.ObligationWorkflow(context, new Caller(tenant, "SuperAdmin"), new Tenant(tenant), new BusinessClock(Today))
+            .GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).Value!;
+        foreach (var account in new[] { first.Account.Id, second.Account.Id })
+        {
+            var own = items.Where(x => x.AccountId == account).ToList();
+            Assert.Equal(4, own.Count);                                                                   // Jun-Sep elapsed, October in progress
+            // The elapsed months plus the month in progress are the account's whole balance.
+            var register = listed.Single(x => x.Id == account);
+            Assert.Equal(register.OutstandingToDate, own.Sum(x => x.Outstanding) + (register.CurrentAmount ?? 0m));
+        }
     }
 
     [SkippableFact]

@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -111,6 +112,66 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.Null(item.Days);       // a month's remainder, not days counted out
     }
 
+    // Only monthly Stall Rent is payable online. A daily-billed market's balance (whole-month aggregate included) stays listed but read-only.
+    [Fact]
+    public async Task DailyBilledMarketBalance_IsListedButNotPayableOnline()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", PhilippineTime.Today.AddMonths(-1), 3, 900m);
+        ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var settlement = new Mock<INpmMonthSettlementService>();
+        settlement.Setup(s => s.ComputeWholeMonthPayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new NpmMonthPayable(28, 840m));
+
+        var item = Assert.Single(await new PayorRepository(ctx, settlement.Object).GetPayableItemsAsync(payor));
+
+        Assert.Equal(840m, item.BalanceDue);   // still visible
+        Assert.False(item.PayableOnline);
+    }
+
+    [Fact]
+    public async Task MonthlyStallRent_ListsEveryEarlierPeriod_EachPayableByItself()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
+        var earlier = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-2).Year, PhilippineTime.Today.AddMonths(-2).Month, 2400m, "test");
+        var previous = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-1).Year, PhilippineTime.Today.AddMonths(-1).Month, 2400m, "test");
+        ctx.AddRange(tcc, stall, contract, earlier, previous, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        Assert.True(items.Count >= 3);   // two earlier periods + the current month: nothing is auto-spread or hidden
+        Assert.All(items, i => Assert.True(i.PayableOnline));
+        Assert.Equal(items.Count, items.Select(i => i.Period).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task MonthlyRecordNotOnLegacyAuthority_IsNotOfferedOnline()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
+        var pending = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-1).Year, PhilippineTime.Today.AddMonths(-1).Month, 2400m, "test");
+        pending.MarkSettlementPendingCutover();
+        ctx.AddRange(tcc, stall, contract, pending, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        Assert.False(items.Single(i => i.Period == pending.PeriodKey).PayableOnline);
+    }
+
     [Fact]
     public async Task AMonthlySpaceIsOfferedAtItsContractRate_NotTheStallsCurrentRate()
     {
@@ -151,5 +212,35 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.Equal(0m, balance.DailyRate);
         Assert.Equal(0, balance.DaysOwed);
         Assert.Equal(2400m, balance.MonthlyRate);
+    }
+
+    [Fact]
+    public async Task ACustomFacilityIsNamedByTheOfficesOwnNameAndAcronym_NotItsInternalSlotCode()
+    {
+        // The portal printed "Custom1": the DTO exposed only the enum slot. The wording comes from the facility record of the stall's own tenant;
+        // the code stays on the DTO as identity.
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var restRooms = Facility.Create(FacilityCode.Custom1, "Rest Rooms", "RR");
+        var coldStorage = Facility.Create(FacilityCode.Custom2, "Cold Storage", string.Empty);          // no acronym saved
+        var first = Stall.Create(restRooms.Id, "2", 900m, ApplicableFees.BaseRental);
+        var second = Stall.Create(coldStorage.Id, "7", 1_500m, ApplicableFees.BaseRental);
+        ctx.AddRange(restRooms, coldStorage, first, second,
+            Contract.Create(first.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 900m),
+            Contract.Create(second.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 1_500m),
+            PayorStallLink.Create(payor, first.Id), PayorStallLink.Create(payor, second.Id));
+        await ctx.SaveChangesAsync();
+
+        var repo = new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object);
+        var balances = (await repo.GetBalancesAsync(payor)).ToDictionary(b => b.Facility);
+
+        Assert.Equal(("Rest Rooms", "RR"), (balances[FacilityCode.Custom1].FacilityName, balances[FacilityCode.Custom1].FacilityShortName));
+        Assert.Equal(("Cold Storage", (string?)null), (balances[FacilityCode.Custom2].FacilityName, balances[FacilityCode.Custom2].FacilityShortName));
+        Assert.Equal(FacilityCode.Custom1, balances[FacilityCode.Custom1].Facility);                     // identity unchanged
+
+        // The payable items (the Balances page) carry the same wording, per stall.
+        var items = (await repo.GetPayableItemsAsync(payor)).ToDictionary(i => i.Facility);
+        Assert.Equal(("Rest Rooms", "RR"), (items[FacilityCode.Custom1].FacilityName, items[FacilityCode.Custom1].FacilityShortName));
+        Assert.Equal(("Cold Storage", (string?)null), (items[FacilityCode.Custom2].FacilityName, items[FacilityCode.Custom2].FacilityShortName));
     }
 }

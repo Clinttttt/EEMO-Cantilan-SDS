@@ -71,7 +71,7 @@ public sealed class FcmPushSender(
             var r = response.Responses[i];
             if (!r.IsSuccess && IsPermanentlyInvalid(r.Exception))
             {
-                try { await tokenRepository.RemoveByTokenAsync(tokens[i].Token, ct); }
+                try { await tokenRepository.RemoveByTokenAsync(tokens[i].CollectorId, tokens[i].Token, ct); }
                 catch { /* best-effort cleanup */ }
             }
         }

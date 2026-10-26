@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Application
                 Common.Interface.Services.IOnlinePaymentSettlementService,
                 Common.Payments.OnlinePaymentSettlementService>();
 
+            services.AddScoped<Common.Payments.OnlineRentCanonicalPoster>();
             services.AddScoped<Common.Payments.NpmMonthSettlementService>();
             services.AddScoped<Common.Payments.INpmMonthSettlementService, Common.Payments.NpmMonthSettlementBridge>();
             // Deliberately not bound to configuration: no setting can activate an unfinished source.
@@ -69,6 +70,8 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.SettlementCutoverWorkflow>();
             services.AddScoped<Common.Revenue.WcfActivationWorkflow>();
             services.AddScoped<Common.Revenue.EcfActivationWorkflow>();
+            services.AddScoped<Common.Revenue.LegacyRentPayloadReconciliation>();
+            services.AddScoped<Common.Revenue.RentActivationWorkflow>();
             services.AddScoped<Common.Revenue.BusinessPayorWorkflow>();
             services.AddScoped<Common.Revenue.WcfMobileCollectionWorkflow>();
             services.AddScoped<Common.Revenue.AccountableFormCustodyWorkflow>();
@@ -76,6 +79,8 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.GovernedServiceWorkflow>();
             services.AddScoped<Common.Revenue.ReportGovernanceWorkflow>();
             services.AddScoped<Common.Revenue.SpaceFollowUpWorkflow>();
+            services.AddScoped<Common.Revenue.HistoricalArrearsReader>();
+            services.AddScoped<Common.Revenue.HistoricalAccessWorkflow>();
             services.AddScoped<Common.Revenue.PenaltyDefinitionWorkflow>();
             services.AddScoped<Common.Revenue.DirectFineCollectionWorkflow>();
             services.AddScoped<Common.Revenue.FineAssessmentWorkflow>();

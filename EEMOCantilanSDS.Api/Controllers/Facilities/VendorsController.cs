@@ -1,12 +1,14 @@
 using EEMOCantilanSDS.Application.Dtos.Vendors;
 using EEMOCantilanSDS.Application.Queries.Vendors.GetVendorRegistry;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EEMOCantilanSDS.Api.Controllers;
 
 public sealed class VendorsController(ISender sender) : ApiBaseController(sender)
 {
+    [Authorize(Roles = "SuperAdmin,Admin")]
     [HttpGet("registry")]
     public async Task<ActionResult<VendorRegistryDto>> GetVendorRegistry(
         [FromQuery] int year,

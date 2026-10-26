@@ -39,7 +39,7 @@
         <h2 id="arrr-title" class="v3-sr-only">Arrears and delinquency report as of @MonthLabel</h2>
 
         <section class="v3-report-section" aria-labelledby="arrr-position">
-            <h3 id="arrr-position">Position</h3>
+            <h3 id="arrr-position">Position · stall rentals (financial report)</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -66,10 +66,45 @@
             </div>
         </section>
 
+        @if (SpaceDelinquent.Count + SpaceArrears.Count > 0)
+        {
+            @* Space rentals are read from their own account register, per period, so they sit beside the financial report's stall position
+               rather than inside it: the filed figures above are unchanged, and the two add to the all-sources total the workspace states. *@
+            <section class="v3-report-section" aria-labelledby="arrr-space-position">
+                <h3 id="arrr-space-position">Position · space rentals (account register)</h3>
+                <div class="v3-table-wrap">
+                    <table class="v3-report-table">
+                        <thead>
+                            <tr>
+                                <th scope="col" class="v3-num">Delinquent accounts</th>
+                                <th scope="col" class="v3-num">Delinquent outstanding</th>
+                                <th scope="col" class="v3-num">Arrears accounts</th>
+                                <th scope="col" class="v3-num">Arrears outstanding</th>
+                                <th scope="col" class="v3-num">Total outstanding</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="v3-num">@SpaceDelinquent.Count</td>
+                                <td class="v3-num">@Money(SpaceDelinquent.Sum(s => s.Outstanding))</td>
+                                <td class="v3-num">@SpaceArrears.Count</td>
+                                <td class="v3-num">@Money(SpaceArrears.Sum(s => s.Outstanding))</td>
+                                <td class="v3-num v3-strong">@Money(SpaceTotal)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="v3-report-note">
+                    All sources: @Amount(StallTotal) stall rentals + @Money(SpaceTotal) space rentals = <strong>@Amount(StallTotal is { } st ? st + SpaceTotal : null)</strong> outstanding.
+                    The financial report's own figures cover stall rentals; space rentals are counted from each account's periods, an account once per reason.
+                </p>
+            </section>
+        }
+
         <OperationMonthlyIncome Classification="Arrears (recovered)" RowKey="ARREARS" Year="_month.Year" HeadingId="arrr-official" />
 
         <section class="v3-report-section" aria-labelledby="arrr-by-source">
-            <h3 id="arrr-by-source">By facility</h3>
+            <h3 id="arrr-by-source">By facility and operation</h3>
             <div class="v3-table-wrap">
                 <table class="v3-report-table">
                     <thead>
@@ -81,7 +116,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (Register.Count == 0)
+                        @if (Register.Count == 0 && SpaceRegister.Count == 0)
                         {
                             <tr><td colspan="4" class="v3-report-note">@(_loading ? "Loading…" : _data is null ? "Accounts are unavailable." : "No delinquent or arrears account.")</td></tr>
                         }
@@ -96,8 +131,29 @@
                                     <td class="v3-num">@Money(group.Sum(r => r.Item.Amount ?? 0m))</td>
                                 </tr>
                             }
+                            @* A space operation is named by the server's own display name, never its internal code. *@
+                            @foreach (var operation in SpaceRegister.GroupBy(r => r.Account.First.Scope.OperationCode).OrderBy(g => g.First().Account.First.Scope.DisplayName, StringComparer.OrdinalIgnoreCase))
+                            {
+                                <tr>
+                                    <th scope="row">@operation.First().Account.First.Scope.DisplayName</th>
+                                    <td class="v3-num">@operation.Count(r => r.Kind == "Delinquent")</td>
+                                    <td class="v3-num">@operation.Count(r => r.Kind == "Arrears")</td>
+                                    <td class="v3-num">@Money(operation.Sum(r => r.Account.Outstanding))</td>
+                                </tr>
+                            }
                         }
                     </tbody>
+                    @if (SpaceRegister.Count > 0)
+                    {
+                        <tfoot>
+                            <tr>
+                                <th scope="row">All sources</th>
+                                <td class="v3-num">@(Register.Count(r => r.Kind == "Delinquent") + SpaceDelinquent.Count)</td>
+                                <td class="v3-num">@(Register.Count(r => r.Kind == "Arrears") + SpaceArrears.Count)</td>
+                                <td class="v3-num v3-strong">@Money(Register.Sum(r => r.Item.Amount ?? 0m) + SpaceTotal)</td>
+                            </tr>
+                        </tfoot>
+                    }
                 </table>
             </div>
         </section>
@@ -117,7 +173,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (Register.Count == 0)
+                        @if (Register.Count == 0 && SpaceRegister.Count == 0)
                         {
                             <tr><td colspan="6" class="v3-report-note">No accounts to list.</td></tr>
                         }
@@ -132,6 +188,18 @@
                                     <td class="v3-num">@Amount(row.Item.Amount)</td>
                                     <td>@ArrearsReads.StatusLabel(row.Item)</td>
                                     <td>@row.Kind</td>
+                                </tr>
+                            }
+                            @* Space accounts: one row per account and reason, the amount that reason's own months, earlier renewed terms stated. *@
+                            @foreach (var row in SpaceRegister)
+                            {
+                                <tr>
+                                    <td>@row.Account.Name</td>
+                                    <td>@row.Account.First.Scope.DisplayName · Space @row.Account.First.SpaceNumber</td>
+                                    <td>@row.Account.PeriodText</td>
+                                    <td class="v3-num">@Money(row.Account.Outstanding)</td>
+                                    <td>@row.Account.MonthsText · @row.Account.PaymentText@(row.Account.EarlierMonths > 0 ? $" · earlier terms ₱{row.Account.EarlierOutstanding:N0}" : "")</td>
+                                    <td>@row.Kind@(row.Kind == "Arrears" ? $" · {row.Account.ReasonText.Replace("Arrears · ", "")}" : "")</td>
                                 </tr>
                             }
                         }
@@ -156,6 +224,17 @@
     private List<RegisterRow> Register => (_data?.Accounts ?? []).Select(a => new RegisterRow(a, "Delinquent"))
         .Concat((_data?.ArrearsAccounts ?? []).Select(a => new RegisterRow(a, "Arrears")))
         .OrderBy(r => r.Kind == "Delinquent" ? 0 : 1).ThenBy(r => r.Item.Facility).ThenBy(r => r.Item.Person, StringComparer.OrdinalIgnoreCase).ToList();
+
+    // Space rentals: the same per-account, per-reason grouping the workspace uses, so the printed figures can never differ from the screen's.
+    private sealed record SpaceRegisterRow(EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount Account, string Kind);
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceDelinquent =>
+        EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.Group(_data?.SpaceItems ?? []).Where(s => s.ReasonKind == "delinquent").ToList();
+    private IReadOnlyList<EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount> SpaceArrears =>
+        EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount.Group(_data?.SpaceItems ?? []).Where(s => s.ReasonKind == "arrears").ToList();
+    private List<SpaceRegisterRow> SpaceRegister => SpaceDelinquent.Select(s => new SpaceRegisterRow(s, "Delinquent"))
+        .Concat(SpaceArrears.Select(s => new SpaceRegisterRow(s, "Arrears"))).ToList();
+    private decimal SpaceTotal => SpaceDelinquent.Sum(s => s.Outstanding) + SpaceArrears.Sum(s => s.Outstanding);
+    private decimal? StallTotal => _data?.OutstandingTotal is { } d && _data.ArrearsOutstanding is { } a ? d + a : null;
 
     protected override async Task OnInitializedAsync()
     {

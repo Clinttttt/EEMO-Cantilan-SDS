@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Dashboard;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
+using EEMOCantilanSDS.Application.Dtos.Reports;
 using EEMOCantilanSDS.Application.Dtos.Tenancy;
 using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Components.Pages.Reports;
@@ -29,6 +30,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
     private readonly Mock<IOfficialReportsApiClient> _official = new();
     private readonly Mock<IOfficeSourcesApiClient> _office = new();
     private readonly Mock<IDashboardApiClient> _dashboard = new();
+    private readonly Mock<IReportsApiClient> _financialReports = new();
 
     public DashboardOverviewViewsTests()
     {
@@ -37,6 +39,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Services.AddSingleton(new BrandingState(municipalities.Object));
         Services.AddSingleton(_dashboard.Object);
         Services.AddSingleton(_official.Object);
+        Services.AddSingleton(_financialReports.Object);
         Services.AddSingleton(_office.Object);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
@@ -164,6 +167,41 @@ public sealed class DashboardOverviewViewsTests : TestContext
 
         _official.Verify(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()), Times.Once);
         _office.Verify(x => x.ActivityAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), CollectorOperationCodes.Terminal), Times.Once);
+    }
+
+    [Fact]
+    public void DashboardRevenueSources_UsesFinancialRegisterBalance_WithoutHidingLegacyRent()
+    {
+        Dashboard();
+        var row = Row("RENT_TCC", "Commercial Center", "RENT", "Rent Income",
+            RevenueSourceModel.RecurringObligation, 300m, transactions: null, facility: FacilityCode.TCC)
+            with { LegacyCollected = 300m, CanonicalCollected = 0m };
+        var source = Source(row) with { Groups = [new("RENT", "Rent income", 300m)], TotalCollected = 300m };
+        _official.Setup(x => x.GetSourcePerformanceAsync(It.IsAny<int>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<RevenueSourcePerformanceDto>.Success(source));
+
+        var today = PhilippineTime.Today;
+        var facility = new FinancialFacilityRowDto(FacilityCode.TCC, "Commercial Center", "Monthly rental",
+            false, 300m, 7800m, 18, 24, 75, "Partial");
+        var financial = new FinancialReportDto(
+            "October 2026", "All", "Monthly", 1, 300m, 7800m, 8100m, 4, 18, 24, null, null,
+            [], null, [], 0, 0m, [], 300m, [facility], []);
+        _financialReports.Setup(x => x.GetFinancialReportAsync(ReportPeriod.Monthly, today.Year, today.Month, null, false))
+            .ReturnsAsync(Result<FinancialReportDto>.Success(financial));
+
+        var cut = RenderLoaded();
+        Switch(cut, "Revenue sources");
+
+        cut.WaitForAssertion(() =>
+        {
+            var attention = cut.Find("tr.rsp-row .rsp-attention").TextContent;
+            Assert.Contains("7,800 outstanding", attention);
+            Assert.DoesNotContain("Legacy data included", attention);
+        }, Timeout);
+        _financialReports.Verify(x => x.GetFinancialReportAsync(ReportPeriod.Monthly, today.Year, today.Month, null, false), Times.Once);
+        Switch(cut, "Operations");
+        Switch(cut, "Revenue sources");
+        _financialReports.Verify(x => x.GetFinancialReportAsync(ReportPeriod.Monthly, today.Year, today.Month, null, false), Times.Once);
     }
 
     [Fact]

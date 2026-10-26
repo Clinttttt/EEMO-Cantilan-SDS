@@ -15,6 +15,7 @@ using EEMOCantilanSDS.Client.Components.Pages.Menus;
 using EEMOCantilanSDS.Client.Securities;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.HttpClients.ApiClients;
 using Microsoft.AspNetCore.Authorization;
@@ -142,6 +143,133 @@ public sealed class RevenueSetupTests : TestContext
         cut.Find(".v3-drawer").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
 
         cut.WaitForAssertion(() => Assert.Empty(cut.FindAll("[role='dialog']")), RenderTimeout);
+    }
+
+    [Fact]
+    public void ListedOperationsWithoutARevenueSource_AreShownAsSetupRequired_AndNothingIsInvented()
+    {
+        static TenantOperationSettingDto Op(string code, string name, bool listed) =>
+            new(code, name, "market", null, name, listed, 0, "Tenant", false);
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(new(true,
+        [
+            Op(CollectorOperationCodes.MarketFees, "Market Fees", listed: true),          // has a source -> not here
+            Op(CollectorOperationCodes.WeightAndMeasure, "Weights Office", listed: true),  // no source -> setup required
+            Op(CollectorOperationCodes.LandingBerthing, "Landing", listed: false),         // not listed -> not here
+        ])));
+        Services.AddSingleton(settings.Object);
+
+        var (cut, _) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true,
+            Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))]);
+
+        cut.WaitForAssertion(() =>
+        {
+            var panel = cut.Find("section[aria-labelledby='rev-g-setup']");
+            var rows = panel.QuerySelectorAll("li").Select(li => li.TextContent).ToList();
+            var row = Assert.Single(rows);
+            Assert.Contains("Weights Office", row);
+            Assert.Contains("No revenue source set up", row);
+            Assert.DoesNotContain("Landing", panel.TextContent);
+            Assert.DoesNotContain("₱", panel.TextContent);
+        }, RenderTimeout);
+    }
+
+    private static OperationSetupDto Setup(string code, string name, OperationSetupState state, long version = 1, params string[] gaps) =>
+        new(code, name, "MARKET", state, state != OperationSetupState.Available, false, state is OperationSetupState.Ready or OperationSetupState.Added,
+            state == OperationSetupState.Ready ? 1 : 0, state == OperationSetupState.Ready ? 1 : 0, gaps, version);
+
+    [Fact]
+    public void AddedOperationsShowTheirVerifiedState_AndOmittedOnesAreOfferedToAdd_WithoutAnyCollectionImplied()
+    {
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
+        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+        [
+            Setup("MARKET_FEES", "Market Fees", OperationSetupState.Ready),
+            Setup("ECF", "Electricity Fees", OperationSetupState.SetupRequired, 1, "No effective policy (receipt type) yet"),
+            Setup("TRANSPORTATION", "Parking", OperationSetupState.Added, 1, "No collector assigned yet"),
+            Setup("WCF", "Water Consumption Fees", OperationSetupState.Available),
+        ])));
+        Services.AddSingleton(settings.Object);
+
+        var (cut, _) = RenderPage([]);
+
+        cut.WaitForAssertion(() =>
+        {
+            var status = cut.Find("section[aria-labelledby='rev-g-status']");
+            Assert.Equal(["Ready to collect", "Setup required", "Added"],
+                status.QuerySelectorAll(".rev-status").Select(x => x.TextContent.Trim()).ToArray());
+            Assert.Contains("No effective policy (receipt type) yet", status.TextContent);
+            Assert.Contains("Adding an operation never allows collection by itself", status.TextContent);
+            var available = cut.Find("section[aria-labelledby='rev-g-available']");
+            Assert.Contains("Water Consumption Fees", available.TextContent);
+            Assert.DoesNotContain("Market Fees", available.TextContent);
+            Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-setup']"));                   // the name-only list is replaced by the verified register
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void AddingAnOperation_SendsTheLocalNameAndTheViewedVersion_ExplainsItAuthorizesNothing_AndReloads()
+    {
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
+        settings.SetupSequence(s => s.GetSetupAsync())
+            .ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true, [Setup("WCF", "Water Consumption Fees", OperationSetupState.Available, 7)])))
+            .ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true, [Setup("WCF", "Water Fees", OperationSetupState.SetupRequired, 8, "No revenue source set up")])));
+        AddTenantOperationRequest? sent = null; string? sentCode = null;
+        settings.Setup(s => s.AddAsync(It.IsAny<string>(), It.IsAny<AddTenantOperationRequest>()))
+            .Callback<string, AddTenantOperationRequest>((c, r) => { sentCode = c; sent = r; })
+            .ReturnsAsync(Result<AddTenantOperationResultDto>.Success(new(new TenantOperationSettingsDto(true, []), false, true, false)));
+        Services.AddSingleton(settings.Object);
+        var (cut, _) = RenderPage([]);
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Add Water Consumption Fees']"), RenderTimeout);
+
+        cut.Find("button[aria-label='Add Water Consumption Fees']").Click();
+        var dialog = cut.Find("[role='dialog']");
+        Assert.Contains("does not allow collection", dialog.TextContent);
+        cut.Find("[role='dialog'] input").Input("Water Fees");
+        ClickButton(cut, "Add operation");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(("WCF", "Water Fees", 7L), (sentCode, sent!.LocalDisplayName, sent.ExpectedVersion));
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Setup required until its receipt type, collectors and setup are in place", cut.Markup);
+            Assert.Contains("Setup required", cut.Find("section[aria-labelledby='rev-g-status']").TextContent);
+            Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-available']"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void AFailedAdd_StaysOpenWithTheReason_AndChangesNothingOnScreen()
+    {
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
+        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true, [Setup("ECF", "Electricity Fees", OperationSetupState.Available)])));
+        settings.Setup(s => s.AddAsync(It.IsAny<string>(), It.IsAny<AddTenantOperationRequest>()))
+            .ReturnsAsync(Result<AddTenantOperationResultDto>.Failure("This operation was changed by someone else. Reload the page and try again.", 409));
+        Services.AddSingleton(settings.Object);
+        var (cut, _) = RenderPage([]);
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Add Electricity Fees']"), RenderTimeout);
+
+        cut.Find("button[aria-label='Add Electricity Fees']").Click();
+        ClickButton(cut, "Add operation");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("changed by someone else", cut.Find("[role='dialog']").TextContent);
+            Assert.NotEmpty(cut.FindAll("section[aria-labelledby='rev-g-available']"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void WhenOperationSettingsCannotBeRead_TheDirectoryStillRendersWithoutTheSetupSection()
+    {
+        var (cut, _) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true,
+            Policy("MARKET_FEES", "Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))]);
+
+        cut.WaitForAssertion(() => Assert.Contains("Market Fees", cut.Markup), RenderTimeout);
+        Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-setup']"));
     }
 
     [Fact]
@@ -284,6 +412,7 @@ public sealed class RevenueSetupTests : TestContext
 
     private void RegisterGlobalPageServices()
     {
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(Services, Mock.Of<IOperationSettingsApiClient>(o => o.GetAsync() == Task.FromResult(Result<TenantOperationSettingsDto>.Failure("not needed here", 500))));
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());

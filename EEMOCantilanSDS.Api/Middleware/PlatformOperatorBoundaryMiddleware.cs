@@ -53,6 +53,7 @@ public class PlatformOperatorBoundaryMiddleware(RequestDelegate next)
         "/api/activation",
         "/api/adminauth",
         "/api/assessment",
+        "/api/database-health",
         "/api/municipalities",
         "/api/onboarding",
         "/api/platform-setup",

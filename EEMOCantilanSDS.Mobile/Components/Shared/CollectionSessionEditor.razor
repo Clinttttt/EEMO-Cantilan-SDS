@@ -5,6 +5,7 @@
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Collections
 @using EEMOCantilanSDS.Mobile.Models
 @using Microsoft.AspNetCore.Components.Routing
 @implements IDisposable
@@ -116,7 +117,7 @@ else
                             @foreach (var found in VisibleSources)
                             {
                                 <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Available on @available.ToString("MMM d, yyyy")</small> }</span>
+                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Event date @available.ToString("MMM d, yyyy") · payment opens that day</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>
@@ -239,6 +240,11 @@ else
                         @if (quote is not null) { <span>@InstrumentCode(quote.Instrument)</span> }
                     </div>
                 </div>
+            }
+            @if (Correction is null && ReferenceOffered)
+            {
+                <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
+                <div class="sheet-note">@(_items.Count > 1 ? "One reference for these charges. It is for reference only; registration is not required." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
             }
         </section>
         @if (_supersededSessionId.HasValue)
@@ -381,6 +387,15 @@ else
                 {
                     <div class="sheet-source"><strong>@Choices[0].DisplayName</strong>@if (!string.IsNullOrWhiteSpace(Choices[0].Context)) { <span>@Choices[0].Context</span> }</div>
                 }
+                else if (IsSpaceMonths)
+                {
+                    <SpaceMonthsView Choices="Choices" Selected="_months.Keys" OnToggle="ToggleMonth" OnToggleMany="ToggleMonths" Label="Months owed" />
+                    @if (MultiMonths)
+                    {
+                        <div class="sheet-meta"><span>@_months.Count months, each at its full balance</span><strong>@Money(MultiTotal)</strong></div>
+                        <div class="sheet-note">Edit an item afterwards to take a part payment.</div>
+                    }
+                }
                 else
                 {
                     <MobileChoice Inline="true" Label="@ChoiceLabel" Options="ChoiceOptions" Value="@_choiceKey" ValueChanged="ChooseChoice" EmptyText="Nothing available for this source." />
@@ -447,7 +462,7 @@ else
                 <button class="btn-cancel" type="button" @onclick="CancelPicker">@(_confirmRepeat ? "Cancel" : "Close")</button>
                 @if (_operation is not null)
                 {
-                    <button class="btn-primary" type="button" disabled="@(!CanAddItem)" @onclick="AddItem">@(_confirmRepeat ? "Continue" : "Add item")</button>
+                    <button class="btn-primary" type="button" disabled="@(!(CanAddItem || MultiMonths))" @onclick="AddOrAddMonths">@(MultiMonths ? $"Add {_months.Count} months" : _confirmRepeat ? "Continue" : "Add item")</button>
                 }
             </div>
         </section>
@@ -462,6 +477,10 @@ else
     /// available is still the server's answer for the chosen source; this only stops the page hiding one the server confirms.</summary>
     [Parameter] public IReadOnlyCollection<string>? AlsoOperations { get; set; }
     [Parameter] public Guid? ResumeSessionId { get; set; }
+
+    /// <summary>A source the page already identified (the Arrears workspace's liable account). The checkout opens on it exactly as if it had been picked,
+    /// so its periods are the server's discovery for that identity and nothing else.</summary>
+    [Parameter] public CollectionSourceSearchResult? InitialSource { get; set; }
 
     /// <summary>The collection being corrected. The form opens on its recorded source and facts; the server reverses the original and posts one replacement
     /// under a new SRC. The original is never changed, and a correction is made online.</summary>
@@ -581,7 +600,15 @@ else
     }
 
     private CollectionSessionIntent Intent => new(_sessionId, BusinessDate, null, _items.ToArray(),
-        SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null);
+        SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null,
+        ReceiptReference: Correction is null ? ReceiptReferenceEntry.Number(ReferenceOffered, _spaceReceipt) : null);
+
+    // One physical OR for several months of one space account. A change discards the reviewed quote, like any edit to the items.
+    private string _spaceReceipt = "";
+    // Items in the checkout whose instrument is the Official Receipt: any of them (or months of one space account) makes the optional reference available.
+    private readonly HashSet<Guid> _orItems = [];
+    private bool ReferenceOffered => _orItems.Count > 0 || SpaceReceiptEntry.Applies(_items) || (_queued && !string.IsNullOrWhiteSpace(_spaceReceipt));
+    private void OnSpaceReceiptChanged(ChangeEventArgs args) { _spaceReceipt = args.Value?.ToString() ?? ""; _quote = null; }
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
@@ -657,6 +684,8 @@ else
     };
 
     private IReadOnlyList<CollectionSessionSourceChoice> Choices => (_operation?.Choices ?? []).Where(c => _operation is null || !Taken(_operation, c)).ToList();
+    // A monthly space account's owed months: shown as the whole account (by year) rather than as a dropdown of near-identical rows.
+    private bool IsSpaceMonths => Choices.Count > 1 && Choices.All(c => c.Kind == CollectionSessionItemKind.Obligation && c.Identity.PeriodStart.HasValue && c.Identity.Event is null);
     private string ChoiceLabel => _operation?.OperationCode switch
     {
         CollectorOperationCodes.Terminal => "Section",
@@ -716,9 +745,11 @@ else
             _sessionId = id; BusinessDate = saved.BusinessDate; _items.AddRange(saved.Items);
             if (saved.SourceIdentity is { } identity) _source = new(identity, "Selected source", "", OnlyOperation ?? "");
             else { _direct = true; _snapshot = saved.PayerSnapshot ?? ""; }
+            _spaceReceipt = ReceiptReferenceEntry.Restore(saved.ReceiptReference, saved.OfficialReceiptNumber);
             _queued = true; await RefreshResultAsync();
         }
         else if (Correction is not null) await PrepareCorrectionAsync();
+        else if (InitialSource is not null) await SelectSourceAsync(InitialSource);
         else if (OnlyOperation == CollectorOperationCodes.Terminal) { _direct = true; await LoadAsync(); }
         _loading = false;
     }
@@ -956,7 +987,7 @@ else
     {
         _pickerFromList = _operation is null && _picker;
         _operation = Offered.FirstOrDefault(x => x.OperationCode == code);
-        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false;
+        _choice = null; _choiceKey = ""; _amount = _quantity = 0; _serverAmount = null; _heads = 1; _owner = ""; _termSection = null; _byVehicle = false; _months.Clear();
         _slhPicked.Clear(); _slhTerms = null;
         if (_operation?.Choices is { Count: 1 } only) ChooseChoice(only[0].SelectionKey);
     }
@@ -995,7 +1026,7 @@ else
         catch { _serverAmount = null; }
     }
 
-    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; }
+    private void ClosePicker() { _picker = false; _editingId = null; _confirmRepeat = false; _months.Clear(); }
 
     // Editing re-opens the same sheet with what was entered; the original row stays until the changed one is added, so closing loses nothing.
     private async Task EditAsync(CollectionSessionItemIntent item)
@@ -1005,7 +1036,7 @@ else
         await LoadAsync();
         Choose(draft.OperationCode);
         _termSection = draft.Section; _byVehicle = draft.ByVehicle;
-        ChooseChoice(draft.ChoiceKey);
+        ChooseChoice(draft.ChoiceKey); _months.Reset(IsSpaceMonths && _choice is not null ? draft.ChoiceKey : null);
         if (_choice is null) { _editingId = null; _message = "This item is no longer available. Remove it and add it again."; return; }
         _amount = draft.Amount; _quantity = draft.Quantity; _heads = draft.Heads; _owner = draft.Owner;
         _slhPicked.Clear(); foreach (var (id, qty) in draft.Charges ?? new Dictionary<Guid, int>()) _slhPicked[id] = qty;
@@ -1033,6 +1064,39 @@ else
         ClosePicker();
     }
     private bool _pickerFromList;
+
+    // ── A space account's months, chosen explicitly ──
+    // One month is the ordinary single item (its amount can be a part payment). Several months become one item each, every one at that month's
+    // own full balance as the server states it; nothing is spread across months here, because how a payment is allocated across obligations is
+    // the office's decision, not the app's. Each item can still be edited for a part payment afterwards. The rules live in MonthSelection.
+    private readonly MonthSelection _months = new();
+    private bool MultiMonths => IsSpaceMonths && _months.IsMulti;
+    private decimal MultiTotal => _months.Total(key => Choices.FirstOrDefault(c => c.SelectionKey == key)?.ServerAmount);
+
+    private void ToggleMonth(string key) { _months.Toggle(key); SyncMonthSelection(); }
+
+    private void ToggleMonths(IReadOnlyList<string> keys) { _months.ToggleMany(keys); SyncMonthSelection(); }
+
+    // Exactly one month is the existing single-item flow (amount entry); none or several leave no single choice.
+    private void SyncMonthSelection()
+    {
+        if (_months.Single is { } only) ChooseChoice(only);
+        else { _choice = null; _choiceKey = ""; _amount = 0; _confirmRepeat = false; }
+    }
+
+    private void AddOrAddMonths() { if (MultiMonths) AddMonths(); else AddItem(); }
+
+    private void AddMonths()
+    {
+        foreach (var key in _months.Ordered())
+        {
+            ChooseChoice(key);
+            if (_choice is not { } c) continue;
+            _amount = c.ServerAmount ?? 0m;
+            AddItem();
+        }
+        _months.Clear();
+    }
 
     private void AddItem()
     {
@@ -1083,6 +1147,7 @@ else
         var at = _editingId is { } editing ? _items.FindIndex(x => x.ClientItemId == editing) : -1;
         if (at >= 0) { _items[at] = added; _shown.Remove(_editingId!.Value); _drafts.Remove(_editingId.Value); }
         else _items.Add(added);
+        if (c.Instrument == global::EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt) _orItems.Add(id); else _orItems.Remove(id);
         // A utility reads as the charge ("Electricity"), with who and which stall as its context; the payer's name is never the row's title.
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
             : c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
@@ -1126,7 +1191,7 @@ else
         _ => "Collection charge"
     };
 
-    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
+    private void Remove(CollectionSessionItemIntent item) { if (Correction is not null) _sessionId = Guid.NewGuid(); _items.Remove(item); _orItems.Remove(item.ClientItemId); _shown.Remove(item.ClientItemId); _drafts.Remove(item.ClientItemId); _quote = null; _confirmDiscard = false; }
 
     // ── Review, record, result ──────────────────────────────────────────────────────────────────────
     private async Task ReviewAsync()
@@ -1238,7 +1303,7 @@ else
     private async Task StartAnotherAsync()
     {
         _linkedNpmContext = false;
-        _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _sessionId = Guid.NewGuid(); _spaceReceipt = ""; _orItems.Clear(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _showRecordedSheet = _recordedSheetWasShown = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;

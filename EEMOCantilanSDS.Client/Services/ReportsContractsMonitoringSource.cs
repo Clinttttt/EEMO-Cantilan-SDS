@@ -165,7 +165,7 @@ public sealed class ReportsContractsMonitoringSource(
 
     // Space-only and extension occupancy has no term by design; that is not missing evidence.
     private static string? DurationLabel(ContractMonitoringRowDto r) =>
-        r.DurationYears is { } y ? (y == 1 ? "1 year" : y.ToString(Invariant) + " years")
+        r.DurationYears is { } y ? EEMOCantilanSDS.Domain.Constants.DomainRules.DescribeTerm(y, r.DurationMonths) ?? "Not recorded"
         : r.Status == ContractMonitoringStatus.NoContract ? "No contract term"
         : null;
 

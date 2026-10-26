@@ -200,6 +200,45 @@ public sealed class ContractsMonitoringTests(PostgresFixture database)
         foreach (var r in rows) Assert.Equal(DomainRules.TermLastDay(new DateOnly(2024, 2, 29), r.DurationYears!.Value), r.ExpiryDate);
     }
 
+    [SkippableFact]
+    public async Task SqlExpiryIsMonthAwareAndAgreesWithCanonicalHelperForMonthEndsAndLeapDays()
+    {
+        var seed = await SeedAsync();
+        var cases = new (string Name, DateOnly Start, int? Years, int? Months)[]
+        {
+            ("M-JAN31-1", new(2026, 1, 31), null, 1), ("M-AUG31-6", new(2026, 8, 31), null, 6), ("M-LEAP29-12", new(2024, 2, 29), null, 12),
+            ("M-LEAP29-3", new(2024, 2, 29), null, 3), ("M-1Y6M", new(2026, 3, 15), 1, 6), ("M-3", new(2026, 10, 1), null, 3), ("M-YEARLY-LEAP", new(2024, 2, 29), 1, null),
+        };
+        await using (var db = database.CreateContext(seed.TenantId))
+        {
+            foreach (var (name, start, years, months) in cases)
+            {
+                var account = ObligationAccount.Create(seed.TenantId, ObligationKind.KanmanggaySpaceRental, Guid.Empty, null, name, null, null, start, "test", actualOccupant: name);
+                account.SetOccupancyBasis(OccupancyArrangement.SignedContract, "DOC-" + name);
+                account.SetLeaseDetails("Signed " + name, start, years, null, null, null, months);
+                db.Add(account);
+                db.Add(ObligationRate.Create(seed.TenantId, account.Id, account.ActiveFrom, 900m, "test"));
+            }
+            await db.SaveChangesAsync();
+        }
+        var rows = (await Read(seed, new() { Search = "M-", PageSize = 100 })).Items.Where(r => r.SpaceNumber.StartsWith("M-")).ToList();
+        Assert.Equal(cases.Length, rows.Count);
+        foreach (var (name, start, years, months) in cases)
+        {
+            var row = rows.Single(r => r.SpaceNumber == name);
+            var normalised = DomainRules.NormalizeSpaceTerm(years, months);
+            Assert.Equal(normalised.Months, row.DurationMonths);
+            Assert.Equal(DomainRules.TermLastDay(start, normalised.Years!.Value, normalised.Months), row.ExpiryDate);      // SQL == the one domain rule
+        }
+        Assert.Equal(new DateOnly(2026, 2, 27), rows.Single(r => r.SpaceNumber == "M-JAN31-1").ExpiryDate);
+        Assert.Equal(new DateOnly(2025, 2, 27), rows.Single(r => r.SpaceNumber == "M-LEAP29-12").ExpiryDate);
+        Assert.Equal(new DateOnly(2024, 5, 28), rows.Single(r => r.SpaceNumber == "M-LEAP29-3").ExpiryDate);
+        Assert.Equal(ContractMonitoringStatus.Expired, rows.Single(r => r.SpaceNumber == "M-JAN31-1").Status);
+        // A yearly contract keeps its yearly shape.
+        Assert.Null(rows.Single(r => r.SpaceNumber == "M-YEARLY-LEAP").DurationMonths);
+        Assert.Equal(new DateOnly(2025, 2, 27), rows.Single(r => r.SpaceNumber == "M-YEARLY-LEAP").ExpiryDate);
+    }
+
     [SkippableTheory]
     [InlineData("SuperAdmin")]
     [InlineData("Admin")]

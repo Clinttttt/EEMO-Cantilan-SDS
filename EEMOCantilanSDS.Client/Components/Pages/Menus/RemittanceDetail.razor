@@ -107,17 +107,49 @@
                         <tr><th scope="col">Collection date</th><th scope="col">Source</th><th scope="col">Payer</th><th scope="col">Collector</th><th scope="col">Instrument</th><th scope="col" class="v3-num">Amount</th><th scope="col">Reference</th></tr>
                     </thead>
                     <tbody>
-                        @foreach (var collection in d.Collections)
+                        @foreach (var row in CoveredRows(d))
                         {
-                            <tr>
-                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
-                                <td>@SourceLabel(collection)</td>
-                                <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
-                                <td>@d.Row.CollectorName</td>
-                                <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />} else {<span>—</span>}</td>
-                                <td class="v3-num">@Money(collection.NetAmount)</td>
-                                <td class="rm-trace">@collection.ReferenceCode</td>
-                            </tr>
+                            @if (row.SessionId is { } sessionId)
+                            {
+                                var open = _openSessions.Contains(sessionId);
+                                var first = row.Items[0];
+                                var payers = row.Items.Select(c => c.PayerName).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+                                <tr @key="sessionId" class="rm-group" tabindex="0" aria-expanded="@(open ? "true" : "false")" aria-label="@($"One checkout, {row.Items.Count} collections {Money(row.Items.Sum(c => c.NetAmount))}")"
+                                    @onclick="() => ToggleSession(sessionId)" @onkeydown="e => OnGroupKey(e, sessionId)">
+                                    <td>@first.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td><span class="rm-group-title"><span class="rm-chevron" aria-hidden="true">@(open ? "▾" : "▸")</span>One checkout · @row.Items.Count collections</span></td>
+                                    <td>@(payers.Count == 0 ? "—" : payers.Count == 1 ? payers[0] : $"{payers[0]} + {payers.Count - 1} more")</td>
+                                    <td>@d.Row.CollectorName</td>
+                                    <td>@foreach (var kind in row.Items.Select(c => c.Instrument).Where(i => i is not null).Distinct()) {<InstrumentChip Instrument="@(kind == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />}</td>
+                                    <td class="v3-num">@Money(row.Items.Sum(c => c.NetAmount))</td>
+                                    <td class="rm-trace">@row.Items.Count SRCs</td>
+                                </tr>
+                                @foreach (var collection in row.Items)
+                                {
+                                    <tr class="rm-child" hidden="@(!open)">
+                                        <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
+                                        <td class="rm-child-source">@SourceLabel(collection)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
+                                        <td>@d.Row.CollectorName</td>
+                                        <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />} else {<span>—</span>}</td>
+                                        <td class="v3-num">@Money(collection.NetAmount)</td>
+                                        <td class="rm-trace">@collection.ReferenceCode</td>
+                                    </tr>
+                                }
+                            }
+                            else
+                            {
+                                var collection = row.Items[0];
+                                <tr>
+                                    <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)@if (collection.CorrectedAfterRemittance) {<span class="v3-block rm-diff-flag">Corrected after this remittance</span>}</td>
+                                    <td>@SourceLabel(collection)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(collection.PayerName) ? "—" : collection.PayerName)</td>
+                                    <td>@d.Row.CollectorName</td>
+                                    <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@(instrument == RevenueInstrumentType.OfficialReceipt ? "OR" : "CT")" />} else {<span>—</span>}</td>
+                                    <td class="v3-num">@Money(collection.NetAmount)</td>
+                                    <td class="rm-trace">@collection.ReferenceCode</td>
+                                </tr>
+                            }
                         }
                     </tbody>
                     <tfoot><tr><td colspan="5"><strong>Total</strong></td><td class="v3-num v3-strong">@Money(d.Collections.Sum(x => x.NetAmount))</td><td></td></tr></tfoot>
@@ -139,6 +171,27 @@
     [SupplyParameterFromQuery(Name = "print")] public string? Print { get; set; }
 
     private bool _printed;
+
+    // One checkout with several collections reads as one expandable row; every collection, SRC and amount stays itemized beneath it.
+    private sealed record CoveredRow(Guid? SessionId, IReadOnlyList<RemittanceCollectionDto> Items);
+    private readonly HashSet<Guid> _openSessions = [];
+    private static IEnumerable<CoveredRow> CoveredRows(RemittanceDetailDto d)
+    {
+        var sessionOf = new Dictionary<Guid, Guid>();
+        var here = d.Collections.Select(c => c.CollectionId).ToHashSet();
+        foreach (var session in d.Sessions ?? [])
+            if (session.CollectionIds.Count > 1 && session.CollectionIds.All(here.Contains))
+                foreach (var id in session.CollectionIds) sessionOf[id] = session.SessionId;
+        var emitted = new HashSet<Guid>();
+        foreach (var collection in d.Collections)
+        {
+            if (!sessionOf.TryGetValue(collection.CollectionId, out var sid)) { yield return new(null, [collection]); continue; }
+            if (!emitted.Add(sid)) continue;
+            yield return new(sid, d.Collections.Where(c => sessionOf.TryGetValue(c.CollectionId, out var other) && other == sid).ToList());
+        }
+    }
+    private void ToggleSession(Guid id) { if (!_openSessions.Remove(id)) _openSessions.Add(id); }
+    private void OnGroupKey(KeyboardEventArgs e, Guid id) { if (e.Key is "Enter" or " ") ToggleSession(id); }
 
     private RemittanceDetailDto? _detail;
     private string? _error;

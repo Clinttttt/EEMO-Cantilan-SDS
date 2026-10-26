@@ -27,6 +27,7 @@ namespace EEMOCantilanSDS.Mobile
             builder.Services.AddMauiBlazorWebView();
             builder.Services.AddSingleton<MobileTokenStore>();
             builder.Services.AddSingleton<MobileSessionService>();
+            builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder>();
             builder.Services.AddSingleton<MobilePaymentHubService>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IConnectivityMonitor, EEMOCantilanSDS.Mobile.Platform.MauiConnectivityMonitor>();
             builder.Services.AddSingleton<EEMOCantilanSDS.Mobile.Abstractions.IPendingOperationStore>(

@@ -17,8 +17,41 @@ public sealed class OnlinePaymentSettlementService(
     IOnlinePaymentNotifier notifier,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
-    ITenantContext tenantContext, NpmRentMonthWorkflow? monthly = null) : IOnlinePaymentSettlementService
+    ITenantContext tenantContext, NpmRentMonthWorkflow? monthly = null,
+    OnlineRentCanonicalPoster? canonicalRent = null) : IOnlinePaymentSettlementService
 {
+    // Paid state + Collection + posting operation + rent projection commit in ONE SaveChanges inside the poster. A lost race
+    // resolves to the winner's outcome; a rejected post keeps the capture as a reconciliation exception (nothing cleared).
+    private async Task<Result<bool>> SettleCanonicalRentAsync(
+        OnlinePaymentTransaction transaction, PaymentGatewayEvent evt, PaymentRecord record, CancellationToken ct)
+    {
+        transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
+        var outcome = await canonicalRent!.PostAsync(transaction, record, ct);
+        if (outcome.RejectionReason is { } reason)
+        {
+            transaction.MarkSettlementReconciliationRequired(reason);
+            await unitOfWork.SaveChangesAsync(ct);
+            return Result<bool>.Failure("RECONCILIATION_REQUIRED: " + reason, ResultStatus.Conflict);
+        }
+
+        if (outcome.AlreadyPosted)
+            return Result<bool>.Success(true);
+
+        // The payment is committed; nothing below may turn it into a failure.
+        try
+        {
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+                tenantContext.TenantCode, null, record.BillingYear, record.BillingMonth, ct);
+            await notifier.NotifyPaymentReceivedAsync(
+                new OnlinePaymentNotification(transaction.Reference, transaction.Amount, record.PeriodKey, transaction.Method,
+                    transaction.PaidAt ?? DateTime.UtcNow, record.StallId, record.BillingYear, record.BillingMonth,
+                    tenantContext.TenantCode), ct);
+        }
+        catch { /* cache refresh / alert are non-critical; the Collection is already posted */ }
+
+        return Result<bool>.Success(true);
+    }
+
     public async Task<Result<bool>> SettleAsync(
         OnlinePaymentTransaction transaction,
         PaymentGatewayEvent evt,
@@ -47,6 +80,9 @@ public sealed class OnlinePaymentSettlementService(
                 ? await paymentRepository.GetByIdAsync(recordId, cancellationToken) : null;
             if (monthlyRecord is null || monthlyRecord.MunicipalityId != transaction.MunicipalityId)
                 return Result<bool>.Failure("Linked monthly source not found in this municipality.", ResultStatus.Conflict);
+            // ST-17: a Canonical row gets exactly one canonical Collection/SRC. Transitioning rows stay parked.
+            if (monthlyRecord.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
+                return await SettleCanonicalRentAsync(transaction, evt, monthlyRecord, cancellationToken);
             if (monthlyRecord.SettlementAuthorityState != SettlementAuthority.Legacy)
                 return await PreserveCaptureForReconciliationAsync(transaction, evt,
                     "Gateway callback targets a transitioning or canonical monthly source. No Collection or legacy settlement was posted.", cancellationToken);

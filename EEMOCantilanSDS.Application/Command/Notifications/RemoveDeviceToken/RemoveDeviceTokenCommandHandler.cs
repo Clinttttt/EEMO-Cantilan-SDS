@@ -12,7 +12,7 @@ public sealed class RemoveDeviceTokenCommandHandler(
     public async Task<Result<bool>> Handle(RemoveDeviceTokenCommand request, CancellationToken ct)
     {
         // Only an authenticated collector may unregister; the token identifies the device to drop.
-        if (currentUser.CollectorId is null)
+        if (currentUser.CollectorId is not { } collectorId)
         {
             return Result<bool>.Forbidden();
         }
@@ -23,7 +23,7 @@ public sealed class RemoveDeviceTokenCommandHandler(
             return Result<bool>.Success(true);
         }
 
-        await tokenRepository.RemoveByTokenAsync(request.Token, ct);
+        await tokenRepository.RemoveByTokenAsync(collectorId, request.Token, ct);
         return Result<bool>.Success(true);
     }
 }

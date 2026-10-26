@@ -48,7 +48,7 @@ public static class TenantOperationCatalog
     /// municipality it is an imposed number until a per-municipality duration policy is approved and modelled.
     /// </summary>
     public const string SpaceContractDurationNotice =
-        "Signed space contracts use Cantilan's three-year default, with the actual signed term recorded when different. " +
+        "Signed space contracts use the platform's reference three-year default, with the actual signed term recorded when different. " +
         "That duration rule is not yet configurable per municipality; confirm it matches your ordinance before registering signed contracts.";
 
     public static readonly IReadOnlyList<Entry> All =

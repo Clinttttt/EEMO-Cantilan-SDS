@@ -101,6 +101,7 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
     }
 
     [HttpPost("or-number")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
     public async Task<ActionResult<bool>> SaveOrNumber([FromBody] SaveOrNumberCommand command)
     {
         var result = await Sender.Send(command);

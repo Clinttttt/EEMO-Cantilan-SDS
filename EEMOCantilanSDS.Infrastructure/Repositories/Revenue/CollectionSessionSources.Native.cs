@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Fees;
@@ -159,31 +160,17 @@ public sealed partial class CollectionSessionSources
                         [new($"NpmPart|{stall.Id:N}|{date:yyyy-MM}", CollectionSessionItemKind.NpmPartPayment, "NPM_PART_PAYMENT", "Part payment",
                             $"Stall {stall.StallNo} · {date:MMMM yyyy}", new(StallId: stall.Id, OccupancyId: owner.Id, Year: date.Year, Month: date.Month),
                             partInstrument, CollectionSessionAmountRule.DirectAmount, MaximumAmount: part.Payable, RequiredInputs: ["AmountReceived"])], CollectionFamily.Rent));
-                if (MonthlyRentalFacilities.Bills(stall.Facility!))
-
-                {
-                    var periods = await db.PaymentRecords.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stall.Id
-                        && x.SettlementAuthorityState == SettlementAuthority.Canonical).OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
-                        .Select(x => new { x.BillingYear, x.BillingMonth }).ToListAsync(ct);
-                    var choices = new List<CollectionSessionSourceChoice>();
-                    foreach (var period in periods)
-                    {
-                        try
-                        {
-                            var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadAsync(Tenant, stall.Id, period.BillingYear, period.BillingMonth,
-                                date, false, false, "quote", ct);
-                            if (facts?.Quote.CanPostCanonical != true || facts.Contract.Id != owner.Id) continue;
-                            var q = facts.Quote;
-                            choices.Add(new($"Rent|{stall.Id:N}|{period.BillingYear}|{period.BillingMonth}", CollectionSessionItemKind.MonthlyRent,
-                                "FACILITY_" + stall.Facility.Code, stall.Facility.Name, $"Stall {stall.StallNo} · {period.BillingYear}-{period.BillingMonth:00}",
-                                new(StallId: stall.Id, OccupancyId: owner.Id, Year: period.BillingYear, Month: period.BillingMonth, SourceVersion: q.SourceVersion),
-                                q.Instrument, CollectionSessionAmountRule.PreparedBalance, q.OutstandingAmount, q.OutstandingAmount, RequiredInputs: ["AmountReceived"]));
-                        }
-                        catch (InvalidOperationException) { /* One malformed period cannot hide unrelated eligible sources. */ }
-                    }
-                    if (choices.Count > 0) rows.Add(new(CollectionSessionItemKind.MonthlyRent, "FACILITY_" + stall.Facility.Code,
-                        stall.Facility.Name, true, true, null, null, false, [], true, choices, CollectionFamily.Rent));
-                }
+                if (MonthlyRentalFacilities.Bills(stall.Facility!) && await MonthlyRentRowAsync(stall, owner.Id, "", date, ct) is { } rent) rows.Add(rent);
+            }
+            // A contract that no longer answers for the stall (ended, expired, re-let) is still the one liable for ITS months. Only its own canonical
+            // rent periods are offered, never the stall's utilities or daily fees, and only to a collector assigned to the facility.
+            else if (MonthlyRentalFacilities.Bills(stall.Facility!)
+                && await db.CollectorUsers.AsNoTracking().AnyAsync(x => x.MunicipalityId == Tenant && x.Id == user.CollectorId && x.IsActive
+                    && x.FacilityAssignments.Any(a => a.FacilityCode == stall.Facility!.Code), ct))
+            {
+                var former = stall.Contracts.Single(c => c.Id == identity.Id);
+                var basis = (former.EndedOn is not null ? SpaceArrears.EndedOccupancy : SpaceArrears.ExpiredContract).ToLowerInvariant();
+                if (await MonthlyRentRowAsync(stall, former.Id, $" · Arrears, {basis}", date, ct) is { } rent) rows.Add(rent);
             }
         }
         // Payer-optional services are offered only to a direct session (no Source Identity); a selected source never carries them.
@@ -209,10 +196,38 @@ public sealed partial class CollectionSessionSources
         }
         }
         await AddAssessedFineChoicesAsync(rows, identity, date, ct);
-        return new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
+        return await LabelSpaceArrearsAsync(new(null, date, rows.GroupBy(x => x.OperationCode).Select(g => g.First() with {
             DisplayName = g.Key == CollectorOperationCodes.Terminal ? "Income From Terminal" : g.First().DisplayName,
             Choices = g.SelectMany(x => x.Choices ?? []).OrderBy(x => x.SelectionKey, StringComparer.Ordinal).ToArray()
-        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked, NpmLinkStatus: npmLinkStatus);
+        }).ToArray(), SourceIdentity: identity, LinkedSources: linked.Count == 0 ? null : linked, NpmLinkStatus: npmLinkStatus), date, ct);
+    }
+    /// <summary>
+    /// The canonical monthly-rent periods that belong to ONE contract: only months under canonical settlement authority (a legacy month is collected on its
+    /// legacy path until its cutover) whose liable occupancy for that month is this contract, each at its own balance.
+    /// </summary>
+    private async Task<CollectionSessionCapability?> MonthlyRentRowAsync(Stall stall, Guid contractId, string contextSuffix, DateOnly date, CancellationToken ct)
+    {
+        var periods = await db.PaymentRecords.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.StallId == stall.Id
+            && x.SettlementAuthorityState == SettlementAuthority.Canonical).OrderBy(x => x.BillingYear).ThenBy(x => x.BillingMonth)
+            .Select(x => new { x.BillingYear, x.BillingMonth }).ToListAsync(ct);
+        var choices = new List<CollectionSessionSourceChoice>();
+        foreach (var period in periods)
+        {
+            try
+            {
+                var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadAsync(Tenant, stall.Id, period.BillingYear, period.BillingMonth,
+                    date, false, false, "quote", ct);
+                if (facts?.Quote.CanPostCanonical != true || facts.Contract.Id != contractId) continue;
+                var q = facts.Quote;
+                choices.Add(new($"Rent|{stall.Id:N}|{period.BillingYear}|{period.BillingMonth}", CollectionSessionItemKind.MonthlyRent,
+                    "FACILITY_" + stall.Facility!.Code, stall.Facility.Name, $"Stall {stall.StallNo} · {period.BillingYear}-{period.BillingMonth:00}{contextSuffix}",
+                    new(StallId: stall.Id, OccupancyId: contractId, Year: period.BillingYear, Month: period.BillingMonth, SourceVersion: q.SourceVersion),
+                    q.Instrument, CollectionSessionAmountRule.PreparedBalance, q.OutstandingAmount, q.OutstandingAmount, RequiredInputs: ["AmountReceived"]));
+            }
+            catch (InvalidOperationException) { /* One malformed period cannot hide unrelated eligible sources. */ }
+        }
+        return choices.Count == 0 ? null : new(CollectionSessionItemKind.MonthlyRent, "FACILITY_" + stall.Facility!.Code,
+            stall.Facility.Name, true, true, null, null, false, [], true, choices, CollectionFamily.Rent);
     }
     private async Task<bool> NativeItemMatchesAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct)
     {

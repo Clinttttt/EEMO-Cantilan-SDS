@@ -147,6 +147,7 @@ namespace EEMOCantilanSDS.Client
             service.AddApiHttpClient<IDailyCollectionApiClient, DailyCollectionApiClient>(configuration);
             service.AddApiHttpClient<IUtilitiesApiClient, UtilitiesApiClient>(configuration);
             service.AddApiHttpClient<IEcfCollectionsApiClient, EcfCollectionsApiClient>(configuration);
+            service.AddApiHttpClient<IActivationCodesApiClient, ActivationCodesApiClient>(configuration);
             service.AddApiHttpClient<IBusinessPayorsApiClient, BusinessPayorsApiClient>(configuration);
             service.AddApiHttpClient<IWcfCollectionsApiClient, WcfCollectionsApiClient>(configuration);
             service.AddApiHttpClient<IUtilityRegisterApiClient, UtilityRegisterApiClient>(configuration);

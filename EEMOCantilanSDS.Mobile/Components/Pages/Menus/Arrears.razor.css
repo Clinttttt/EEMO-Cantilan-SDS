@@ -1,0 +1,82 @@
+/* Arrears and Delinquency: a quiet list (name, operation, amount) that opens a details sheet; registers and dividers, one control language. */
+.ar-input { display: block; width: 100%; min-height: 46px; margin-bottom: 10px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.ar-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); outline: none; }
+.ar-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.ar-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-pick svg { flex: 0 0 auto; width: 18px; height: 18px; fill: none; stroke: var(--mobile-text-secondary); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.ar-pick-title { margin-bottom: 6px; }
+.ar-opts { margin: 0; padding: 0; list-style: none; }
+.ar-opt { display: flex; width: 100%; min-height: 50px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); font-size: 15px; text-align: left; }
+.ar-opts li:last-child .ar-opt { border-bottom: 0; }
+.ar-opt.on { color: var(--mobile-blue); font-weight: 600; }
+.ar-opt.on::after { content: '✓'; font-weight: 700; }
+.ar-opt:focus-visible, .ar-pick:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -2px; }
+
+/* The three reasons fill the width as equal segments: nothing scrolls sideways, nothing is cut off. */
+.ar-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.ar-seg-btn { min-height: 44px; border: 0; border-right: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text-secondary); font-size: 14px; font-weight: 600; }
+.ar-seg-btn:last-child { border-right: 0; }
+.ar-seg-btn.on { background: var(--mobile-blue); color: #ffffff; }
+
+.ar-summary { margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); }
+.ar-summary-main { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.ar-summary-main strong { font-size: 22px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.ar-summary-main span { font-size: 13px; color: var(--mobile-text-secondary); }
+.ar-summary-split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 10px 0 0; padding-top: 10px; border-top: 1px solid var(--mobile-border); }
+.ar-summary-split div { display: flex; flex-direction: column; gap: 2px; }
+.ar-summary-split dt { font-size: 12px; color: var(--mobile-text-secondary); }
+.ar-summary-split dd { margin: 0; font-size: 14px; font-weight: 600; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+
+.ar-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
+.ar-item { border-bottom: 1px solid var(--mobile-border); }
+.ar-item:last-child { border-bottom: 0; }
+.ar-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 14px; border: 0; background: transparent; color: var(--mobile-text); text-align: left; }
+.ar-row:active { background: var(--mobile-blue-subtle); }
+.ar-text { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.ar-text strong { overflow: hidden; font-size: 15px; font-weight: 600; color: var(--mobile-navy); text-overflow: ellipsis; white-space: nowrap; }
+.ar-text small { overflow: hidden; margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.ar-amount { flex: 0 0 auto; font-size: 15px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.ar-note { margin: 10px 2px; font-size: 13px; color: var(--mobile-text-secondary); text-align: center; }
+.ar-more { display: block; width: 100%; min-height: 46px; margin: 6px 0; border: 1px solid var(--mobile-blue); border-radius: 12px; background: transparent; color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
+.ar-seg-btn:focus-visible, .ar-row:focus-visible, .ar-more:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -3px; }
+
+/* One bottom-sheet language for the account details and the payor code. */
+.ar-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(15, 23, 42, .45); }
+.ar-sheet { width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--mobile-surface); }
+.ar-sheet-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ar-sheet-who { min-width: 0; }
+.ar-sheet-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--mobile-navy); overflow-wrap: anywhere; }
+.ar-sheet-who p { margin: 2px 0 0; font-size: 13px; color: var(--mobile-text-secondary); }
+.ar-sheet-amount { flex: 0 0 auto; font-size: 18px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.ar-facts { margin: 0 0 12px; padding: 0; }
+.ar-facts div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--mobile-border); font-size: 14px; }
+.ar-facts dt { color: var(--mobile-text-secondary); }
+.ar-facts dd { margin: 0; color: var(--mobile-navy); font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.ar-hint { margin: 0 0 12px; font-size: 13px; line-height: 1.4; color: var(--mobile-text-secondary); }
+.ar-field { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.ar-confirm { display: flex; gap: 10px; align-items: center; margin: 2px 0 14px; font-size: 14px; color: var(--mobile-text); }
+.ar-confirm input { flex: 0 0 auto; width: 22px; height: 22px; }
+.ar-error { margin: 0 0 12px; font-size: 13px; color: var(--mobile-danger, #b42318); }
+.ar-actions { display: flex; flex-direction: column; gap: 8px; }
+.ar-actions-row { flex-direction: row; }
+.ar-actions-row > button { flex: 1 1 0; }
+.ar-primary, .ar-secondary, .ar-cancel { min-height: 46px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.ar-primary { border: 1px solid var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
+.ar-secondary { border: 1px solid var(--mobile-blue); background: var(--mobile-surface); color: var(--mobile-blue); }
+.ar-cancel { border: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); }
+.ar-primary:disabled { opacity: .5; }
+.ar-code-box { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-bottom: 12px; padding: 14px; border: 1px dashed var(--mobile-blue); border-radius: 12px; }
+.ar-code-box small { font-size: 12px; color: var(--mobile-text-secondary); }
+.ar-code-box strong { font-size: 26px; letter-spacing: 3px; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.ar-primary:focus-visible, .ar-secondary:focus-visible, .ar-cancel:focus-visible, .ar-confirm input:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+
+/* Loading: the shape of the list that is coming, not a line of text. */
+.sk { display: block; border-radius: 6px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.sk-input, .sk-seg { height: 46px; margin-bottom: 10px; border-radius: 12px; }
+.sk-sum { height: 92px; margin: 4px 0 12px; border-radius: 14px; }
+.sk-name { width: 55%; height: 14px; }
+.sk-op { width: 40%; height: 11px; margin-top: 7px; }
+.sk-amt { flex: 0 0 auto; width: 76px; height: 14px; }

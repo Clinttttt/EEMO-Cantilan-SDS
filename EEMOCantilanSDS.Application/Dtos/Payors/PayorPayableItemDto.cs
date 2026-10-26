@@ -25,4 +25,15 @@ public sealed record PayorPayableItemDto(
     // NpmDaily only: how many days this amount is made of, and the fee for one of them. A market payor was shown a month's
     // total with no way to see that it is a day's fee counted out, which is the rule they are actually billed under.
     int? Days = null,
-    decimal? DailyRate = null);
+    decimal? DailyRate = null,
+    // The tenant's own name and acronym for the facility (null from an older API); Facility above is only the internal slot code.
+    string? FacilityName = null,
+    string? FacilityShortName = null)
+{
+    /// <summary>
+    /// false = a read-only outstanding balance (pay at the office or to the collector): new online checkout is monthly Stall
+    /// Rent only. Set by the repository from the same rule the initiate guard enforces (facility billing basis + kind +
+    /// settlement authority), so the button and the server cannot disagree. Defaults true for an older API.
+    /// </summary>
+    public bool PayableOnline { get; init; } = true;
+}

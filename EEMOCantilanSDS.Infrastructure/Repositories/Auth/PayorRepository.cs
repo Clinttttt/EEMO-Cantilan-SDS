@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Infrastructure.Time;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Payments;
@@ -207,7 +208,9 @@ public class PayorRepository(
                 oldest?.Period,
                 isDaily,
                 dailyRate,
-                daysOwed));
+                daysOwed,
+                stall.Facility.Name,
+                string.IsNullOrWhiteSpace(stall.Facility.ShortName) ? null : stall.Facility.ShortName));
         }
 
         return result.OrderByDescending(r => r.OutstandingBalance).ToList();
@@ -283,7 +286,11 @@ public class PayorRepository(
             foreach (var r in nonPaid.Where(r => r.StallId == stall.Id && r.BalanceDue > 0m))
             {
                 items.Add(new PayorPayableItemDto(
-                    stall.Id, stall.StallNo, facility, r.BillingYear, r.BillingMonth, r.PeriodKey, r.BalanceDue));
+                    stall.Id, stall.StallNo, facility, r.BillingYear, r.BillingMonth, r.PeriodKey, r.BalanceDue)
+                {
+                    // Initiate pauses a source that is transitioning (PendingCutover); Legacy and Canonical rows are payable.
+                    PayableOnline = r.SettlementAuthorityState != SettlementAuthority.PendingCutover
+                });
             }
 
             // 2) Synthesized current-month obligation for monthly-rental facilities.
@@ -349,6 +356,17 @@ public class PayorRepository(
             }
         }
 
-        return items;
+        // The wording a payor reads comes from the stall's own tenant facility record; the slot code stays the identity.
+        var facilityOf = stalls.Where(s => s.Facility is not null).ToDictionary(s => s.Id, s => s.Facility!);
+        // PayableOnline is the initiate guard's own rule (facility billing basis + kind), so a daily-billed market's balance,
+        // whatever its kind, stays visible but read-only.
+        return items.Select(i => facilityOf.TryGetValue(i.StallId, out var facility)
+            ? i with
+            {
+                FacilityName = facility.Name,
+                FacilityShortName = string.IsNullOrWhiteSpace(facility.ShortName) ? null : facility.ShortName,
+                PayableOnline = i.PayableOnline && InitiateOnlinePaymentCommandHandler.IsOnlineStallRent(facility, i.Kind)
+            }
+            : i with { PayableOnline = false }).ToList();
     }
 }

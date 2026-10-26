@@ -203,4 +203,19 @@ public class TokenServiceMunicipalityClaimTests : RepositoryTestBase
         Assert.Equal("carmen", MunicipalityClaim(token));
         Assert.NotEqual(TenantConstants.DefaultTenantCode, MunicipalityClaim(token));
     }
+
+    [Fact]
+    public void AUserWhoseMunicipalityDoesNotResolve_GetsNoToken_NotACantilanNamespace()
+    {
+        // ST-11 #9: an id that points nowhere used to be minted into a token filed under "cantilan-sds".
+        var context = NewContext();
+        var admin = AdminUser.Create("Ghost", "ghost", "ghost@eemo.gov", TestPasswords.Hash("Secret123!"), AdminRole.Admin);
+        context.Add(admin);
+        context.Entry(admin).Property(nameof(IMunicipalityOwned.MunicipalityId)).CurrentValue = Guid.NewGuid();
+        context.SaveChanges();
+
+        var service = new TokenService(Config(), new UnitOfWork(context), context, new FixedClock(DateTime.UtcNow));
+
+        Assert.Throws<InvalidOperationException>(() => service.CreateToken(admin, "Admin"));
+    }
 }

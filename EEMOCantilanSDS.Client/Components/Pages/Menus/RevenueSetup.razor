@@ -6,11 +6,13 @@
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Common.Revenue
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Dtos.Settings
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Enums
 @inject IRevenueClassificationsApiClient RevenueApi
+@inject IOperationSettingsApiClient OperationSettingsApi
 
 <PageTitle>@Branding.OfficeAcronym — Revenue Sources</PageTitle>
 
@@ -94,7 +96,107 @@
             </section>
         }
     }
+
+    @if (!_loading && _loadError is null && _setupRequired.Count > 0 && _setup is null)
+    {
+        @* A listed operation whose revenue source this municipality has not set up. Nothing is assumed for it: no rate, receipt
+           type or effective date is shown until the municipality's own policy exists. *@
+        <section class="v3-panel rev-group" aria-labelledby="rev-g-setup">
+            <header class="rev-group-head">
+                <h2 id="rev-g-setup">Setup required</h2>
+                <span class="rev-group-count">@_setupRequired.Count</span>
+            </header>
+            <ul class="rev-list">
+                @foreach (var name in _setupRequired)
+                {
+                    <li class="rev-row">
+                        <span class="rev-source-name">@name</span>
+                        <span class="rev-row-instrument"><span class="v3-muted">—</span></span>
+                        <span class="rev-row-status"><span class="rev-status is-pending">No revenue source set up</span></span>
+                        <span></span>
+                    </li>
+                }
+            </ul>
+        </section>
+    }
+
+    @if (!_loading && _loadError is null && _setup is { } setup)
+    {
+        @if (!string.IsNullOrEmpty(_notice))
+        {
+            <p class="v3-notice rev-notice" role="status">@_notice</p>
+        }
+        @if (AddedItems.Count > 0)
+        {
+            @* Where each added operation stands, from backend facts (its source, an effective policy, its assigned collectors and what each collector's app is told). Adding never authorizes collection. *@
+            <section class="v3-panel rev-group" aria-labelledby="rev-g-status">
+                <header class="rev-group-head">
+                    <h2 id="rev-g-status">Collections</h2>
+                    <span class="rev-group-count">@AddedItems.Count</span>
+                </header>
+                <p class="rev-note">Ready to collect means a collector can collect it on Mobile now. Adding an operation never allows collection by itself.</p>
+                <ul class="rev-list">
+                    @foreach (var item in AddedItems)
+                    {
+                        <li class="rev-row" data-operation="@item.OperationCode" data-state="@item.State">
+                            <span class="rev-source-name">@item.DisplayName@if (item.Gaps.Count > 0) {<small class="v3-block rev-gaps">@string.Join(" · ", item.Gaps)</small>}</span>
+                            <span class="rev-row-instrument v3-muted">@GroupLabel(item.GroupKey)</span>
+                            <span class="rev-row-status"><span class="rev-status @StateClass(item.State)">@StateLabel(item.State)</span></span>
+                            <span></span>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+        @if (AvailableItems.Count > 0)
+        {
+            <section class="v3-panel rev-group" aria-labelledby="rev-g-available">
+                <header class="rev-group-head">
+                    <h2 id="rev-g-available">Available to add</h2>
+                    <span class="rev-group-count">@AvailableItems.Count</span>
+                </header>
+                <p class="rev-note">Operations this municipality did not select at onboarding. Adding one lists it and prepares its revenue source; collection stays off until its receipt type, collectors and setup are in place.</p>
+                <ul class="rev-list">
+                    @foreach (var item in AvailableItems)
+                    {
+                        <li class="rev-row" data-operation="@item.OperationCode">
+                            <span class="rev-source-name">@item.DisplayName</span>
+                            <span class="rev-row-instrument v3-muted">@GroupLabel(item.GroupKey)</span>
+                            <span class="rev-row-status"></span>
+                            <button class="v3-btn v3-btn-sm rev-details" type="button" @onclick="() => OpenAdd(item)" aria-label="@("Add " + item.DisplayName)">Add</button>
+                        </li>
+                    }
+                </ul>
+            </section>
+        }
+    }
 </div>
+
+@if (_adding is { } adding)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseAdd">
+        <section class="v3-modal rev-add-dialog" role="dialog" aria-modal="true" aria-labelledby="rev-add-title" @onclick:stopPropagation="true" @onkeydown="OnAddKey">
+            <header class="v3-modal-header">
+                <h2 id="rev-add-title">Add @adding.DisplayName</h2>
+            </header>
+            <div class="v3-modal-body">
+                <p class="rev-note rev-note-flush">This lists the operation and prepares its revenue source. It does not allow collection: its receipt type, collector assignments and any activation are set separately.</p>
+                <label class="v3-field">
+                    <span>Local name (optional)</span>
+                    <input type="text" maxlength="@TenantOperationCatalog.MaxLabelLength" placeholder="@adding.DisplayName" @bind="_addName" @bind:event="oninput" />
+                </label>
+                @if (!string.IsNullOrEmpty(_addError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_addError</p>
+                }
+            </div>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseAdd" disabled="@_addBusy">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="AddAsync" disabled="@_addBusy">@(_addBusy ? "Adding…" : "Add operation")</button>
+            </footer>
+        </section>
+    </div>
+}
 
 @if (_selected is { } source)
 {
@@ -180,6 +282,13 @@
 @code {
     private IReadOnlyList<RevenueClassificationDto> _classifications = [];
     private IReadOnlyList<RevenueClassificationPolicyDto> _history = [];
+    private IReadOnlyList<string> _setupRequired = [];
+    private OperationSetupOverviewDto? _setup;
+    private OperationSetupDto? _adding;
+    private string _addName = string.Empty, _addError = string.Empty, _notice = string.Empty;
+    private bool _addBusy;
+    private IReadOnlyList<OperationSetupDto> AddedItems => _setup?.Items.Where(i => i.State != OperationSetupState.Available).ToList() ?? [];
+    private IReadOnlyList<OperationSetupDto> AvailableItems => _setup?.Items.Where(i => i.State == OperationSetupState.Available).ToList() ?? [];
     private RevenueClassificationDto? _selected;
     private bool _loading = true;
     private bool _historyLoading;
@@ -255,6 +364,7 @@
             }
 
             _classifications = result.Value;
+            await LoadSetupRequiredAsync(generation);
         }
         catch
         {
@@ -266,6 +376,76 @@
             if (generation == _loadGeneration) _loading = false;
         }
     }
+
+    // Best effort: the directory stands without it, so a failure here only leaves the extra section out.
+    private async Task LoadSetupRequiredAsync(long generation)
+    {
+        try
+        {
+            var settings = await OperationSettingsApi.GetAsync();
+            if (generation != _loadGeneration) return;
+            _setupRequired = settings is { IsSuccess: true, Value: not null }
+                ? settings.Value.Items
+                    .Where(i => i.IsListed && TenantOperationCatalog.Find(i.OperationCode) is { } entry
+                        && !_classifications.Any(c => c.SemanticCode == entry.ClassificationCode))
+                    .Select(i => i.DisplayName).ToList()
+                : [];
+        }
+        catch { _setupRequired = []; }
+
+        // The verified state of each operation (Available / Added / Setup required / Ready). Best effort: without it the directory above still stands.
+        try
+        {
+            var setup = await OperationSettingsApi.GetSetupAsync();
+            if (generation != _loadGeneration) return;
+            _setup = setup is { IsSuccess: true, Value: not null } ? setup.Value : null;
+        }
+        catch { _setup = null; }
+    }
+
+    private void OpenAdd(OperationSetupDto item) { _adding = item; _addName = string.Empty; _addError = string.Empty; _notice = string.Empty; }
+    private void CloseAdd() { if (!_addBusy) _adding = null; }
+    private void OnAddKey(KeyboardEventArgs args) { if (args.Key == "Escape") CloseAdd(); }
+
+    private async Task AddAsync()
+    {
+        if (_adding is not { } item || _addBusy) return;
+        _addBusy = true; _addError = string.Empty;
+        try
+        {
+            var result = await OperationSettingsApi.AddAsync(item.OperationCode, new(string.IsNullOrWhiteSpace(_addName) ? null : _addName.Trim(), item.Version));
+            if (result is not { IsSuccess: true, Value: not null })
+            {
+                _addError = ErrorMessage(result ?? Result<AddTenantOperationResultDto>.Failure("The operation could not be added.", 500), "The operation could not be added.");
+                return;
+            }
+            var added = result.Value;
+            _notice = added.AlreadyAdded ? $"{item.DisplayName} was already added."
+                : added.SourceRetired ? $"{item.DisplayName} was added. Its revenue source is retired and was not reactivated; it stays Setup required."
+                : $"{item.DisplayName} was added. It is Setup required until its receipt type, collectors and setup are in place.";
+            _adding = null;
+            await LoadAsync();
+        }
+        catch { _addError = "The operation could not be added. Check the connection and try again."; }
+        finally { _addBusy = false; }
+    }
+
+    private static string GroupLabel(string groupKey) => groupKey == TenantOperationCatalog.SpaceGroup ? "Space Rental" : "Income from Market";
+
+    private static string StateLabel(OperationSetupState state) => state switch
+    {
+        OperationSetupState.Ready => "Ready to collect",
+        OperationSetupState.SetupRequired => "Setup required",
+        OperationSetupState.Added => "Added",
+        _ => "Available",
+    };
+
+    private static string StateClass(OperationSetupState state) => state switch
+    {
+        OperationSetupState.Ready => "is-active",
+        OperationSetupState.SetupRequired => "is-pending",
+        _ => "is-neutral",
+    };
 
     private async Task ShowDetailsAsync(RevenueClassificationDto item)
     {

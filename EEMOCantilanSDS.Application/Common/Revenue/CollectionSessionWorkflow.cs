@@ -105,6 +105,23 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                 if (resolved.Quote is { } quote) quotes.Add(quote with { GroupId = ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId) });
             }
         }
+        // Registered ORs and entered references each group months of ONE liable space account; never mix their meanings.
+        if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) && !string.IsNullOrWhiteSpace(intent.ReceiptReference))
+            errors.Add(new(null, "ReceiptModeConflict", "Choose either a registered OR or an informational reference."));
+        if (intent.ReceiptReference?.Trim().Length > 100)
+            errors.Add(new(null, "ReceiptReferenceTooLong", "The optional reference cannot exceed 100 characters."));
+        // A REGISTERED Official Receipt covers months of one space account only (its custody and consumption are checked at posting).
+        if (errors.Count == 0 && !string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber))
+        {
+            var accounts = intent.Items!.Select(i => i.Kind == CollectionSessionItemKind.Obligation ? i.Obligation?.AccountId : null).Distinct().ToList();
+            if (intent.OfficialReceiptNumber.Length > 100 || accounts.Count != 1 || accounts[0] is null || quotes.Any(q => q.Instrument != EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt
+                    || !EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.IsSpaceObligation(q.OperationCode)))
+                errors.Add(new(null, "ReceiptNeedsOneSpaceAccount", "One Official Receipt can cover months of one space account only."));
+        }
+        // The optional reference accompanies the Official Receipt charges of ANY operation; Cash Ticket and other instruments keep their own behaviour.
+        if (errors.Count == 0 && !string.IsNullOrWhiteSpace(intent.ReceiptReference)
+            && !quotes.Any(q => q.Instrument == EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt))
+            errors.Add(new(null, "ReceiptReferenceNeedsOrCharge", "The reference applies to Official Receipt charges; this checkout has none."));
         var totals = quotes.GroupBy(q => q.Instrument).Select(g => new CollectionSessionInstrumentTotal(g.Key, g.Sum(q => q.Amount))).ToArray();
         var token = errors.Count == 0 ? Hash(JsonSerializer.Serialize(new
         {
@@ -139,9 +156,22 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     return;
                 }
                 var collections = new List<CollectionSessionCollection>();
-                foreach (var item in intent.Items.OrderBy(i => i.ClientItemId))
-                    collections.Add(await sources.PostAsync(intent, item,
-                        ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId), ct));
+                if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) || (!string.IsNullOrWhiteSpace(intent.ReceiptReference) && OneSpaceAccount(intent, quote)))
+                {
+                    // Preflight proved one space account; the identity is the session's lowest item so a replay resolves to the same single Collection.
+                    var items = intent.Items.OrderBy(i => i.ClientItemId).ToList();
+                    collections.Add(await sources.PostObligationMonthsAsync(intent, items,
+                        ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, items[0].ClientItemId), ct));
+                }
+                else
+                {
+                    foreach (var item in intent.Items.OrderBy(i => i.ClientItemId))
+                        collections.Add(await sources.PostAsync(intent, item,
+                            ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId), ct));
+                    // One shared reference, stamped on each Official Receipt collection in this same unit of work; amounts, allocations and SRCs are exactly as without it.
+                    if (!string.IsNullOrWhiteSpace(intent.ReceiptReference))
+                        await sources.StampReceiptReferenceAsync(collections, intent.ReceiptReference.Trim(), ct);
+                }
                 result = new(intent.ClientCollectionSessionId, CollectionSessionStatus.Recorded, intent.PayorId,
                     collections.Sum(c => c.Amount), collections, []);
                 await store.SaveAsync(MobileCollectionSession.Recorded(municipality.MunicipalityId,
@@ -187,7 +217,20 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
     private static CollectionSessionResult Review(CollectionSessionIntent intent, params CollectionSessionProblem[] problems) =>
         new(intent.ClientCollectionSessionId, CollectionSessionStatus.NeedsReview, intent.PayorId, 0m, [], problems);
 
-    public static string IntentFingerprint(CollectionSessionIntent intent)
+    // An OR number or entered reference is part of the intent (same session + different one = conflict); absent both, existing fingerprints are unchanged.
+    public static string IntentFingerprint(CollectionSessionIntent intent) => string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) && string.IsNullOrWhiteSpace(intent.ReceiptReference)
+        ? BaseFingerprint(intent)
+        : Hash(BaseFingerprint(intent) + NpmReceiptEvidence.IntentSuffix(intent.OfficialReceiptNumber)
+            + (string.IsNullOrWhiteSpace(intent.ReceiptReference) ? "" : "|REF:" + intent.ReceiptReference.Trim()));
+
+    // Months of ONE space account that are all Official Receipt charges: they post as one Collection with a line per month.
+    private static bool OneSpaceAccount(CollectionSessionIntent intent, CollectionSessionQuote quote) =>
+        intent.Items.All(i => i.Kind == CollectionSessionItemKind.Obligation && i.Obligation is not null)
+        && intent.Items.Select(i => i.Obligation!.AccountId).Distinct().Count() == 1
+        && quote.Items.All(q => q.Instrument == EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt
+            && EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.IsSpaceObligation(q.OperationCode));
+
+    private static string BaseFingerprint(CollectionSessionIntent intent)
     {
         if (intent.SourceIdentity is not null || intent.PayerSnapshot is not null || intent.Items.Any(i => i.Native is not null || i.Fine is not null))
             return Hash(JsonSerializer.Serialize(new { Version = 3, intent.BusinessDate, intent.PayorId, intent.SourceIdentity,

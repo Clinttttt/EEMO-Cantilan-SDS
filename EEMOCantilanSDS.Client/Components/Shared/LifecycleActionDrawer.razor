@@ -35,22 +35,74 @@
                 </dl>
             }
             <fieldset class="lc-fields" disabled="@(_confirming || _busy)">
-                @if (Action is LifecycleAction.Resume or LifecycleAction.Reassign)
+                @if (Action == LifecycleAction.Reassign)
                 {
-                    @if (Action == LifecycleAction.Reassign)
-                    {
+                    @* The same sections and inputs as "Add Rent / Space Holder": the space, operation and last approved amount come filled in;
+                       the office states the new holder, their basis and their contract. *@
+                    <AddNewSection Title="Occupant Information" Plain="true">
                         <div class="avm-group">
-                            <label class="avm-label" for="lc-holder">New holder <span class="avm-req">*</span></label>
-                            <input id="lc-holder" class="avm-input" type="text" maxlength="200" autocomplete="off" @bind="_holder" @bind:event="oninput" aria-describedby="lc-holder-err" />
-                            <span id="lc-holder-err" class="lc-error" role="alert">@FieldError("holder")</span>
-                            <label class="lc-check"><input type="checkbox" @bind="_distinct" /> This is a different person even if the name is the same</label>
+                            <label class="avm-label">Basis of Occupancy <span class="avm-req">*</span></label>
+                            <ChoiceCards Label="Basis of occupancy" Items="BasisChoices" Value="@(_signed ? "signed" : "space")" ValueChanged="PickBasis" />
                         </div>
+                        <div class="@(_signed ? "avm-row-2" : "avm-group")">
+                            <div class="avm-group">
+                                <label class="avm-label" for="lc-holder">Actual Occupant (Leasee) <span class="avm-req">*</span></label>
+                                <input id="lc-holder" class="avm-input" type="text" maxlength="200" autocomplete="off" placeholder="New space occupant" @bind="_holder" @bind:event="oninput" aria-describedby="lc-holder-err" />
+                                <span id="lc-holder-err" class="lc-error" role="alert">@FieldError("holder")</span>
+                            </div>
+                            @if (_signed)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label" for="lc-contract">Name on Contract</label>
+                                    <input id="lc-contract" class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_contractName" />
+                                </div>
+                            }
+                        </div>
+                        <label class="lc-check"><input type="checkbox" @bind="_distinct" /> This is a different person even if the name is the same</label>
+                    </AddNewSection>
+                    <RentalContractFields Title="Rent / Space & Contract Details">
+                        <SourceField><div class="avm-group"><span class="avm-label">Operation</span><div class="avm-input avm-input-locked">@OperationName</div></div></SourceField>
+                        <NumberField><div class="avm-group"><span class="avm-label">Rent / Space No.</span><div class="avm-input avm-input-locked">@Account.Label</div></div></NumberField>
+                        <EffectivityField>
+                            <div class="avm-group">
+                                <label class="avm-label" for="lc-date">@(_signed ? "Contract Effectivity Date" : "Occupying Since") <span class="avm-req">*</span></label>
+                                <input id="lc-date" class="avm-input" type="date" @bind="_date" aria-describedby="lc-date-err" />
+                                <span class="avm-hint-muted">The first day of a month: a space is billed by the month.</span>
+                                <span id="lc-date-err" class="lc-error" role="alert">@FieldError("date")</span>
+                            </div>
+                        </EffectivityField>
+                        <TermField>
+                            @if (_signed)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label" for="lc-years">Contract Duration (No. of Years)</label>
+                                    <input id="lc-years" class="avm-input" type="number" min="1" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
+                                    <span id="lc-years-err" class="lc-error" role="alert">@FieldError("years")</span>
+                                    @if (RenewalEndsOn is { } termEnds) { <span class="avm-hint" role="status">The contract runs to @termEnds.ToString("MMM d, yyyy").</span> }
+                                </div>
+                            }
+                        </TermField>
+                        <AdditionalFields>
+                            @if (_signed)
+                            {
+                                <div class="avm-group">
+                                    <label class="avm-label" for="lc-ref">Contract Reference</label>
+                                    <input id="lc-ref" class="avm-input" type="text" maxlength="200" placeholder="As written on the contract" @bind="_reference" />
+                                </div>
+                            }
+                        </AdditionalFields>
+                    </RentalContractFields>
+                    <AddNewSection Title="Rent / Space Information" Plain="true">
                         <div class="avm-group">
-                            <label class="avm-label" for="lc-amount">Approved monthly amount <span class="avm-req">*</span></label>
+                            <label class="avm-label" for="lc-amount">Approved Monthly Rental <span class="avm-req">*</span></label>
                             <input id="lc-amount" class="avm-input" type="number" min="0" step="0.01" inputmode="decimal" @bind="_amount" aria-describedby="lc-amount-err" />
+                            <span class="avm-hint-muted">Filled in from the previous holder's approved amount. Change it if the new holder's differs.</span>
                             <span id="lc-amount-err" class="lc-error" role="alert">@FieldError("amount")</span>
                         </div>
-                    }
+                    </AddNewSection>
+                }
+                else if (Action == LifecycleAction.Resume)
+                {
                     <div class="avm-group">
                         <label class="avm-label" for="lc-date">@(Action == LifecycleAction.Resume ? "Resumes on" : "New holder starts on") <span class="avm-req">*</span></label>
                         <input id="lc-date" class="avm-input" type="date" @bind="_date" aria-describedby="lc-date-err" />
@@ -168,6 +220,8 @@
             _context = preview.Facts;
             if (!preview.CanExecute && !InputReasons.Contains(preview.ReasonCode)) { _blocked = preview.Explanation; _blockedCode = preview.ReasonCode; return; }
             // Start from what the server says is allowed, never from a guess: the earliest start, or the day after the current term.
+            if (_context.TryGetValue("Previous approved amount", out var previous)
+                && decimal.TryParse(previous.TrimStart('₱'), System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var prior)) _amount = prior;
             if (_context.TryGetValue("Earliest start", out var earliest) && DateOnly.TryParse(earliest, out var start)) _date = start;
             else if (_context.TryGetValue("Current term ends", out var ends) && DateOnly.TryParse(ends, out var last)) _date = last.AddDays(1);
         }
@@ -175,10 +229,26 @@
         finally { _loading = false; }
     }
 
-    private LifecycleCommand Command() => new(Action, _date, (_reason ?? string.Empty).Trim(), Clean(_evidence), Action == LifecycleAction.Reassign ? Clean(_holder) : null,
-        null, Action == LifecycleAction.Reassign && _distinct, Action == LifecycleAction.Reassign ? _amount : null,
-        Action == LifecycleAction.Renew ? _years : null, Action == LifecycleAction.Renew ? Clean(_contractName) : null,
-        Action == LifecycleAction.Renew ? Clean(_reference) : null);
+    private LifecycleCommand Command()
+    {
+        var reassign = Action == LifecycleAction.Reassign;
+        var term = Action == LifecycleAction.Renew || reassign && _signed;
+        return new(Action, _date, (_reason ?? string.Empty).Trim(), Clean(_evidence), reassign ? Clean(_holder) : null,
+            null, reassign && _distinct, reassign ? _amount : null,
+            term ? _years : null, term ? Clean(_contractName) : null, term ? Clean(_reference) : null,
+            reassign ? (_signed ? EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SignedContract : EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SpaceOnly) : null);
+    }
+
+    // Reassign: the new holder's basis, as on the registration form, and the operation the space belongs to (shown, not chosen).
+    private bool _signed = true;
+    private void PickBasis(string value) => _signed = value == "signed";
+    private static readonly IReadOnlyList<ChoiceCards.Choice> BasisChoices =
+    [
+        new("signed", "Signed lease contract", "Leased under a signed contract"),
+        new("space", "No contract (space only)", "Occupies the space without a contract")
+    ];
+    private string OperationName => Enum.TryParse<EEMOCantilanSDS.Domain.Enums.ObligationKind>(Account.SourceDetail, out var kind)
+        ? SpaceAccountPresentation.For(kind).Name : Account.SourceDetail;
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
@@ -192,6 +262,7 @@
         {
             if (string.IsNullOrWhiteSpace(_holder)) _fieldErrors["holder"] = "Name the new holder.";
             if (_amount is not > 0) _fieldErrors["amount"] = "Enter the approved monthly amount.";
+            if (_signed && _years is not null and not (>= 1 and <= 50)) _fieldErrors["years"] = "Enter the term in whole years (1–50).";
         }
         if (Action == LifecycleAction.Renew && _years is not (>= 1 and <= 50)) _fieldErrors["years"] = "Enter the term in whole years (1–50).";
         return _fieldErrors.Count == 0;

@@ -23,7 +23,7 @@ public class RemoveDeviceTokenCommandHandlerTests
         var result = await handler.Handle(new RemoveDeviceTokenCommand("tok"), CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        repo.Verify(r => r.RemoveByTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        repo.Verify(r => r.RemoveByTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -34,17 +34,18 @@ public class RemoveDeviceTokenCommandHandlerTests
         var result = await handler.Handle(new RemoveDeviceTokenCommand("  "), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        repo.Verify(r => r.RemoveByTokenAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        repo.Verify(r => r.RemoveByTokenAsync(It.IsAny<Guid>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task ValidCollector_RemovesToken()
     {
-        var (handler, repo) = Build(collectorId: Guid.NewGuid());
+        var collectorId = Guid.NewGuid();
+        var (handler, repo) = Build(collectorId);
 
         var result = await handler.Handle(new RemoveDeviceTokenCommand("fcm-token-123"), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        repo.Verify(r => r.RemoveByTokenAsync("fcm-token-123", It.IsAny<CancellationToken>()), Times.Once);
+        repo.Verify(r => r.RemoveByTokenAsync(collectorId, "fcm-token-123", It.IsAny<CancellationToken>()), Times.Once);
     }
 }

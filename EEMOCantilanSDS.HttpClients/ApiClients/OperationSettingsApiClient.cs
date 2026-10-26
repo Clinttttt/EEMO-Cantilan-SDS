@@ -14,6 +14,13 @@ public sealed class OperationSettingsApiClient(HttpClient http) : HandleResponse
     public async Task<Result<TenantOperationSettingsDto>> GetAsync() =>
         await GetAsync<TenantOperationSettingsDto>("api/operation-settings");
 
+    public async Task<Result<OperationSetupOverviewDto>> GetSetupAsync() =>
+        await GetAsync<OperationSetupOverviewDto>("api/operation-settings/setup");
+
+    public async Task<Result<AddTenantOperationResultDto>> AddAsync(string operationCode, AddTenantOperationRequest request) =>
+        await PostAsync<AddTenantOperationRequest, AddTenantOperationResultDto>(
+            $"api/operation-settings/{Uri.EscapeDataString(operationCode)}/add", request);
+
     public async Task<Result<TenantOperationSettingsDto>> UpdateAsync(string operationCode, UpdateTenantOperationSettingRequest request) =>
         await PutAsync<UpdateTenantOperationSettingRequest, TenantOperationSettingsDto>(
             $"api/operation-settings/{Uri.EscapeDataString(operationCode)}", request);

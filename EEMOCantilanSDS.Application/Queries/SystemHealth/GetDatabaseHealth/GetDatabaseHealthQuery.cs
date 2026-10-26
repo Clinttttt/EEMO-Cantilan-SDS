@@ -4,5 +4,8 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.SystemHealth.GetDatabaseHealth;
 
-/// <summary>Live PostgreSQL health snapshot for the Head/Admin-only Settings page.</summary>
-public record GetDatabaseHealthQuery : IRequest<Result<DatabaseHealthDto>>;
+/// <summary>
+/// Live PostgreSQL health snapshot. <paramref name="PlatformWide"/> is true only for the platform operator (the API decides
+/// from the token); an LGU Head gets just their own municipality's storage footprint, never the shared database's load.
+/// </summary>
+public record GetDatabaseHealthQuery(bool PlatformWide = false) : IRequest<Result<DatabaseHealthDto>>;
