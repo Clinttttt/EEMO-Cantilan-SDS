@@ -408,43 +408,6 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.Equal("7", cut.Find("input[aria-label='Custom contract duration in years']").GetAttribute("value"));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void KanmanggayAddNew_SendsTheDefaultThreeYears_OrAMonthsOnlyTerm_WithNoYearInvented(bool monthsOnly)
-    {
-        Serve(ObligationKind.KanmanggaySpaceRental);
-        _collections.Setup(x => x.SearchCollectionPayorsAsync("Ana Reyes")).ReturnsAsync(
-            Result<IReadOnlyList<CollectionPayorDto>>.Success(new[] { new CollectionPayorDto(PayorId, "Ana Reyes") }));
-        CreateObligationAccountRequest? sent = null;
-        _api.Setup(x => x.CreateAccountAsync(It.IsAny<CreateObligationAccountRequest>()))
-            .Callback<CreateObligationAccountRequest>(r => sent = r)
-            .ReturnsAsync(Result<ObligationAccountDto>.Failure("stop"));
-
-        var cut = RenderComponent<Kanmanggay>();
-        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New"), Timeout);
-        cut.FindAll("button").Single(b => b.TextContent.Trim() == "+ Add New").Click();
-        cut.WaitForAssertion(() => cut.Find("#obw-occupant"), Timeout);
-        cut.Find("#obw-occupant").Input("Ana Reyes");
-        cut.Find("#obw-amount").Change("900");
-        Assert.Equal("None", cut.Find("#obw-contract-months option[selected], #obw-contract-months option").TextContent.Trim());
-        if (monthsOnly)
-        {
-            var duration = cut.FindComponents<FhSelect>().Single(x => x.Instance.AriaLabel == "Contract Duration (No. of Years)");
-            duration.Find("button").Click();
-            duration.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "No whole years").Click();
-            cut.Find("#obw-contract-months").Change("6");
-        }
-        cut.Find("form[aria-label='Open account']").Submit();
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.NotNull(sent);
-            if (monthsOnly) Assert.Equal(((int?)null, (int?)6), (sent!.ContractYears, sent.ContractMonths));
-            else Assert.Equal(((int?)3, (int?)null), (sent!.ContractYears, sent.ContractMonths));            // the unchanged three-year default
-        }, Timeout);
-    }
-
     [Fact]
     public void AddNew_SendsTheOccupancyBasis_AndNoContractReferenceForSpaceOnly()
     {
@@ -1145,7 +1108,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         Assert.NotNull(cut.Find(".imp-use-sample"));
         Assert.NotNull(cut.Find(".imp-enter-manually"));
         Assert.Empty(cut.FindAll("textarea"));                                        // no pasted-rows box: upload, sample or manual, as in ICE
-        Assert.Equal(new[] { "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Plus months", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Delinquent (₱)" },
+        Assert.Equal(new[] { "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Delinquent (₱)" },
             cut.FindAll(".imp-chip").Select(x => x.TextContent.Trim()).ToArray());
     }
 
@@ -1160,7 +1123,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             Assert.Equal("3", cut.Find(".imp-review-count").TextContent.Trim());
             Assert.Contains("active", cut.FindAll(".imp-step")[1].ClassList);
-            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Plus months", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Status", "Actions" },
+            Assert.Equal(new[] { "#", "Actual Occupant (Leasee)", "Name on Contract", "Rent / Space No.", "Effectivity Date", "No. of Years", "Area (sqm)", "Monthly Rental / Contract", "Actual Mo. Rental", "Whole Year Rental", "Area Loc.", "Status", "Actions" },
                 cut.FindAll(".imp-table thead th").Select(x => x.TextContent.Trim()).Where(x => x.Length > 0).ToArray());
             Assert.Equal(3, cut.FindAll(".imp-table tbody tr").Count);
             Assert.Empty(cut.FindAll(".shi-inline-status, .shi-why"));

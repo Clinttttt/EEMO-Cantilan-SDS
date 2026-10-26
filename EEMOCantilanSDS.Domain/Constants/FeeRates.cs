@@ -211,6 +211,13 @@ namespace EEMOCantilanSDS.Domain.Constants
                 ? effectivity
                 : effectivity.AddYears(durationYears).AddDays(-1);
 
+        /// <summary>
+        /// Why a NEW contract duration in months is refused. Signed contracts are recorded in whole years; an occupant who pays monthly without a signed term is
+        /// recorded as "No contract (space only)". A duration in months that was already stored is still read and still expires correctly: nothing is converted.
+        /// </summary>
+        public const string WholeYearsOnlyNotice =
+            "Contract duration is recorded in whole years (1, 2, 3, 5 or a custom number of years). Record a holder who pays monthly without a signed contract as 'No contract (space only)'.";
+
         /// <summary>Longest recordable space-rental term, in months (50 years — the existing yearly ceiling).</summary>
         public const int MaxTermMonths = 600;
 

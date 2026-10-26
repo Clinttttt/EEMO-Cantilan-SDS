@@ -224,6 +224,7 @@ public sealed class SpaceLifecycleWorkflow(
                     if (c.Amount is not { } approved || approved <= 0m || decimal.Round(approved, 2) != approved)
                         return Block(ApprovedAmountRequired, "Enter the approved monthly amount for the new holder.");
                     amount = approved;
+                    if (c.TermMonths is > 0) return Block(InvalidRequest, DomainRules.WholeYearsOnlyNotice);
                     if ((c.TermYears is not null || c.TermMonths is not null) && (!TermIsValid(c.TermYears, c.TermMonths) || c.Arrangement != OccupancyArrangement.SignedContract))
                         return Block(InvalidRequest, c.TermMonths is null ? "A contract term (1-50 years) is recorded only for a signed contract."
                             : "A contract term (1 month to 50 years) is recorded only for a signed contract.");
@@ -256,6 +257,7 @@ public sealed class SpaceLifecycleWorkflow(
                 if (commence <= last)
                     return Block(RenewalOverlapsTerm, $"The new term must begin after the current term ends ({last.AddDays(1):MMM d, yyyy} or later).");
                 if (commence > Today.AddDays(366)) return Block(InvalidRequest, "Choose a realistic start date (not more than a year ahead).");
+                if (c.TermMonths is > 0) return Block(InvalidRequest, DomainRules.WholeYearsOnlyNotice);
                 if ((c.TermYears is null && c.TermMonths is null) || !TermIsValid(c.TermYears, c.TermMonths))
                     return Block(InvalidRequest, c.TermMonths is null ? "Enter the new term in whole years (1-50)." : "Enter the new term as years and/or months (1 month to 50 years).");
                 var newTerm = DomainRules.NormalizeSpaceTerm(c.TermYears, c.TermMonths);

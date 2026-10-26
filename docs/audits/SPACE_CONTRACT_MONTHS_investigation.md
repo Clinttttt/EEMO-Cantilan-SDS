@@ -1,3 +1,5 @@
+> **RETIRED 2026-10-26.** This feature was removed from entry (see MONTH_DURATION_REMOVED_2026-10-26.md). The read-side rules described below remain so any stored months term keeps working.
+
 # Space Rental contract duration in months - investigation and decision (2026-10-26)
 
 Scope: monthly Space Rentals (Kanmanggay, Vegetable / Fruits). Stall `Contract.DurationYears`, NPM/NCC/TCC/ICE/BBQ/custom facilities and event lots are NOT touched.

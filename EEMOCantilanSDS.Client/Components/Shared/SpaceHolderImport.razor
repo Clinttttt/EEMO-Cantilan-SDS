@@ -1,4 +1,3 @@
-@using EEMOCantilanSDS.Domain.Constants
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Forms
 @using EEMOCantilanSDS.Application.Common.Interface.ApiClients
@@ -223,7 +222,6 @@
     private static readonly ImportColumn ContractNameCol = RentalImportColumns.ContractName;
     private static readonly ImportColumn EffectivityCol = RentalImportColumns.Effectivity with { Key = "start" };
     private static readonly ImportColumn YearsCol = RentalImportColumns.Years;
-    private static readonly ImportColumn MonthsCol = new("months", "Plus months", "number", MinWidth: 120, Placeholder: "optional");
     private static readonly ImportColumn AreaCol = RentalImportColumns.Area;
     private static readonly ImportColumn ContractRateCol = RentalImportColumns.ContractMonthly with { Key = "contractRate" };
     private static readonly ImportColumn MonthlyCol = RentalImportColumns.ActualMonthly with { Key = "amount" };
@@ -237,7 +235,7 @@
     private static readonly ImportColumn ClosedCol = new("closed", "Closed on", "date");
     private IReadOnlyList<ImportColumn> HolderColumns => IsEvent ? ReviewColumns : [OccupantCol, SubjectCol, EffectivityCol, MonthlyCol];
     private IReadOnlyList<ImportColumn> ReviewColumns => IsEvent ? [EventCol, OccupantCol, SubjectCol, EventDateCol, EventAmountCol] :
-        [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, MonthsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
+        [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, AreaCol, ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol];
     private static string OptionText(ImportColumn col, string value) => col.Key == "basis" ? value == Signed ? "Contract" : "Space only" : value;
     private static readonly IReadOnlyList<(string Value, string Label)> TermOptions =
         [("", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
@@ -296,7 +294,6 @@
         "Area location is too long" => "areaLoc",
         "Check area (sq.m)" => "area",
         "Years must be a whole number from 1 to 50" => "years",
-        "Months must be a whole number, and the term 1 month to 50 years" => "months",
         "Check the contract monthly rental" => "contractRate",
         "Check closure date" => "closed",
         _ => row.Preview?.Code == "DuplicateSpace" ? "subject" : null
@@ -304,7 +301,7 @@
 
     private IReadOnlyList<ImportColumn> Columns => IsEvent
         ? [OccupantCol, SubjectCol, EventCol, EventDateCol, EventAmountCol]
-        : [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, MonthsCol, AreaCol,
+        : [OccupantCol, ContractNameCol, SubjectCol, EffectivityCol, YearsCol, AreaCol,
            ContractRateCol, MonthlyCol, WholeYearCol, AreaLocCol, DelinquentCol];
 
     // HEADER ONLY: a template carries column names and nothing the office could mistake for data the platform put there.
@@ -314,9 +311,9 @@
     {
         public bool CustomYears;
         public string Subject = "", Name = "", Amount = "", Start = "", ClosedText = "", EventName = "", ContractRef = "", BasisText = "";
-        public string ContractName = "", YearsText = "", MonthsText = "", AreaText = "", ContractRateText = "", AreaLocation = "";
+        public string ContractName = "", YearsText = "", AreaText = "", ContractRateText = "", AreaLocation = "";
         public decimal Approved;
-        public int? Years, Months;
+        public int? Years;
         public decimal? Area, ContractRate;
         public DateOnly StartDate;
         public DateOnly? Closed;
@@ -337,7 +334,6 @@
         "contractRef" => row.ContractRef,
         "contractName" => row.ContractName,
         "years" => row.YearsText,
-        "months" => row.MonthsText,
         "area" => row.AreaText,
         "contractRate" => row.ContractRateText,
         "areaLoc" => row.AreaLocation,
@@ -363,12 +359,11 @@
             case "basis":
                 row.BasisText = value;
                 if (row.Basis != OccupancyArrangement.SignedContract)                                               // a space let without a contract carries no contract data
-                    row.ContractRef = row.ContractName = row.YearsText = row.MonthsText = row.ContractRateText = string.Empty;
+                    row.ContractRef = row.ContractName = row.YearsText = row.ContractRateText = string.Empty;
                 break;
             case "contractRef": row.ContractRef = value; break;
             case "contractName": row.ContractName = value; break;
             case "years": row.YearsText = value; break;
-            case "months": row.MonthsText = value; break;
             case "area": row.AreaText = value; break;
             case "contractRate": row.ContractRateText = value; break;
             case "areaLoc": row.AreaLocation = value; break;
@@ -385,7 +380,7 @@
     }
 
     // Contract evidence is editable; annual figures and ledger delinquency remain display-only.
-    private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "months", "contractRate"];
+    private static readonly HashSet<string> ContractOnly = ["contractRef", "contractName", "years", "contractRate"];
     private bool IsLocked(Row row, ImportColumn col) => (col.Key == "subject" && !AllowImportedNumbers) || (!IsEvent && col.Key is "wholeYear" or "delinquent");
 
     private string? PlaceholderOf(Row row, ImportColumn col) =>
@@ -500,7 +495,7 @@
         return true;
     }
 
-    private enum Col { None, Subject, Name, Amount, Start, Closed, Event, Basis, Contract, ContractName, Years, Months, Area, ContractRate, WholeYear, AreaLoc, Delinquent }
+    private enum Col { None, Subject, Name, Amount, Start, Closed, Event, Basis, Contract, ContractName, Years, Area, ContractRate, WholeYear, AreaLoc, Delinquent }
 
     private Col[] ColumnOrder => IsEvent
         ? [Col.Subject, Col.Name, Col.Event, Col.Start, Col.Amount, Col.Closed]
@@ -521,7 +516,6 @@
         "contractreference" or "contractref" or "contractno" or "contract" => Col.Contract,
         "nameoncontract" or "nameoflesseepersignedcontract" or "nameoflesseepercontract" or "nameonsignedcontract" or "contractlessee" => Col.ContractName,
         "noofyears" or "years" or "numberofyears" or "term" or "contractduration" or "duration" => Col.Years,
-        "plusmonths" or "months" or "noofmonths" or "numberofmonths" or "termmonths" or "durationmonths" or "termmonth" => Col.Months,
         "area" or "areasqm" or "areasqmeter" or "areasqmeters" => Col.Area,
         "monthlyrentalcontract" or "monthlyrentalpercontract" or "monthlyrentalspercontract" or "monthlyrentalspercontract" or "contractrate" or "contractmonthlyrental" => Col.ContractRate,
         "wholeyearrental" or "wholeyear" or "annualrental" or "wholeyear12monthly" => Col.WholeYear,
@@ -551,7 +545,6 @@
             case Col.Contract: row.ContractRef = value; break;
             case Col.ContractName: row.ContractName = StripLeadingIndex(value); break;
             case Col.Years: row.YearsText = SheetNumber.Normalize(value); break;
-            case Col.Months: row.MonthsText = SheetNumber.Normalize(value); break;
             case Col.Area: row.AreaText = SheetNumber.Normalize(value); break;
             case Col.ContractRate: row.ContractRateText = SheetNumber.Normalize(value); break;
             case Col.AreaLoc: row.AreaLocation = value; break;
@@ -600,7 +593,7 @@
         }
         else if (row.Basis is null) row.Error = "Choose an occupancy basis";
         else if (row.Basis == OccupancyArrangement.SpaceOnly && !string.IsNullOrWhiteSpace(row.ContractRef)) row.Error = "No contract has no contract reference";
-        row.Years = null; row.Months = null; row.Area = null; row.ContractRate = null;
+        row.Years = null; row.Area = null; row.ContractRate = null;
         if (!IsEvent)
         {
             if (row.AreaLocation.Length > 250) row.Error = "Area location is too long";
@@ -618,14 +611,6 @@
                     if (!decimal.TryParse(SheetNumber.Normalize(row.YearsText), NumberStyles.Number, CultureInfo.InvariantCulture, out var years) || years != decimal.Truncate(years) || years is < 1 or > 50)
                         row.Error = "Years must be a whole number from 1 to 50";
                     else row.Years = (int)years;
-                }
-                // Optional months (a legacy file has no such column): added to the years, or the whole term when the years are blank.
-                if (!string.IsNullOrWhiteSpace(row.MonthsText))
-                {
-                    if (!decimal.TryParse(SheetNumber.Normalize(row.MonthsText), NumberStyles.Number, CultureInfo.InvariantCulture, out var months) || months != decimal.Truncate(months)
-                        || months is < 1 or > DomainRules.MaxTermMonths || (row.Years ?? 0) * 12 + (int)months > DomainRules.MaxTermMonths)
-                        row.Error = "Months must be a whole number, and the term 1 month to 50 years";
-                    else row.Months = (int)months;
                 }
                 if (!string.IsNullOrWhiteSpace(row.ContractRateText))
                 {
@@ -676,8 +661,7 @@
             IsEvent ? null : r.Basis, !signed || string.IsNullOrWhiteSpace(r.ContractRef) ? null : r.ContractRef.Trim(), r.Name.Trim(),
             signed && !string.IsNullOrWhiteSpace(r.ContractName) ? r.ContractName.Trim() : null,
             signed ? r.StartDate : null, signed ? r.Years : null, IsEvent ? null : r.Area,
-            IsEvent || string.IsNullOrWhiteSpace(r.AreaLocation) ? null : r.AreaLocation.Trim(), signed ? r.ContractRate : null,
-            ContractMonths: signed ? r.Months : null), r.Closed);
+            IsEvent || string.IsNullOrWhiteSpace(r.AreaLocation) ? null : r.AreaLocation.Trim(), signed ? r.ContractRate : null), r.Closed);
     }
 
     private void SchedulePreview()

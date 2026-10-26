@@ -43,9 +43,8 @@
             {
                 <form class="str-form" @onsubmit="RenewAsync" @onsubmit:preventDefault="true" aria-label="Renew these terms">
                     <label class="str-field">New term starts <input id="spr-start" type="date" @bind="_start" disabled="@_busy" /></label>
-                    <label class="str-field str-field-short">Term (years) <input id="spr-years" type="number" min="@(_months > 0 ? 0 : 1)" max="50" @bind="_years" disabled="@_busy" /></label>
-                    <label class="str-field str-field-short">Plus months <input id="spr-months" type="number" min="0" max="11" @bind="_months" disabled="@_busy" /></label>
-                    <div class="str-field">New term ends <span class="str-ends" role="status">@(TermValid ? DomainRules.TermLastDay(_start, _years, _months > 0 ? _months : null).ToString("MMM d, yyyy") : "—")</span></div>
+                    <label class="str-field str-field-short">Term (years) <input id="spr-years" type="number" min="1" max="50" @bind="_years" disabled="@_busy" /></label>
+                    <div class="str-field">New term ends <span class="str-ends" role="status">@(_years >= 1 ? DomainRules.TermLastDay(_start, _years).ToString("MMM d, yyyy") : "—")</span></div>
                     <label class="str-field str-field-wide">Reason or approval <input id="spr-reason" maxlength="500" placeholder="e.g. Renewal approved, Res. No. 12" @bind="_reason" @bind:event="oninput" disabled="@_busy" /></label>
                     <button type="submit" class="btn-primary str-submit" disabled="@(_busy || _editing is not null || Included.Count == 0 || string.IsNullOrWhiteSpace(_reason))">@(_busy ? "Working…" : $"Renew {Included.Count} term{(Included.Count == 1 ? "" : "s")}")</button>
                 </form>
@@ -127,8 +126,6 @@
     private bool _loading = true, _busy;
     private DateOnly _start = PhilippineTime.Today;
     private int _years = 3;
-    private int _months;
-    private bool TermValid => _years >= 0 && _months is >= 0 and <= 11 && _years <= 50 && _years * 12 + _months >= 1 && _years * 12 + _months <= DomainRules.MaxTermMonths;
 
     // Accounts left out of this renewal by the office. Display-only: a left-out account is not changed and stays listed to put back.
     private readonly HashSet<Guid> _excluded = [];
@@ -182,7 +179,7 @@
     private async Task RenewAsync()
     {
         if (_busy || _eligible.Count == 0 || string.IsNullOrWhiteSpace(_reason)) return;
-        if (!TermValid) { _message = _months == 0 ? "Enter the new term in whole years (1-50)." : "Enter the new term as years and/or months (1 month to 50 years)."; return; }
+        if (_years is < 1 or > 50) { _message = "Enter the new term in whole years (1-50)."; return; }
         _busy = true; _message = null; _results.Clear();
         var targets = Included;
         int ok = 0, failed = 0;
@@ -193,7 +190,7 @@
             try
             {
                 var (contractName, reference) = TermFor(a);
-                var command = new LifecycleCommand(LifecycleAction.Renew, _start, _reason.Trim(), TermYears: _years > 0 ? _years : null, ContractName: contractName, Reference: reference, TermMonths: _months > 0 ? _months : null);
+                var command = new LifecycleCommand(LifecycleAction.Renew, _start, _reason.Trim(), TermYears: _years, ContractName: contractName, Reference: reference);
                 var preview = await LifecycleApi.PreviewAsync(LifecycleSource.SpaceRental, a.Id, command);
                 if (preview is not { IsSuccess: true, Value: { } p }) { failed++; _results[a.Id] = (false, preview?.Error ?? "Refused"); continue; }
                 if (!p.CanExecute) { failed++; _results[a.Id] = (false, p.Explanation ?? "Not renewable now"); continue; }

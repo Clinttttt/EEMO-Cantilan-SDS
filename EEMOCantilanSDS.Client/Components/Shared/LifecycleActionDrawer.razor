@@ -76,9 +76,7 @@
                             {
                                 <div class="avm-group">
                                     <label class="avm-label" for="lc-years">Contract Duration (No. of Years)</label>
-                                    <input id="lc-years" class="avm-input" type="number" min="@(_months > 0 ? 0 : 1)" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
-                                    <label class="avm-label" for="lc-months">Plus months (optional)</label>
-                                    <input id="lc-months" class="avm-input" type="number" min="0" max="11" step="1" @bind="_months" />
+                                    <input id="lc-years" class="avm-input" type="number" min="1" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
                                     <span id="lc-years-err" class="lc-error" role="alert">@FieldError("years")</span>
                                     @if (RenewalEndsOn is { } termEnds) { <span class="avm-hint" role="status">The contract runs to @termEnds.ToString("MMM d, yyyy").</span> }
                                 </div>
@@ -120,9 +118,7 @@
                     </div>
                     <div class="avm-group">
                         <label class="avm-label" for="lc-years">Term (years) <span class="avm-req">*</span></label>
-                        <input id="lc-years" class="avm-input" type="number" min="@(_months > 0 ? 0 : 1)" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
-                        <label class="avm-label" for="lc-months">Plus months (optional)</label>
-                        <input id="lc-months" class="avm-input" type="number" min="0" max="11" step="1" @bind="_months" />
+                        <input id="lc-years" class="avm-input" type="number" min="1" max="50" step="1" @bind="_years" aria-describedby="lc-years-err" />
                         <span id="lc-years-err" class="lc-error" role="alert">@FieldError("years")</span>
                         @if (RenewalEndsOn is { } ends)
                         {
@@ -195,11 +191,8 @@
     private string? _holder, _reason, _evidence, _contractName, _reference;
     private decimal? _amount;
     private int? _years;
-    private int? _months;
-    private bool TermOk => (_years ?? 0) is >= 0 and <= 50 && (_months ?? 0) is >= 0 and <= 11
-        && (_years ?? 0) * 12 + (_months ?? 0) is >= 1 and <= EEMOCantilanSDS.Domain.Constants.DomainRules.MaxTermMonths;
     /// <summary>The last day of the renewal being entered, by the same rule as every term; null until a start and a term are entered.</summary>
-    private DateOnly? RenewalEndsOn => _date is { } start && TermOk ? EEMOCantilanSDS.Domain.Constants.DomainRules.TermLastDay(start, _years ?? 0, _months > 0 ? _months : null) : null;
+    private DateOnly? RenewalEndsOn => _date is { } start && _years is (>= 1 and <= 50) ? EEMOCantilanSDS.Domain.Constants.DomainRules.TermLastDay(start, _years.Value) : null;
     private bool _distinct;
     private LifecyclePreviewDto? _preview;
     private IReadOnlyDictionary<string, string> _context = new Dictionary<string, string>();
@@ -242,9 +235,8 @@
         var term = Action == LifecycleAction.Renew || reassign && _signed;
         return new(Action, _date, (_reason ?? string.Empty).Trim(), Clean(_evidence), reassign ? Clean(_holder) : null,
             null, reassign && _distinct, reassign ? _amount : null,
-            term ? (_years == 0 && _months > 0 ? null : _years) : null, term ? Clean(_contractName) : null, term ? Clean(_reference) : null,
-            reassign ? (_signed ? EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SignedContract : EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SpaceOnly) : null,
-            term && _months > 0 ? _months : null);
+            term ? _years : null, term ? Clean(_contractName) : null, term ? Clean(_reference) : null,
+            reassign ? (_signed ? EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SignedContract : EEMOCantilanSDS.Domain.Enums.OccupancyArrangement.SpaceOnly) : null);
     }
 
     // Reassign: the new holder's basis, as on the registration form, and the operation the space belongs to (shown, not chosen).
@@ -260,8 +252,6 @@
 
     private static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-    private string TermError => _months > 0 ? "Enter the term as years and/or months (1 month to 50 years)." : "Enter the term in whole years (1–50).";
-
     private bool Validate()
     {
         _fieldErrors.Clear();
@@ -272,9 +262,9 @@
         {
             if (string.IsNullOrWhiteSpace(_holder)) _fieldErrors["holder"] = "Name the new holder.";
             if (_amount is not > 0) _fieldErrors["amount"] = "Enter the approved monthly amount.";
-            if (_signed && (_years is not null || _months > 0) && !TermOk) _fieldErrors["years"] = TermError;
+            if (_signed && _years is not null and not (>= 1 and <= 50)) _fieldErrors["years"] = "Enter the term in whole years (1–50).";
         }
-        if (Action == LifecycleAction.Renew && !TermOk) _fieldErrors["years"] = TermError;
+        if (Action == LifecycleAction.Renew && _years is not (>= 1 and <= 50)) _fieldErrors["years"] = "Enter the term in whole years (1–50).";
         return _fieldErrors.Count == 0;
     }
 
@@ -297,7 +287,7 @@
             if (!result.IsSuccess) { _error = LifecyclePresentation.Describe(result).Message; return; }
             var preview = result.Value!;
             if (!preview.CanExecute) { Place(preview.ReasonCode, preview.Explanation ?? "The server will not allow this."); return; }
-            var key = string.Join('|', command.Action, command.EffectiveDate, command.Reason, command.Evidence, command.NewHolder, command.ConfirmDistinctHolder, command.Amount, command.TermYears, command.TermMonths, command.ContractName, command.Reference);
+            var key = string.Join('|', command.Action, command.EffectiveDate, command.Reason, command.Evidence, command.NewHolder, command.ConfirmDistinctHolder, command.Amount, command.TermYears, command.ContractName, command.Reference);
             if (key != _intentKey) { _intentKey = key; _operationId = Guid.NewGuid(); }
             _preview = preview;
             _confirming = true;

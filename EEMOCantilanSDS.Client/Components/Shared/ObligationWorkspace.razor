@@ -134,7 +134,7 @@ else
                         <div><dt>Occupancy basis</dt><dd>@(selectedAccount.Event is not null ? $"{selectedAccount.Event} · {selectedAccount.EventDate}" : SpaceAccountPresentation.Basis(selectedAccount))</dd></div>
                         @if (!string.IsNullOrWhiteSpace(selectedAccount.ContractName)) { <div><dt>Name on signed contract</dt><dd>@selectedAccount.ContractName</dd></div> }
                         @if (selectedAccount.ContractEffectiveDate is { } contractDate) { <div><dt>Contract effectivity</dt><dd>@contractDate.ToString("MMM d, yyyy")</dd></div> }
-                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@DomainRules.DescribeTerm(contractYears, selectedAccount.ContractMonths)</dd></div> }
+                        @if (selectedAccount.ContractYears is { } contractYears) { <div><dt>Recorded contract duration</dt><dd>@(DomainRules.DescribeTerm(contractYears, selectedAccount.ContractMonths) ?? contractYears + " years")</dd></div> }
                         @if (selectedAccount.AreaSqm is { } spaceArea) { <div><dt>Recorded area</dt><dd>@spaceArea.ToString("N2") sq.m</dd></div> }
                         @if (!string.IsNullOrWhiteSpace(selectedAccount.AreaLocation)) { <div><dt>Area location / note</dt><dd>@selectedAccount.AreaLocation</dd></div> }
                         @if (SpaceAccountPresentation.Reference(selectedAccount) is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
@@ -404,19 +404,11 @@ else
                                               Options="@(Kind == ObligationKind.KanmanggaySpaceRental ? KmContractYearOptions : VfContractYearOptions)" ValueChanged="SetVfContractYears" />
                                     @if (_vfCustomYears)
                                     {
-                                        <input class="avm-input" type="number" min="@(_contractMonths > 0 ? 0 : 1)" max="@(Kind == ObligationKind.KanmanggaySpaceRental ? 50 : 10)" step="1" required
+                                        <input class="avm-input" type="number" min="1" max="@(Kind == ObligationKind.KanmanggaySpaceRental ? 50 : 10)" step="1" required
                                                aria-label="Custom contract duration in years" placeholder="Enter years"
                                                @bind="_contractYears" @bind:event="oninput" />
                                         <span class="avm-hint-muted">Enter the term from the signed contract.</span>
                                     }
-                                    <label class="avm-label" for="obw-contract-months">Plus months (optional)</label>
-                                    <select id="obw-contract-months" class="avm-input" @bind="_contractMonths">
-                                        <option value="0">None</option>
-                                        @for (var month = 1; month <= 11; month++)
-                                        {
-                                            <option value="@month">@month @(month == 1 ? "month" : "months")</option>
-                                        }
-                                    </select>
                                 </div>
                             }
                         </TermField>
@@ -610,7 +602,7 @@ else
                         {
                             <div class="avm-group">
                                 <span class="avm-label">Contract Duration</span>
-                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{DomainRules.DescribeTerm(kept, _editFor?.ContractMonths)}, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
+                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{DomainRules.DescribeTerm(kept, _editFor?.ContractMonths) ?? kept + " years"}, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
                             </div>
                         }
                         else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
@@ -624,14 +616,6 @@ else
                                         <option value="@year">@year @(year == 1 ? "year" : "years")</option>
                                     }
                                 </select>
-                                <label class="avm-label" for="obw-contract-months">Plus months (optional)</label>
-                                <select id="obw-contract-months" class="avm-input" @bind="_contractMonths">
-                                    <option value="0">None</option>
-                                    @for (var month = 1; month <= 11; month++)
-                                    {
-                                        <option value="@month">@month @(month == 1 ? "month" : "months")</option>
-                                    }
-                                </select>
                             </div>
                         }
                         else if (_signedContract && Kind == ObligationKind.VegetableFruitSpaceRental)
@@ -643,14 +627,6 @@ else
                                     @for (var year = 1; year <= 10; year++)
                                     {
                                         <option value="@year">@year @(year == 1 ? "year" : "years")</option>
-                                    }
-                                </select>
-                                <label class="avm-label" for="obw-contract-months">Plus months (optional)</label>
-                                <select id="obw-contract-months" class="avm-input" @bind="_contractMonths">
-                                    <option value="0">None</option>
-                                    @for (var month = 1; month <= 11; month++)
-                                    {
-                                        <option value="@month">@month @(month == 1 ? "month" : "months")</option>
                                     }
                                 </select>
                             </div>
@@ -762,7 +738,7 @@ else
     private static readonly List<string> OverviewFilters = new() { "All", "Paid", "Partial", "Unpaid", "Closed" };
     private string RegistryCode => Kind == ObligationKind.FiestaArawLotRental ? "FA" : Kind == ObligationKind.KanmanggaySpaceRental ? "KM" : "Vegetable/Fruits";
     private static readonly IReadOnlyList<(string Value, string Label)> KmContractYearOptions =
-        [("0", "No whole years"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
+        [("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
     // Match the existing NCC/TCC FhSelect presets, but permit no recorded term for Vegetable/Fruits.
     private static readonly IReadOnlyList<(string Value, string Label)> VfContractYearOptions =
         [("0", "Not recorded"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…")];
@@ -858,8 +834,6 @@ else
     /// <summary>What the signed contract states per month; evidence recorded on the account, never what is billed.</summary>
     private decimal? _contractRate;
     private int _contractYears = 3;
-    /// <summary>Optional extra months beyond the years (0 = none). With 0 years it is a months-only term.</summary>
-    private int _contractMonths;
 
     // Cantilan defaults Kanmanggay's signed term to three years but permits the actual recorded duration. For another office the server
     // refuses to record one until a duration policy is confirmed, so the form does not offer the choice (and never sends one).
@@ -1051,7 +1025,7 @@ else
         _formError = null; _saved = null; _rateFor = null; _editFor = null; _advanceRequest = null;
         _occupant = _stallId = _subject = _contractRef = _contractName = _areaLocation = string.Empty;
         // Monthly space contracts default to three years; recorded terms remain flexible.
-        _areaSqm = null; _contractRate = null; _contractYears = 3; _contractMonths = 0; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
+        _areaSqm = null; _contractRate = null; _contractYears = 3; _vfCustomYears = false; _contractDate = PhilippineTime.Now.Date;
         _signedContract = Kind != ObligationKind.FiestaArawLotRental; _lotEvent = LotRentalEvent.Fiesta;
         _amount = null;
         _opening = true; _openSession = Guid.NewGuid();
@@ -1082,7 +1056,6 @@ else
         _contractName = account.ContractName ?? string.Empty;
         _contractDate = account.ContractEffectiveDate?.ToDateTime(TimeOnly.MinValue);
         _contractYears = account.ContractYears ?? 0;
-        _contractMonths = account.ContractMonths ?? 0;
         _areaSqm = account.AreaSqm;
         _contractRate = account.ContractMonthlyRate;
         _areaLocation = account.AreaLocation ?? string.Empty;
@@ -1184,14 +1157,11 @@ else
             SupportsContractBasis && _signedContract ? _contractName.Trim() : null,
             SupportsContractBasis && _signedContract && _contractDate is { } contractOn ? DateOnly.FromDateTime(contractOn) : null,
             // Only Cantilan has the confirmed flexible Kanmanggay duration policy; Vegetable/Fruit retains its recorded term.
-            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !DurationUnconfirmed
-                ? (_contractYears > 0 || _contractMonths == 0 ? _contractYears : null)
+            Kind == ObligationKind.KanmanggaySpaceRental && _signedContract && !DurationUnconfirmed ? _contractYears
                 : Kind == ObligationKind.VegetableFruitSpaceRental && _signedContract && _contractYears > 0 ? _contractYears : null,
             SupportsContractBasis ? _areaSqm : null,
             SupportsContractBasis ? _areaLocation.Trim() : null,
-            SupportsContractBasis && _signedContract ? _contractRate : null,
-            ContractMonths: SupportsContractBasis && _signedContract && _contractMonths > 0
-                && (Kind == ObligationKind.VegetableFruitSpaceRental || Kind == ObligationKind.KanmanggaySpaceRental && !DurationUnconfirmed) ? _contractMonths : null);
+            SupportsContractBasis && _signedContract ? _contractRate : null);
         var today = PhilippineTime.Today;
         var futureMonth = isLot && new DateOnly(start.Year, start.Month, 1) > new DateOnly(today.Year, today.Month, 1);
         if ((futureMonth && !confirmed) || (confirmed && request != _advanceRequest))
@@ -1236,8 +1206,7 @@ else
                 _signedContract ? _contractRef : null, _signedContract ? _contractName : null,
                 _signedContract && _contractDate is { } contractDate ? DateOnly.FromDateTime(contractDate) : null,
                 _signedContract && DurationUnconfirmed ? account.ContractYears : _signedContract && _contractYears > 0 ? _contractYears : null,
-                _areaSqm, _areaLocation, _signedContract ? _contractRate : null, rateChange,
-                _signedContract && DurationUnconfirmed ? account.ContractMonths : _signedContract && _contractMonths > 0 ? _contractMonths : null);
+                _areaSqm, _areaLocation, _signedContract ? _contractRate : null, rateChange);
             var result = await ObligationsApi.CorrectHolderAsync(account.Id, request);
             if (!result.IsSuccess) { _formError = result.Error ?? "Holder details could not be saved."; return; }
             _editFor = null;

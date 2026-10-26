@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Time;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Audit;
 using System.Text.Json;
@@ -225,6 +226,8 @@ public sealed class ObligationWorkflow(
             if (start < earliest || start > BusinessToday.AddDays(366))
                 return Result<ObligationAccountDto>.Failure("Choose a realistic start or event date (not more than a year ahead).", ResultStatus.Invalid);
 
+            if (request.ContractMonths is > 0)
+                return Result<ObligationAccountDto>.Failure(DomainRules.WholeYearsOnlyNotice, ResultStatus.Invalid);
             var durationProblem = await SignedContractDurationProblemAsync(
                 actor.TenantId, request.Kind, request.Arrangement, request.ContractYears, recordedYears: null, ct, request.ContractMonths);
             if (durationProblem is not null) return Result<ObligationAccountDto>.Failure(durationProblem, ResultStatus.Conflict);
@@ -400,6 +403,8 @@ public sealed class ObligationWorkflow(
             {
                 if (!ObligationAccount.IsSpaceKind(input.Kind))
                     throw new ArgumentException("Only space and event lot accounts can be imported here.");
+                if (input.ContractMonths is > 0)
+                    throw new ArgumentException(DomainRules.WholeYearsOnlyNotice);
                 if (input.Kind == ObligationKind.KanmanggaySpaceRental && input.Arrangement == OccupancyArrangement.SignedContract
                     && (input.ContractYears is not null || input.ContractMonths is not null) && !durationConfirmed)
                     throw new ArgumentException("No duration policy has been confirmed for this municipality. Save the contract without a duration.");
@@ -475,9 +480,16 @@ public sealed class ObligationWorkflow(
                 account.ContractName, account.ContractEffectiveDate, account.ContractYears, account.ContractMonths,
                 account.AreaSqm, account.AreaLocation, account.ContractMonthlyRate };
             var previous = JsonSerializer.Serialize(before);
+            // Months are no longer recorded. A term already stored in months is left exactly as it is by an edit that does not touch the duration; nothing is converted.
+            var keepStoredTerm = account.ContractMonths is not null && request.ContractMonths is null
+                && (request.ContractYears is null || request.ContractYears == account.ContractYears);
+            if (request.ContractMonths is > 0 && request.ContractMonths != account.ContractMonths)
+                return Result<bool>.Failure(DomainRules.WholeYearsOnlyNotice, ResultStatus.Invalid);
+            var requestedYears = keepStoredTerm ? account.ContractYears : request.ContractYears;
+            var requestedMonths = keepStoredTerm ? account.ContractMonths : request.ContractMonths;
             var durationProblem = await SignedContractDurationProblemAsync(
-                actor.TenantId, account.Kind, request.Arrangement, request.ContractYears, account.ContractYears, ct,
-                request.ContractMonths, account.ContractMonths);
+                actor.TenantId, account.Kind, request.Arrangement, requestedYears, account.ContractYears, ct,
+                requestedMonths, account.ContractMonths);
             if (durationProblem is not null) return Result<bool>.Failure(durationProblem, ResultStatus.Conflict);
             if (request.RateChange is { } rate)
             {
@@ -485,8 +497,8 @@ public sealed class ObligationWorkflow(
                 if (!rated.IsSuccess) return rated;
             }
             try { account.CorrectHolderEvidence(request.ActualOccupant, request.Arrangement, request.ContractReference,
-                request.ContractName, request.ContractEffectiveDate, request.ContractYears,
-                request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate, request.ContractMonths); }
+                request.ContractName, request.ContractEffectiveDate, requestedYears,
+                request.AreaSqm, request.AreaLocation, hasHistory, request.ContractMonthlyRate, requestedMonths); }
             catch (ArgumentException ex)
             {
                 if (request.RateChange is not null) db.ChangeTracker.Clear();
