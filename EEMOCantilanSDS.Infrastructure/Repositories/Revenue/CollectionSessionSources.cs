@@ -418,9 +418,9 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
                     return Fail("SourceNotAvailable", "No approved Official Receipt policy is effective for this rental.");
-                if ((!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) || !string.IsNullOrWhiteSpace(session.ReceiptReference))
-                    && !CollectorOperationCodes.IsSpaceObligation(operationCode))
-                    return Fail("ReceiptNotSupported", "An Official Receipt number cannot be entered for this rental yet. Clear it to record the SRC.");
+                // Only a REGISTERED Official Receipt needs the operation to support OR custody; a typed reference is descriptive, unverified, and allowed for every space rental.
+                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) && !CollectorOperationCodes.IsSpaceObligation(operationCode))
+                    return Fail("ReceiptNotSupported", "A registered Official Receipt cannot be used for this rental yet. Clear it to record the SRC.");
                 if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber)
                     && (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false })
                     return Fail("ReceiptUnavailable", "The Official Receipt must be registered, unused and in your accountable-form custody.");
