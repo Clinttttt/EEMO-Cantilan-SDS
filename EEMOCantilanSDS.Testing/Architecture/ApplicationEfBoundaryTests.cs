@@ -286,6 +286,7 @@ public class ApplicationEfBoundaryTests
         // shared unit of work. Tabo batch is a partial of the existing canonical writer, not a second calculation engine.
         "ReportGovernanceWorkflow.cs",
         "SpaceFollowUpWorkflow.cs",
+        "HistoricalArrearsReader.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
         "FeeScheduleCollectionWorkflow.Office.cs",

@@ -25,6 +25,21 @@ public sealed class SpaceFollowUpWorkflow(IAppDbContext db, ICurrentUserService 
     {
         if (!user.IsAuthenticated || user.Role is not ("SuperAdmin" or "Admin") || tenant.MunicipalityId == Guid.Empty ||
             user.MunicipalityId is { } claimed && claimed != tenant.MunicipalityId) return [];
+        return await ComputeAsync(asOf, operationCode, includeEarlierTerms, ct);
+    }
+
+    /// <summary>The Collector Mobile Arrears view: the same per-period rows as the Head, limited to the space operations this collector is assigned to, earlier terms included.</summary>
+    public async Task<IReadOnlyList<ObligationFollowUpItemDto>> GetForCollectorAsync(DateOnly asOf, CancellationToken ct)
+    {
+        if (!user.IsAuthenticated || user.Role != "Collector" || user.CollectorId is not { } collectorId || tenant.MunicipalityId == Guid.Empty ||
+            user.MunicipalityId is { } claimed && claimed != tenant.MunicipalityId) return [];
+        var assigned = await db.CollectorOperationAssignments.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenant.MunicipalityId && x.CollectorId == collectorId).Select(x => x.OperationCode).ToListAsync(ct);
+        return (await ComputeAsync(asOf, null, true, ct)).Where(x => assigned.Contains(x.Scope.OperationCode)).ToArray();
+    }
+
+    private async Task<IReadOnlyList<ObligationFollowUpItemDto>> ComputeAsync(DateOnly asOf, string? operationCode, bool includeEarlierTerms, CancellationToken ct)
+    {
         var accounts = await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == tenant.MunicipalityId &&
             (x.Kind == ObligationKind.KanmanggaySpaceRental || x.Kind == ObligationKind.FiestaArawLotRental || x.Kind == ObligationKind.VegetableFruitSpaceRental)).ToListAsync(ct);
         var byId = accounts.ToDictionary(x => x.Id);

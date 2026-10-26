@@ -14,6 +14,8 @@ public sealed class CollectionSessionController(ISender sender, CollectionSessio
     [HttpGet("sources")]
     public async Task<ActionResult<IReadOnlyList<CollectionSourceSearchResult>>> Sources(string? search, CancellationToken ct) =>
         HandleResponse(await workflow.SearchSourcesAsync(search, ct));
+    [HttpGet("arrears")]
+    public async Task<ActionResult<ArrearsWorkspaceDto>> Arrears([FromServices] HistoricalArrearsReader reader, CancellationToken ct) => Ok(await reader.GetForCollectorAsync(ct));
     [HttpGet("sources/browse")]
     public async Task<ActionResult<CollectionSourcePage>> BrowseSources(string? category, string? search, int skip = 0, int take = 25, CancellationToken ct = default) =>
         HandleResponse(await workflow.BrowseSourcesAsync(category, search, skip, take, ct));

@@ -43,6 +43,7 @@ public sealed class CachingMobileApiClient(
     public Task<Result<FishMeatRegistrationRequestDto>> SubmitFishMeatRequestAsync(SubmitFishMeatRegistrationRequest request) => inner.SubmitFishMeatRequestAsync(request);
     public Task<Result<FishMeatRegistrationRequestDto>> CancelFishMeatRequestAsync(Guid requestId, CancelFishMeatRegistrationRequest request) => inner.CancelFishMeatRequestAsync(requestId, request);
     public Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => inner.GetNpmRequestsAsync(page, pageSize);
+    public Task<Result<ArrearsWorkspaceDto>> GetArrearsWorkspaceAsync() => inner.GetArrearsWorkspaceAsync();
     public Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => inner.BrowseCollectionSourcesAsync(category, search, skip, take);
     public Task<Result<IReadOnlyList<CollectionSourceSearchResult>>> SearchCollectionSourcesAsync(string? search) => inner.SearchCollectionSourcesAsync(search);
     public Task<Result<CollectionSessionDiscovery>> GetSourceCollectionDiscoveryAsync(CollectionSourceIdentity? identity) => inner.GetSourceCollectionDiscoveryAsync(identity);
