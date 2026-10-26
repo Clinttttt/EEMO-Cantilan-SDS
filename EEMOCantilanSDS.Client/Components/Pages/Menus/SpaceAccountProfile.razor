@@ -180,7 +180,7 @@
                     ])
                 ];
             var expiry = a.ContractEffectiveDate is { } start && a.ContractYears is { } years
-                ? DomainRules.TermLastDay(start.ToDateTime(TimeOnly.MinValue), years) : (DateTime?)null;
+                ? DomainRules.TermLastDay(start.ToDateTime(TimeOnly.MinValue), years, a.ContractMonths) : (DateTime?)null;
             return
             [
                 new("Space Information", home,
@@ -203,7 +203,7 @@
                     new("Basis of Occupancy", SpaceAccountPresentation.Basis(a)),
                     new("Contract Reference", string.IsNullOrWhiteSpace(a.ContractReference) ? "—" : a.ContractReference),
                     new("Contract Effectivity Date", a.ContractEffectiveDate?.ToString("MMMM d, yyyy") ?? "—"),
-                    new("Contract Duration", a.ContractYears is { } n ? $"{n} years" : "—"),
+                    new("Contract Duration", a.ContractYears is { } n ? DomainRules.DescribeTerm(n, a.ContractMonths) ?? "—" : "—"),
                     new("Contract Expiry", expiry?.ToString("MMMM d, yyyy") ?? "—")
                 ]),
                 ..EarlierTermsSection(a),

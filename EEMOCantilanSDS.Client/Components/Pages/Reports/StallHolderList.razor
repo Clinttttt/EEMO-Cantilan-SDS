@@ -1,3 +1,4 @@
+@using EEMOCantilanSDS.Domain.Constants
 @page "/stall-holders"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.StallHolders
@@ -695,6 +696,7 @@
         new("Event Date", SheetValueKind.Date),
         new("Event Amount", SheetValueKind.Money),
         new("Location / Note", SheetValueKind.Text),
+        new("Term in Months", SheetValueKind.Number),
     ];
 
     /// <summary>
@@ -734,7 +736,7 @@
                             pureDays ? null : r.ActualMonthlyRental,
                             pureDays ? null : r.WholeYearRental,
                             r.IsClosed ? "Closed" : "Active",
-                            null, null, null, null,
+                            null, null, null, null, null,
                         });
                     }
                 }
@@ -769,6 +771,7 @@
                             a.EventDate ?? a.ActiveFrom,
                             a.CurrentAmount,
                             string.IsNullOrWhiteSpace(a.AreaLocation) ? null : a.AreaLocation,
+                            null,
                         });
                         continue;
                     }
@@ -783,7 +786,7 @@
                         a.SubjectLabel,
                         signed ? SpaceAccountPresentation.Reference(a) : null,
                         signed ? a.ContractEffectiveDate ?? a.ActiveFrom : null,
-                        signed ? a.ContractYears : null,
+                        signed && a.ContractMonths is null ? a.ContractYears : null,
                         signed && a.AreaSqm is > 0 ? a.AreaSqm : null,
                         "Monthly space rental",
                         null,
@@ -792,6 +795,7 @@
                         null,
                         "Active",
                         null, null, null, null,
+                        signed && a.ContractMonths is > 0 ? a.ContractYears * 12 + a.ContractMonths : null,
                     });
                 }
             }
@@ -1051,7 +1055,7 @@
                             <td>@(string.IsNullOrWhiteSpace(a.ContractName) ? "—" : a.ContractName)</td>
                             <td class="sh-c">@(SpaceAccountPresentation.Reference(a) is { Length: > 0 } reference ? reference : "—")</td>
                             <td class="sh-c">@((a.ContractEffectiveDate ?? a.ActiveFrom).ToString("M/d/yyyy"))</td>
-                            <td class="sh-c">@(a.ContractYears is > 0 ? a.ContractYears + " yr" + (a.ContractYears != 1 ? "s" : "") : "—")</td>
+                            <td class="sh-c">@(a.ContractMonths is > 0 ? DomainRules.DescribeTerm(a.ContractYears, a.ContractMonths) : a.ContractYears is > 0 ? a.ContractYears + " yr" + (a.ContractYears != 1 ? "s" : "") : "—")</td>
                             <td class="sh-c">@(a.AreaSqm is > 0 ? $"{a.AreaSqm} sq.m." : "—")</td>
                         }
                         <td class="sh-r">@(a.CurrentAmount is { } amount ? Money(amount) : "—")</td>

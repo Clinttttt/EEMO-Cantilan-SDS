@@ -37,7 +37,7 @@ public sealed record SpaceAccountPresentation(ObligationKind Kind, string Name, 
         if (account.Event is not null) return "Event lot";
         if (account.Arrangement == OccupancyArrangement.SignedContract && account.ContractName is { Length: > 0 } contractName) return contractName;
         if (account.ContractYears is { } years && account.ContractEffectiveDate is { } signedDate)
-            return $"{years} {(years == 1 ? "year" : "years")} · expires {DomainRules.TermLastDay(signedDate, years):MMM yyyy}";
+            return $"{DomainRules.DescribeTerm(years, account.ContractMonths)} · expires {DomainRules.TermLastDay(signedDate, years, account.ContractMonths):MMM yyyy}";
         return account.Arrangement == OccupancyArrangement.SignedContract ? "Signed lease · term not recorded" : Basis(account);
     }
     /// <summary>The code the registry's workspace picker knows this operation by.</summary>

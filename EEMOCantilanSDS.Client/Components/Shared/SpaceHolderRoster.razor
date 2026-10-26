@@ -1,3 +1,4 @@
+@using EEMOCantilanSDS.Domain.Constants
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Enums
@@ -101,7 +102,7 @@
                                     }
                                     <td class="c">@Dash(a.SubjectLabel)</td>
                                     <td class="c">@(signed && a.ContractEffectiveDate is { } d ? d.ToString("M/d/yyyy", CultureInfo.InvariantCulture) : "—")</td>
-                                    <td class="c">@(signed && a.ContractYears is { } y ? y.ToString(CultureInfo.InvariantCulture) : "—")</td>
+                                    <td class="c">@(signed && a.ContractYears is { } y ? (a.ContractMonths is > 0 ? DomainRules.DescribeTerm(y, a.ContractMonths)! : y.ToString(CultureInfo.InvariantCulture)) : "—")</td>
                                     <td class="c">@(a.AreaSqm is > 0 ? $"{a.AreaSqm:0.##} sq.m." : "—")</td>
                                     <td class="r">@(signed ? Money(a.ContractMonthlyRate) : "—")</td>
                                     <td class="r">@Money(a.CurrentAmount)</td>
@@ -195,7 +196,7 @@
                 var cells = IsLot
                     ? new[] { Dash(SpaceAccountPresentation.Occupant(a)), Dash(a.SubjectLabel), a.Event is null ? "—" : a.Event.ToString()!, Amount(a.CurrentAmount), ContractText(a) }
                     : new[] { Dash(SpaceAccountPresentation.Occupant(a)), signed ? Dash(a.ContractName) : SpaceAccountPresentation.Basis(a), Dash(a.SubjectLabel),
-                        signed && a.ContractEffectiveDate is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "—", signed && a.ContractYears is { } y ? y.ToString(CultureInfo.InvariantCulture) : "—",
+                        signed && a.ContractEffectiveDate is { } d ? d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : "—", signed && a.ContractYears is { } y ? (a.ContractMonths is > 0 ? DomainRules.DescribeTerm(y, a.ContractMonths)! : y.ToString(CultureInfo.InvariantCulture)) : "—",
                         a.AreaSqm is > 0 ? a.AreaSqm.Value.ToString("0.##", CultureInfo.InvariantCulture) : "—", signed ? Amount(a.ContractMonthlyRate) : "—", Amount(a.CurrentAmount), Amount(WholeYear(a)) };
                 sb.AppendLine((i + 1).ToString(CultureInfo.InvariantCulture) + "," + string.Join(',', cells.Select(CsvCell.Escape)));
             }
