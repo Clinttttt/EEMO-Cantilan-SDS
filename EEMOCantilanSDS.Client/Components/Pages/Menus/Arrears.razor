@@ -100,10 +100,14 @@
                                 <td>@item.Period</td>
                                 <td class="v3-num v3-strong">@AllPeriodsText(item)</td>
                                 <td>@ArrearsReads.StatusLabel(item)</td>
-                                <td>
+                                <td class="arr-actions">
                                     @if (!string.IsNullOrWhiteSpace(item.Link))
                                     {
                                         <button type="button" class="v3-btn v3-btn-sm" @onclick="() => Review(item)">Review account →</button>
+                                    }
+                                    @if (CanIssue(item))
+                                    {
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Issue activation code for {item.Person}, {item.Identifier}")" @onclick="() => OpenIssue(item)">Issue activation code</button>
                                     }
                                 </td>
                             </tr>
@@ -117,7 +121,13 @@
                                 <td>@space.PeriodText<span class="v3-block">@(space.EarlierMonths > 0 ? $"Current term ₱{space.CurrentOutstanding:N0} · earlier terms ₱{space.EarlierOutstanding:N0}" : "")</span></td>
                                 <td class="v3-num v3-strong">@Money(space.Outstanding)</td>
                                 <td>@space.ReasonText · @space.Months month@(space.Months == 1 ? "" : "s")</td>
-                                <td><button type="button" class="v3-btn v3-btn-sm" @onclick="() => ReviewSpace(space)">Review account →</button></td>
+                                <td class="arr-actions">
+                                    <button type="button" class="v3-btn v3-btn-sm" @onclick="() => ReviewSpace(space)">Review account →</button>
+                                    @if (CanIssue(space))
+                                    {
+                                        <button type="button" class="v3-btn v3-btn-sm" aria-label="@($"Issue activation code for {space.Name}, space {space.First.SpaceNumber}")" @onclick="() => OpenIssue(space)">Issue activation code</button>
+                                    }
+                                </td>
                             </tr>
                         }
                     }
@@ -135,6 +145,8 @@
 
 @if (_review is not null)
 { <FollowUpAccountReview @key="_review" Context="_review" OnClose="() => _review = null" OnAction="OpenPayment" OnPeriodSelected="date => _reviewPeriod = date" ActionLabel="@(_review.CanRecordPayment ? "Record payment" : null)" /> }
+@if (_issue is { } issue)
+{ <HistoricalCodeDialog Kind="issue.Kind" LiableId="issue.LiableId" Payer="@issue.Payer" Description="@issue.Description" OnClose="() => _issue = null" OnStale="LoadAsync" /> }
 @if (_payment is not null)
 {
 <EEMOCantilanSDS.Client.Components.Pages.Shared.Actions.PayBillModal Show="@(_payment is not null)"
@@ -159,6 +171,20 @@
         _reviewPeriod = null;
         _review = new(item, null, _month, item.StallId.HasValue && item.Facility != FacilityCode.NPM && item.Amount > 0m);
     }
+    // Issue activation code: only for an account the row itself binds to a liable id (the ORIGINAL contract, or the space obligation account)
+    // that still owes money. The server alone decides eligibility, the payer confirmation and Activation vs Link; nothing loads until the dialog opens.
+    private sealed record IssueTarget(EEMOCantilanSDS.Application.Dtos.Mobile.ArrearsAccountKind Kind, Guid LiableId, string Payer, string Description);
+    private IssueTarget? _issue;
+    private static bool CanIssue(FollowUpItemDto item) => item.ContractId is { } && item.Amount is > 0m && !string.IsNullOrWhiteSpace(item.Person);
+    private static bool CanIssue(EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount space) => space.Outstanding > 0m && space.AccountId != Guid.Empty && space.Name != "—";
+    private void OpenIssue(FollowUpItemDto item) =>
+        _issue = new(EEMOCantilanSDS.Application.Dtos.Mobile.ArrearsAccountKind.StallRent, item.ContractId!.Value, item.Person,
+            $"{FacilityCatalog.NameOf(item.Facility)} · {item.Identifier} · {StatusLabel(item)} · {item.Period}");
+    private void OpenIssue(EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount space) =>
+        _issue = new(EEMOCantilanSDS.Application.Dtos.Mobile.ArrearsAccountKind.SpaceRental, space.AccountId, space.Name,
+            $"{space.First.Scope.DisplayName} · Space {space.First.SpaceNumber} · {space.ReasonText} · {space.PeriodText}");
+    private static string StatusLabel(FollowUpItemDto item) => ArrearsReads.StatusLabel(item);
+
     private void ReviewSpace(EEMOCantilanSDS.Client.Services.SpaceFollowUpAccount space) { _reviewPeriod = null; _review = new(null, space.First, _month); }
 
     // Space accounts under a condition (whole account, from the space feed), and those matching the search and source filter.
