@@ -143,7 +143,7 @@ public sealed class CollectionsReportWorkflow(
             var rowInstrument = document?.InstrumentType ?? policyInstruments.GetValueOrDefault(line.RevenueClassificationPolicyId);
             if (instrument is { } i && rowInstrument != i) continue;
             var effect = effects.GetValueOrDefault(line.Id);
-            rows.Add((line.Id, new CollectionRegisterRowDto(collection.Id, collection.BusinessDate, collection.ReferenceCode, document?.DocumentNumber ?? (collection.ReceiptReference is null ? null : $"Entered reference (unverified): {collection.ReceiptReference}"), rowInstrument,
+            rows.Add((line.Id, new CollectionRegisterRowDto(collection.Id, collection.BusinessDate, collection.ReferenceCode, document?.DocumentNumber ?? collection.ReceiptReference, rowInstrument,
                 collection.PayerName, collection.CollectorId, collection.CollectorId is { } cid ? collectors.GetValueOrDefault(cid) : null,
                 line.RevenueClassificationId, names.GetValueOrDefault(line.RevenueClassificationId, "Unclassified"),
                 labels.GetValueOrDefault(line.Id, "—"), line.Amount, effect,
@@ -182,7 +182,7 @@ public sealed class CollectionsReportWorkflow(
                 .Select(x => $"{x.label}: ₱{x.a.Amount.ToString("N2", CultureInfo.InvariantCulture)}").ToList();
             return new CollectionDocumentLineDto(row.Row.ClassificationName, row.Row.SourceLabel, row.Row.Amount, row.Row.CorrectionEffect, details);
         }).ToList();
-        return new CollectionDocumentDto(collection.Id, collection.ReferenceCode, document?.DocumentNumber ?? (collection.ReceiptReference is null ? null : $"Entered reference (unverified): {collection.ReceiptReference}"), document?.InstrumentType ?? rows.Select(x => x.Row.Instrument).FirstOrDefault(x => x is not null),
+        return new CollectionDocumentDto(collection.Id, collection.ReferenceCode, document?.DocumentNumber ?? collection.ReceiptReference, document?.InstrumentType ?? rows.Select(x => x.Row.Instrument).FirstOrDefault(x => x is not null),
             document is null ? (collection.ReceiptReference is null ? null : "Entered reference, not a registered receipt") : StateLabel(document.State), collection.BusinessDate, collection.RecordedAtUtc,
             collection.PayerName, (rows.Count > 0 ? rows[0].Row.CollectorName : null), collection.TotalAmount,
             rows.Sum(x => x.Row.CorrectionEffect), lines, coverage?.Id, coverage?.Status.ToString());

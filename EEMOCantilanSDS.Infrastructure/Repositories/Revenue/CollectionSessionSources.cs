@@ -453,8 +453,11 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         if (ids.Length == 0) return;
         var withDocument = (await db.AccountableDocuments.AsNoTracking().Where(d => d.MunicipalityId == Tenant && d.CollectionId != null && ids.Contains(d.CollectionId.Value))
             .Select(d => d.CollectionId!.Value).ToListAsync(ct)).ToHashSet();
+        var text = reference?.Trim();
+        if (string.IsNullOrEmpty(text) || text.Length > 100) throw new ArgumentException("The optional reference must be 1 to 100 characters.", nameof(reference));
+        // Set once, in the unit of work that created the collection, through the store: the domain entity stays free of any public mutation API.
         foreach (var collection in await db.Collections.Where(c => c.MunicipalityId == Tenant && ids.Contains(c.Id)).ToListAsync(ct))
-            if (collection.ReceiptReference is null && !withDocument.Contains(collection.Id)) collection.AttachReceiptReference(reference);
+            if (collection.ReceiptReference is null && !withDocument.Contains(collection.Id)) db.Entry(collection).Property(nameof(Collection.ReceiptReference)).CurrentValue = text;
         await db.SaveChangesAsync(ct);
     }
 

@@ -531,7 +531,7 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                 .Select(d => d.DocumentNumber).OrderBy(n => n, StringComparer.Ordinal).ToList();
 
             events.Add(new CollectionActivityEventDto($"Collection:{c.Id}", Canonical, "Collection", c.Id, c.BusinessDate,
-                c.RecordedAtUtc, c.ReferenceCode, primary?.DocumentNumber ?? (c.ReceiptReference is null ? null : $"Entered reference (unverified): {c.ReceiptReference}"), primary?.InstrumentType ?? policyInstruments.GetValueOrDefault(own[0].RevenueClassificationPolicyId), replacementNumbers,
+                c.RecordedAtUtc, c.ReferenceCode, primary?.DocumentNumber ?? c.ReceiptReference, primary?.InstrumentType ?? policyInstruments.GetValueOrDefault(own[0].RevenueClassificationPolicyId), replacementNumbers,
                 linked.Where(x => x.ReplacementCollectionId.HasValue).Select(x => replacementCodes.GetValueOrDefault(x.ReplacementCollectionId!.Value))
                     .Where(x => !string.IsNullOrEmpty(x)).Select(x => x!).OrderBy(x => x, StringComparer.Ordinal).ToList(),
                 c.PayerName, c.PayorId,

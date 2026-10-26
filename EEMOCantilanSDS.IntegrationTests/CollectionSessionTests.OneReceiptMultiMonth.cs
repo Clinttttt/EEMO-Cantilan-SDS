@@ -65,7 +65,7 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(0, await db.AccountableDocuments.CountAsync(d => d.State == AccountableDocumentState.Consumed));
         Assert.Null((await db.PostingOperations.SingleAsync()).AccountableDocumentId);
         var activity = await new CollectionActivityReader(db).GetAsync(s.W.TenantId, Today, Today);
-        Assert.Equal("Entered reference (unverified): 365363", Assert.Single(activity.Where(e => e.CollectionId == collection.Id)).DocumentNumber);
+        Assert.Equal("365363", Assert.Single(activity.Where(e => e.CollectionId == collection.Id)).DocumentNumber);
 
         var replay = (await s.Flow.RecordAsync(new(intent, quote.QuoteFingerprint))).Value!;
         Assert.True(replay.ExistingOutcome);
