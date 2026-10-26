@@ -93,7 +93,10 @@ public sealed class HistoricalAccessWorkflow(
         db.PayorUsers.Add(payor);
         db.PayorLiabilityLinks.Add(PayorLiabilityLink.Create(payor.Id, code));
         code.MarkUsed(payor.Id);
-        await db.SaveChangesAsync(ct);
+        // Two simultaneous redemptions of one code (or one number): the database's unique keys let exactly one through; the loser is refused like any other
+        // spent code, never shown a server error.
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Result<TokenResponseDto>.Failure(GenericRefusal, ResultStatus.Invalid); }
         return Result<TokenResponseDto>.Success(await tokens.CreateTokenResponse(payor));
     }
 
@@ -110,7 +113,8 @@ public sealed class HistoricalAccessWorkflow(
         if (duplicate) return Result<int>.Failure("This historical account is already linked to your account.", ResultStatus.Conflict);
         db.PayorLiabilityLinks.Add(PayorLiabilityLink.Create(payorId, code));
         code.MarkUsed(payorId);
-        await db.SaveChangesAsync(ct);
+        try { await db.SaveChangesAsync(ct); }
+        catch (DbUpdateException) { return Result<int>.Failure(GenericRefusal, ResultStatus.Invalid); }
         return Result<int>.Success(1);
     }
 
