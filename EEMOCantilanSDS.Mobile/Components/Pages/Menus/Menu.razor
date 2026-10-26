@@ -107,11 +107,6 @@
             <section class="menu-group" aria-labelledby="menu-available">
                 <h2 id="menu-available" class="menu-group-title">Available now <span class="menu-group-count">@Work.Available.Count</span></h2>
                 <button class="menu-new-collection" type="button" @onclick='() => Navigation.NavigateTo("/collections/new")'><span aria-hidden="true">+</span> New Collection</button>
-                <button class="menu-arrears-link" type="button" @onclick='() => Navigation.NavigateTo("/arrears")'>
-                    <span class="menu-arrears-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg></span>
-                    <span class="menu-arrears-text"><strong>Arrears &amp; Delinquency</strong><small>Overdue rent and balances</small></span>
-                    <span class="menu-row-chevron" aria-hidden="true">›</span>
-                </button>
                 @if (Work.Available.Count == 0)
                 {
                     <div class="menu-state">Nothing is ready to collect right now.</div>
@@ -153,6 +148,20 @@
                     </ul>
                     }
                 }
+                @* Not an operation: the account-level list of overdue rent, in the same row language as the operations above. *@
+                <h3 class="menu-section-title">Others</h3>
+                <ul class="menu-list">
+                    <li>
+                        <button class="menu-row" type="button" @onclick='() => Navigation.NavigateTo("/arrears")'>
+                            <span class="menu-tile ready" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" /></svg></span>
+                            <span class="menu-row-main">
+                                <span class="menu-row-name">Arrears &amp; Delinquency</span>
+                                <span class="menu-row-status">Overdue rent and balances</span>
+                            </span>
+                            <span class="menu-row-chevron" aria-hidden="true">›</span>
+                        </button>
+                    </li>
+                </ul>
             </section>
 
             @if (Work.AssignedUnavailable.Count > 0)
