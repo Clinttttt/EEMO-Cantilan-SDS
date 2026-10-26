@@ -64,4 +64,17 @@ public class ArrearsViewTests
         Assert.Null(ArrearsView.CollectBlockedReason(Sample[0]));
         Assert.Contains("billed daily", ArrearsView.CollectBlockedReason(Sample[4]));
     }
+
+    [Fact]
+    public void A_monthly_facility_without_canonical_rent_is_routed_to_its_own_monthly_collection_not_to_a_dead_end()
+    {
+        var legacyMonthly = Sample[0] with { CanCollect = false, CollectVia = "FacilityMonthly", OperationCode = "FACILITY_BBQ" };
+        Assert.Equal("BBQ", ArrearsView.FacilityMonthlyRoute(legacyMonthly));
+        Assert.Contains("monthly collection", ArrearsView.CollectBlockedReason(legacyMonthly));
+        Assert.DoesNotContain("billed daily", ArrearsView.CollectBlockedReason(legacyMonthly));
+
+        Assert.Null(ArrearsView.FacilityMonthlyRoute(Sample[0]));                                   // collectible here: no detour
+        Assert.Null(ArrearsView.FacilityMonthlyRoute(Sample[4] with { CollectVia = "Daily" }));      // daily-billed: nothing to open
+        Assert.Contains("billed daily", ArrearsView.CollectBlockedReason(Sample[4] with { CollectVia = "Daily" }));
+    }
 }

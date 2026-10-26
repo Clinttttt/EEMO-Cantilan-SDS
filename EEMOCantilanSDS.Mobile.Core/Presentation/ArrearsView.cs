@@ -52,5 +52,11 @@ public static class ArrearsView
 
     /// <summary>Why a collection cannot be opened from here, or null when it can. Stated plainly, never as a code.</summary>
     public static string? CollectBlockedReason(ArrearsAccountDto a) =>
-        a.CanCollect ? null : "This account is billed daily. It is collected from its daily stall payments, not here.";
+        a.CanCollect ? null
+        : a.CollectVia == "FacilityMonthly" ? "This rent is collected in the facility's monthly collection, not in New Collection."
+        : "This account is billed daily. It is collected from its daily stall payments, not here.";
+
+    /// <summary>The facility whose own monthly collection takes this rent (for example "BBQ"), when New Collection cannot; otherwise null.</summary>
+    public static string? FacilityMonthlyRoute(ArrearsAccountDto a) =>
+        a.CollectVia == "FacilityMonthly" && a.OperationCode.StartsWith("FACILITY_", StringComparison.Ordinal) ? a.OperationCode["FACILITY_".Length..] : null;
 }

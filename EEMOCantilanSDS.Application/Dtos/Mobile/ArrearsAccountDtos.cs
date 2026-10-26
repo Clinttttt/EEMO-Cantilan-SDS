@@ -19,6 +19,9 @@ public sealed record ArrearsAccountDto(
     // Whether a canonical collection can be opened for this account at all (monthly-rent facility or space rental); the session still states which periods are collectible now.
     bool CanCollect,
     // Original liable identity, for the activation / verified link flow.
-    Guid? ContractId, Guid? ObligationAccountId);
+    Guid? ContractId, Guid? ObligationAccountId,
+    // Where this account's rent is actually collected: "Canonical" (this checkout), "FacilityMonthly" (a monthly facility whose rent rows are still on the facility's own monthly
+    // operation, so New Collection has nothing to take), or "Daily" (a daily-billed stall, collected from its daily payments). Null from an older API: read CanCollect.
+    string? CollectVia = null);
 
 public sealed record ArrearsWorkspaceDto(DateOnly AsOf, IReadOnlyList<ArrearsAccountDto> Accounts, decimal Total, decimal ArrearsTotal, decimal DelinquentTotal);

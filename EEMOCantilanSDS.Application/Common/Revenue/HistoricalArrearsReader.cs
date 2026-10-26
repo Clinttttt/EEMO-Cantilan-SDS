@@ -56,7 +56,13 @@ public sealed class HistoricalArrearsReader(
             var live = (await reports.GetDelinquentStallsAsync(null, today.Year, today.Month, includeClosed: true, wholeAccount: true, ct))
                 .Where(d => facilities.ContainsKey(d.FacilityCode) && d.StallId.HasValue
                     && (d.DelinquentMonthCount >= DomainRules.DelinquentThresholdMonths || d.ArrearsOutstanding > 0m)).ToList();
+            var closedAccounts = (await closed.GetClosedStallAccountsAsOfAsync(today, ct)).ToList();
             var stallIds = live.Select(d => d.StallId!.Value).ToArray();
+            // A monthly facility's rent is collectible in New Collection only where its rows are under canonical authority; otherwise it is collected in the facility's own monthly operation.
+            var rentStallIds = stallIds.Concat(closedAccounts.Select(a => a.StallId)).Distinct().ToArray();
+            var canonicalStalls = (await db.PaymentRecords.AsNoTracking()
+                    .Where(p => p.MunicipalityId == tenantId && rentStallIds.Contains(p.StallId) && p.SettlementAuthorityState == SettlementAuthority.Canonical && p.Status != PaymentStatus.Paid)
+                    .Select(p => p.StallId).Distinct().ToListAsync(ct)).ToHashSet();
             var stalls = await db.Stalls.AsNoTracking().Include(s => s.Contracts)
                 .Where(s => s.MunicipalityId == tenantId && stallIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
             foreach (var d in live)
@@ -69,12 +75,13 @@ public sealed class HistoricalArrearsReader(
                 accounts.Add(StallRow(facility, d.StallNo, d.Section, d.Occupant, contract.Id, d.TermLapsed ? "Lapsed" : "Active",
                     arrears, delinquent, d.Classified ? d.ArrearsMonths + d.DelinquentMonths : d.MonthsUnpaid,
                     d.ArrearsFirstPeriod ?? d.DelinquentFirstPeriod, d.DelinquentLastPeriod ?? d.ArrearsLastPeriod,
-                    arrears > 0m ? (d.TermLapsed ? SpaceArrears.ExpiredContract : SpaceArrears.PreviousYear) : null));
+                    arrears > 0m ? (d.TermLapsed ? SpaceArrears.ExpiredContract : SpaceArrears.PreviousYear) : null,
+                    canonicalStalls.Contains(stall.Id)));
             }
             // Ended occupancies: a former lessee's own debt, kept with that contract. A lapsed-but-held account is the live one above.
-            foreach (var a in await closed.GetClosedStallAccountsAsOfAsync(today, ct))
+            foreach (var a in closedAccounts)
                 if (a.Uncollected > 0m && a.State != InactiveAccountState.Lapsed && a.ContractId != Guid.Empty && facilities.TryGetValue(a.FacilityCode, out var facility))
-                    accounts.Add(StallRow(facility, a.StallNo, a.Section, a.Occupant, a.ContractId, StatusOf(a), a.Uncollected, 0m, a.MonthsUnpaid, null, null, SpaceArrears.EndedOccupancy));
+                    accounts.Add(StallRow(facility, a.StallNo, a.Section, a.Occupant, a.ContractId, StatusOf(a), a.Uncollected, 0m, a.MonthsUnpaid, null, null, SpaceArrears.EndedOccupancy, canonicalStalls.Contains(a.StallId)));
         }
 
         var items = assigned is null ? await space.GetAsync(today, null, ct, includeEarlierTerms: true) : await space.GetForCollectorAsync(today, ct);
@@ -94,7 +101,7 @@ public sealed class HistoricalArrearsReader(
             accounts.Add(new($"space:{g.Key:N}", ArrearsAccountKind.SpaceRental, new(SourceIdentityKind.SpaceAccount, g.Key), first.Scope.OperationCode,
                 first.Scope.DisplayName, first.PayerName ?? account.ActualOccupant ?? first.SpaceNumber, first.SpaceNumber, null, status, ReasonOf(arrears, delinquent),
                 arrears, delinquent, arrears + delinquent, g.Count(), $"{periods[0]:yyyy-MM}", $"{periods[^1]:yyyy-MM}", prior, arrears + delinquent - prior,
-                g.Select(i => i.ArrearsBasis).FirstOrDefault(b => b is not null), true, null, g.Key));
+                g.Select(i => i.ArrearsBasis).FirstOrDefault(b => b is not null), true, null, g.Key, "Canonical"));
         }
 
         var ordered = accounts.OrderByDescending(a => a.Total).ThenBy(a => a.Space, StringComparer.OrdinalIgnoreCase).ThenBy(a => a.AccountKey, StringComparer.Ordinal).ToArray();
@@ -111,9 +118,10 @@ public sealed class HistoricalArrearsReader(
     private static string ReasonOf(decimal arrears, decimal delinquent) => arrears > 0m && delinquent > 0m ? "both" : arrears > 0m ? "arrears" : "delinquent";
 
     private static ArrearsAccountDto StallRow(Domain.Entities.Facilities.Facility facility, string stallNo, string? section, string payer, Guid contractId,
-        string status, decimal arrears, decimal delinquent, int months, string? first, string? last, string? basis) =>
+        string status, decimal arrears, decimal delinquent, int months, string? first, string? last, string? basis, bool canonicalRent) =>
         new($"contract:{contractId:N}", ArrearsAccountKind.StallRent, new(SourceIdentityKind.Occupancy, contractId), "FACILITY_" + facility.Code, facility.Name,
             string.IsNullOrWhiteSpace(payer) ? "Unnamed occupant" : payer, SpaceNumber.Describe(stallNo), string.IsNullOrWhiteSpace(section) ? null : section, status,
             ReasonOf(arrears, delinquent), arrears, delinquent, arrears + delinquent, months, first, last, 0m, arrears + delinquent, basis,
-            MonthlyRentalFacilities.Bills(facility), contractId, null);
+            MonthlyRentalFacilities.Bills(facility) && canonicalRent, contractId, null,
+            !MonthlyRentalFacilities.Bills(facility) ? "Daily" : canonicalRent ? "Canonical" : "FacilityMonthly");
 }
