@@ -66,7 +66,7 @@
     {
         <div class="imp-state">
             <div class="imp-state-title">Import not available</div>
-            <div class="imp-state-text">Bulk import is only supported for @ImportableFacilityList.</div>
+            <div class="imp-state-text">Bulk import is only supported for @ImportableFacilityList and the office's own active Stall Rent facilities.</div>
             <a class="imp-btn imp-btn-primary" href="/operations">Back to Operations</a>
         </div>
     }
@@ -457,11 +457,21 @@
     // The facility's own page, by its canonical route — the one the sidebar links to and the browser shows. Cancel
     // and the back arrow both land there rather than on whatever page happened to come before, so leaving an import
     // always returns to the facility being imported into.
-    private string BackUrl => _facility is null ? "/operations" : $"/facility/{_facility.ShortCode.ToLowerInvariant()}";
+    private string BackUrl => _facility is null ? "/operations"
+        : EEMOCantilanSDS.Domain.Constants.FacilityCatalog.IsCustom(_facility.Code) ? $"/facility/{FacilityCatalog.SlugOf(_facility.Code)}"
+        : $"/facility/{_facility.ShortCode.ToLowerInvariant()}";
 
     protected override async Task OnParametersSetAsync()
     {
-        _facility = Configs.TryGetValue((Facility ?? string.Empty).Trim().ToLowerInvariant(), out var cfg) ? cfg : null;
+        var key = (Facility ?? string.Empty).Trim().ToLowerInvariant();
+        if (Configs.TryGetValue(key, out var cfg)) _facility = cfg;
+        else
+        {
+            // The tenant's own Stall Rent custom facility (slot code or acronym slug). Only a facility the office has
+            // declared AND that is active appears in the catalogue, so an inactive or foreign one resolves to nothing.
+            await FacilityCatalog.EnsureLoadedAsync();
+            _facility = CustomConfigFor(key);
+        }
         if (RequiresSection)
         {
             await LoadNpmRatesAsync();
@@ -1465,6 +1475,26 @@
     private static readonly ImportColumn Delinquent = RentalImportColumns.Delinquent;
 
     private static readonly Dictionary<string, FacilityImportConfig> Configs = BuildConfigs();
+
+    private FacilityImportConfig? CustomConfigFor(string slug)
+    {
+        if (!FacilityCatalog.TryResolveSlug(slug, out var code) || !EEMOCantilanSDS.Domain.Constants.FacilityCatalog.IsCustom(code)
+            || !FacilityCatalog.HasDeclaredFacility(code)
+            || FacilityCatalog.CustomCategoryOf(code) != CustomFacilityCategory.StallRent)
+            return null;
+        return new FacilityImportConfig
+        {
+            Code = code,
+            ShortCode = FacilityCatalog.ShortNameOf(code),
+            Name = FacilityCatalog.NameOf(code),
+            Columns = new() { Occupant, ContractName, StallNo, Effectivity, Years, Area, Monthly, ActualMonthly, WholeYear, Delinquent },
+            Sample = new()
+            {
+                Row(("occupant","Juan Dela Cruz"),("contractName","Juan Dela Cruz"),("stallNo","1"),("effectivity",SampleEffectivity),("years","3"),("area","10"),("monthly","1000"),("actualMonthly","1000"),("wholeYear","12000")),
+                Row(("occupant","Maria Santos"),("contractName","Maria Santos"),("stallNo","2"),("effectivity",SampleEffectivity),("years","3"),("area","10"),("monthly","1000"),("actualMonthly","1000"),("wholeYear","12000")),
+            }
+        };
+    }
 
     private static Dictionary<string, FacilityImportConfig> BuildConfigs()
     {

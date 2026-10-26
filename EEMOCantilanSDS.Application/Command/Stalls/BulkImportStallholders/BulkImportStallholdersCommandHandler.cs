@@ -29,6 +29,13 @@ public class BulkImportStallholdersCommandHandler(
         if (facility is null)
             return Result<BulkImportResultDto>.NotFound();
 
+        // A custom facility is the office's own and may be switched off; Space Rental is a different registry, not this stall list.
+        if (FacilityCatalog.IsCustom(request.FacilityCode)
+            && (!facility.IsActive || facility.CustomCategory != CustomFacilityCategory.StallRent))
+            return Result<BulkImportResultDto>.Failure(!facility.IsActive
+                ? $"{facility.Name} is not active, so a list cannot be imported into it."
+                : $"{facility.Name} is a Space Rental facility; stallholder lists import only into Stall Rent facilities.");
+
         // A Public Market its LGU rents by the month imports like any monthly facility: one monthly rent per stall, no daily rate.
         var isNpm = request.FacilityCode == FacilityCode.NPM && !facility.IsMonthlyRentMarket;
         var section = isNpm ? request.Section : null;

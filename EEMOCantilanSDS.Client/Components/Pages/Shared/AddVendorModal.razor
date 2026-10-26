@@ -934,7 +934,14 @@
     // Bulk import is offered (Add mode only) for the facilities that have an import page.
     private static readonly HashSet<string> ImportFacilities = new(StringComparer.OrdinalIgnoreCase)
         { "NPM", "TCC", "NCC", "BBQ", "ICE" };
-    private bool IsImportSupported => ImportFacilities.Contains(Form.FacilityCode);
+    // An active Stall Rent custom facility of this office imports through the same page (Space Rental does not).
+    private bool IsCustomStallRent =>
+        Enum.TryParse<FacilityCode>(Form.FacilityCode, true, out var code)
+        && EEMOCantilanSDS.Domain.Constants.FacilityCatalog.IsCustom(code)
+        && FacilityCatalog.HasDeclaredFacility(code)
+        && FacilityCatalog.CustomCategoryOf(code) == CustomFacilityCategory.StallRent;
+
+    private bool IsImportSupported => ImportFacilities.Contains(Form.FacilityCode) || IsCustomStallRent;
 
     private void HandleImport()
     {
