@@ -76,12 +76,12 @@ public sealed class HistoricalArrearsReader(
                     arrears, delinquent, d.Classified ? d.ArrearsMonths + d.DelinquentMonths : d.MonthsUnpaid,
                     d.ArrearsFirstPeriod ?? d.DelinquentFirstPeriod, d.DelinquentLastPeriod ?? d.ArrearsLastPeriod,
                     arrears > 0m ? (d.TermLapsed ? SpaceArrears.ExpiredContract : SpaceArrears.PreviousYear) : null,
-                    canonicalStalls.Contains(stall.Id)));
+                    canonicalStalls.Contains(stall.Id), stall.Id));
             }
             // Ended occupancies: a former lessee's own debt, kept with that contract. A lapsed-but-held account is the live one above.
             foreach (var a in closedAccounts)
                 if (a.Uncollected > 0m && a.State != InactiveAccountState.Lapsed && a.ContractId != Guid.Empty && facilities.TryGetValue(a.FacilityCode, out var facility))
-                    accounts.Add(StallRow(facility, a.StallNo, a.Section, a.Occupant, a.ContractId, StatusOf(a), a.Uncollected, 0m, a.MonthsUnpaid, null, null, SpaceArrears.EndedOccupancy, canonicalStalls.Contains(a.StallId)));
+                    accounts.Add(StallRow(facility, a.StallNo, a.Section, a.Occupant, a.ContractId, StatusOf(a), a.Uncollected, 0m, a.MonthsUnpaid, null, null, SpaceArrears.EndedOccupancy, canonicalStalls.Contains(a.StallId), a.StallId));
         }
 
         var items = assigned is null ? await space.GetAsync(today, null, ct, includeEarlierTerms: true) : await space.GetForCollectorAsync(today, ct);
@@ -118,10 +118,10 @@ public sealed class HistoricalArrearsReader(
     private static string ReasonOf(decimal arrears, decimal delinquent) => arrears > 0m && delinquent > 0m ? "both" : arrears > 0m ? "arrears" : "delinquent";
 
     private static ArrearsAccountDto StallRow(Domain.Entities.Facilities.Facility facility, string stallNo, string? section, string payer, Guid contractId,
-        string status, decimal arrears, decimal delinquent, int months, string? first, string? last, string? basis, bool canonicalRent) =>
+        string status, decimal arrears, decimal delinquent, int months, string? first, string? last, string? basis, bool canonicalRent, Guid stallId) =>
         new($"contract:{contractId:N}", ArrearsAccountKind.StallRent, new(SourceIdentityKind.Occupancy, contractId), "FACILITY_" + facility.Code, facility.Name,
             string.IsNullOrWhiteSpace(payer) ? "Unnamed occupant" : payer, SpaceNumber.Describe(stallNo), string.IsNullOrWhiteSpace(section) ? null : section, status,
             ReasonOf(arrears, delinquent), arrears, delinquent, arrears + delinquent, months, first, last, 0m, arrears + delinquent, basis,
             MonthlyRentalFacilities.Bills(facility) && canonicalRent, contractId, null,
-            !MonthlyRentalFacilities.Bills(facility) ? "Daily" : canonicalRent ? "Canonical" : "FacilityMonthly");
+            !MonthlyRentalFacilities.Bills(facility) ? "Daily" : canonicalRent ? "Canonical" : "FacilityMonthly", stallId);
 }

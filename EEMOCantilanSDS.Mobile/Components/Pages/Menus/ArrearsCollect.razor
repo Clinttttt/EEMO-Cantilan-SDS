@@ -17,7 +17,12 @@
         </div>
     </div>
     <main class="content collection-workspace">
-        @if (_state == State.Loading) { <p class="collection-message" role="status">Loading the account…</p> }
+        @if (_state == State.Loading)
+        {
+            <div role="status" aria-busy="true" aria-label="Loading the account">
+                <span class="sk sk-source"></span><span class="sk sk-items"></span>
+            </div>
+        }
         else if (_state == State.Offline) { <p class="collection-message" role="status">Connect to collect arrears. The account is checked with the office before any payment is taken.</p> }
         else if (_state == State.Missing) { <p class="collection-message" role="status">This account no longer has arrears or delinquency to collect. Go back and refresh the list.</p> }
         else if (_source is not null) { <CollectionSessionEditor @key="_source.Identity" InitialSource="_source" BusinessDate="@Today" /> }

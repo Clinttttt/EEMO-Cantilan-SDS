@@ -12,6 +12,7 @@ using EEMOCantilanSDS.Application.Command.TaboanMarket.MarkVendorPaid;
 using EEMOCantilanSDS.Application.Command.Suggestions.HideSuggestion;
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Command.TransportTerminal.RecordTrip;
+using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Application.Dtos.TaboanMarket;
@@ -22,6 +23,7 @@ using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorProfile;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorReport;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorRecords;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection;
+using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileUnpaidMonths;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmArrears;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmCollection;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileNpmUtility;
@@ -304,14 +306,20 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
         return HandleResponse(result);
     }
 
+    // The unpaid months of one stall's current contract that are still collected on the facility's own monthly operation (a delinquent month is paid from here).
+    [HttpGet("monthly/unpaid-months")]
+    public async Task<ActionResult<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync([FromQuery] Guid stallId) =>
+        HandleResponse(await Sender.Send(new GetMobileUnpaidMonthsQuery(stallId)));
+
     [HttpPost("monthly/collections/record")]
     public async Task<ActionResult<bool>> RecordMonthlyCollectionAsync([FromBody] RecordMobileMonthlyCollectionRequest request)
     {
-        var today = PhilippineTime.Today;
+        var month = MobileBillingMonth.Resolve(request.BillingYear, request.BillingMonth, PhilippineTime.Today);
+        if (!month.IsSuccess) return HandleResponse(Result<bool>.Failure(month.Error ?? "Choose the billing month to collect.", ResultStatus.Invalid));
         var command = new RecordPaymentCommand(
             request.StallId,
-            today.Year,
-            today.Month,
+            month.Value.Year,
+            month.Value.Month,
             request.Status,
             request.PartialAmount,
             Remarks: null,

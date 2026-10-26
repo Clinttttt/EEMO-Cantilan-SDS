@@ -19,7 +19,20 @@
         </div>
     </div>
     <main class="content">
-        @if (_loading) { <p class="ar-note" role="status">Loading accounts…</p> }
+        @if (_loading)
+        {
+            <div role="status" aria-busy="true" aria-label="Loading accounts">
+                <span class="sk sk-input"></span><span class="sk sk-seg"></span><span class="sk sk-sum"></span>
+                <ul class="ar-list">
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                        <li class="ar-item"><div class="ar-row"><span class="ar-text"><span class="sk sk-name"></span><span class="sk sk-op"></span></span><span class="sk sk-amt"></span></div></li>
+                </ul>
+            </div>
+        }
         else if (_failed) { <p class="ar-note" role="alert">Connect to view arrears and delinquency.</p><button type="button" class="ar-more" @onclick="LoadAsync">Try again</button> }
         else if (_all.Count == 0) { <p class="ar-note" role="status">No account assigned to you has arrears or delinquency.</p> }
         else
@@ -32,10 +45,7 @@
             </div>
             @if (_operations.Count > 1)
             {
-                <select class="ar-input ar-select" aria-label="Operation" @onchange="OnOperation">
-                    <option value="" selected="@(_filter.OperationCode is null)">All operations</option>
-                    @foreach (var op in _operations) { <option value="@op.Code" selected="@(_filter.OperationCode == op.Code)">@op.Name</option> }
-                </select>
+                <button type="button" class="ar-input ar-pick" aria-haspopup="dialog" @onclick="() => _pickOp = true"><span>@OperationLabel</span><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg></button>
             }
             <section class="ar-summary" role="status" aria-label="Totals for the list below">
                 <div class="ar-summary-main"><strong>@Peso(_totals.Total)</strong><span>@_totals.Accounts @(_totals.Accounts == 1 ? "account" : "accounts")</span></div>
@@ -64,6 +74,24 @@
     <BottomNav ActiveTab="menu" />
 </div>
 
+@* Operation filter: a sheet, not the device's own dropdown, so it looks and behaves like the rest of the app. *@
+@if (_pickOp)
+{
+    <div class="ar-overlay" @onclick="() => _pickOp = false">
+        <div class="ar-sheet" role="dialog" aria-modal="true" aria-label="Operation" @onclick:stopPropagation="true">
+            <h2 class="ar-sheet-title ar-pick-title">Operation</h2>
+            <ul class="ar-opts">
+                <li><button type="button" class="ar-opt @(_filter.OperationCode is null ? "on" : "")" @onclick="() => PickOp(null)">All operations</button></li>
+                @foreach (var op in _operations)
+                {
+                    var code = op.Code;
+                    <li><button type="button" class="ar-opt @(_filter.OperationCode == code ? "on" : "")" @onclick="() => PickOp(code)">@op.Name</button></li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
 @* Account details: everything about one liable account in one place, so the list stays two lines per account. The figures are the server's. *@
 @if (_detail is { } d)
 {
@@ -83,6 +111,7 @@
             @if (ArrearsView.CollectBlockedReason(d) is { } blocked) { <p class="ar-hint">@blocked</p> }
             <div class="ar-actions">
                 @if (d.CanCollect) { <button type="button" class="ar-primary" @onclick="() => Collect(d)">Collect arrears</button> }
+                else if (ArrearsView.FacilityMonthlyRoute(d) is not null && d.StallId is { } stallId) { <button type="button" class="ar-primary" @onclick="() => OpenMonths(d, stallId)">Collect unpaid months</button> }
                 else if (ArrearsView.FacilityMonthlyRoute(d) is { } route) { <button type="button" class="ar-primary" @onclick="() => OpenFacility(route)">Open @route collections</button> }
                 <button type="button" class="ar-secondary" @onclick="() => OpenIssue(d)">Payor code</button>
                 <button type="button" class="ar-cancel" @onclick="CloseDetail">Close</button>
@@ -167,7 +196,10 @@
     }
     private void Reason(string reason) { _filter = _filter with { Reason = reason }; Refresh(); }
     private void Operation(string? code) { _filter = _filter with { OperationCode = code }; Refresh(); }
-    private void OnOperation(ChangeEventArgs e) { var code = e.Value?.ToString(); Operation(string.IsNullOrEmpty(code) ? null : code); }
+    private bool _pickOp;
+    private string OperationLabel => _filter.OperationCode is null ? "All operations" : _operations.FirstOrDefault(o => o.Code == _filter.OperationCode).Name ?? "All operations";
+    private void PickOp(string? code) { Operation(code); _pickOp = false; }
+    private void OpenMonths(ArrearsAccountDto a, Guid stallId) => Navigation.NavigateTo($"/arrears/months?stall={stallId}&contract={a.Identity.Id}");
     private void CloseDetail() => _detail = null;
     private void OpenFacility(string facility) => Navigation.NavigateTo("/collect/" + facility);
     private ArrearsAccountDto? _issuing;

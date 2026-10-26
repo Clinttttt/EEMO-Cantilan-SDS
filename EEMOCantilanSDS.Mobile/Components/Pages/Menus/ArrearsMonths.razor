@@ -1,0 +1,159 @@
+@page "/arrears/months"
+@using global::EEMOCantilanSDS.Application.Dtos.Mobile
+@using global::EEMOCantilanSDS.Domain.Enums
+@using global::EEMOCantilanSDS.Mobile.Collections
+@using System.Globalization
+@inject NavigationManager Navigation
+@inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
+@inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject ArrearsWorkspaceHolder Held
+
+@* The unpaid months of one stall on a monthly facility whose rent is still collected on that facility's own monthly operation. New Collection takes only
+   canonical rent, so these months cannot go through its checkout; they use the SAME month picker (SpaceMonthsView) and are settled on the office's own monthly
+   record. Several months are collected in full, each as its own record; one month may take a part payment. Online only: what is owed is never shown from a device cache. *@
+<div class="page-shell">
+    <div class="header">
+        <div class="header-eyebrow">Arrears and delinquency</div>
+        <div class="header-row">
+            <button class="back-btn" type="button" aria-label="Back to Arrears and Delinquency" @onclick='() => Navigation.NavigateTo("/arrears")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <div class="header-title-block"><div class="header-title">Collect arrears</div><div class="header-sub">@Session.CollectorName</div></div>
+            <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
+        </div>
+    </div>
+    <main class="content">
+        @if (_account is not null)
+        {
+            <section class="am-who"><strong>@_account.Payer</strong><small>@_account.OperationName · @_account.Space</small></section>
+        }
+        @if (!string.IsNullOrEmpty(_done)) { <p class="am-done" role="status">@_done</p> }
+        @if (_state == State.Loading)
+        {
+            <div role="status" aria-busy="true" aria-label="Loading unpaid months">
+                <span class="sk sk-card"></span>
+                <div class="sk-list">
+                    @for (var i = 0; i < 6; i++) { <div class="sk-row"><span class="sk sk-name"></span><span class="sk sk-amt"></span></div> }
+                </div>
+            </div>
+        }
+        else if (_state == State.Offline) { <p class="am-note" role="status">Connect to collect unpaid months. They are checked with the office before any payment is taken.</p><button type="button" class="am-more" @onclick="LoadAsync">Try again</button> }
+        else if (_months.Count == 0) { <p class="am-note" role="status">No unpaid month is left to collect for this stall here.</p><button type="button" class="am-more" @onclick='() => Navigation.NavigateTo("/arrears")'>Back to the list</button> }
+        else
+        {
+            <SpaceMonthsView Choices="Choices" Selected="_picked" OnToggle="Toggle" OnToggleMany="ToggleMany" Label="Unpaid months" />
+            <div class="am-bar">
+                <button type="button" class="am-primary" disabled="@(_picked.Count == 0)" @onclick="OpenCollect">@(_picked.Count == 0 ? "Choose the months to collect" : $"Collect {_picked.Count} {(_picked.Count == 1 ? "month" : "months")} · {Peso(Selected.Sum(m => m.BalanceDue))}")</button>
+            </div>
+        }
+    </main>
+    <BottomNav ActiveTab="menu" />
+</div>
+
+@if (_sheet)
+{
+    <div class="am-overlay" @onclick="Close">
+        <div class="am-sheet" role="dialog" aria-modal="true" aria-labelledby="am-title" @onclick:stopPropagation="true">
+            <header class="am-sheet-head">
+                <h2 id="am-title" class="am-sheet-title">@(Selected.Count == 1 ? Label(Selected[0]) : $"{Selected.Count} months")</h2>
+                <strong class="am-sheet-amount">@Peso(Selected.Sum(m => m.BalanceDue))</strong>
+            </header>
+            @if (Selected.Count == 1)
+            {
+                <label class="am-field" for="am-amount">Amount received</label>
+                <input id="am-amount" class="am-input" type="text" inputmode="decimal" autocomplete="off" value="@_amount" @oninput="e => _amount = e.Value?.ToString() ?? string.Empty" />
+                @if (Selected[0].AmountPaid > 0m) { <p class="am-hint">Something was already paid on this month, so the full remaining balance is collected.</p> }
+            }
+            else
+            {
+                <p class="am-hint">Each month is collected in full as its own record.</p>
+            }
+            <label class="am-field" for="am-or">Official Receipt No. <span>optional</span></label>
+            <input id="am-or" class="am-input" type="text" maxlength="100" autocomplete="off" value="@_or" @oninput="e => _or = e.Value?.ToString() ?? string.Empty" />
+            @if (!string.IsNullOrWhiteSpace(_error)) { <p class="am-error" role="alert">@_error</p> }
+            <div class="am-actions">
+                <button type="button" class="am-cancel" disabled="@_busy" @onclick="Close">Cancel</button>
+                <button type="button" class="am-primary" disabled="@_busy" @onclick="RecordAsync">@(_busy ? "Recording…" : "Record payment")</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public Guid Stall { get; set; }
+    [SupplyParameterFromQuery] public Guid Contract { get; set; }
+    private enum State { Loading, Offline, Ready }
+    private State _state = State.Loading;
+    private IReadOnlyList<MobileUnpaidMonthDto> _months = [];
+    private readonly HashSet<string> _picked = [];
+    private ArrearsAccountDto? _account;
+    private bool _sheet, _busy;
+    private string _amount = string.Empty, _or = string.Empty, _error = string.Empty, _done = string.Empty;
+
+    private static string Key(int year, int month) => $"{year:0000}-{month:00}";
+    private IReadOnlyList<MobileUnpaidMonthDto> Selected => _months.Where(m => _picked.Contains(Key(m.Year, m.Month))).OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+    private static string Label(MobileUnpaidMonthDto m) => new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    // The same shape New Collection's picker reads: one choice per month, the office's own balance as its amount.
+    private IReadOnlyList<CollectionSessionSourceChoice> Choices => _months.Select(m => new CollectionSessionSourceChoice(
+        Key(m.Year, m.Month), CollectionSessionItemKind.MonthlyRent, _account?.OperationCode ?? string.Empty, _account?.OperationName ?? "Monthly rent", string.Empty,
+        new(PeriodStart: new DateOnly(m.Year, m.Month, 1)), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, m.BalanceDue)).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.InitializeAsync();
+        if (Session.Menu is null) { Navigation.NavigateTo("/login"); return; }
+        _account = Held.Find(Session.Menu.CollectorId, ArrearsAccountKind.StallRent, Contract);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _state = State.Loading;
+        try
+        {
+            var result = await Api.GetUnpaidMonthsAsync(Stall);
+            if (result.IsSuccess && result.Value is { } months) { _months = months; _picked.RemoveWhere(k => !months.Any(m => Key(m.Year, m.Month) == k)); _state = State.Ready; }
+            else _state = State.Offline;
+        }
+        catch { _state = State.Offline; }
+    }
+
+    private void Toggle(string key) { if (!_picked.Remove(key)) _picked.Add(key); _done = string.Empty; }
+    private void ToggleMany(IReadOnlyList<string> keys) { if (keys.All(_picked.Contains)) foreach (var k in keys) _picked.Remove(k); else foreach (var k in keys) _picked.Add(k); _done = string.Empty; }
+
+    private void OpenCollect()
+    {
+        if (_picked.Count == 0) return;
+        _amount = Selected.Count == 1 ? Selected[0].BalanceDue.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty;
+        _or = string.Empty; _error = string.Empty; _sheet = true;
+    }
+    private void Close() { if (!_busy) _sheet = false; }
+
+    private async Task RecordAsync()
+    {
+        var (charges, error) = UnpaidMonthPayment.Plan(Selected, _amount);
+        if (error is not null) { _error = error; return; }
+        _busy = true; _error = string.Empty;
+        var recorded = 0m; var count = 0;
+        try
+        {
+            // One monthly record per month, oldest first. A failure stops here: what was recorded stays recorded, the list is read again, and the rest can be retried.
+            foreach (var c in charges)
+            {
+                var result = await Api.RecordMonthlyCollectionAsync(new(Stall, c.Status, c.PartialAmount, string.IsNullOrWhiteSpace(_or) ? null : _or.Trim(), c.Year, c.Month));
+                if (!result.IsSuccess) { _error = (count > 0 ? $"Recorded {count} of {charges.Count}. " : "") + (result.Error ?? "The payment could not be recorded. Please try again."); break; }
+                recorded += c.Amount; count++; _picked.Remove(Key(c.Year, c.Month));
+            }
+        }
+        catch { _error = (count > 0 ? $"Recorded {count} of {charges.Count}. " : "") + "Couldn't reach the server. Check your connection and try again."; }
+        finally { _busy = false; }
+
+        if (count > 0)
+        {
+            Held.Clear();                                           // the Arrears list is read again the next time it is opened
+            _done = count == 1 ? $"Recorded {Peso(recorded)} for {new DateTime(charges[0].Year, charges[0].Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture)}." : $"Recorded {Peso(recorded)} for {count} months.";
+            await LoadAsync();
+        }
+        if (_error.Length == 0) _sheet = false;
+    }
+}

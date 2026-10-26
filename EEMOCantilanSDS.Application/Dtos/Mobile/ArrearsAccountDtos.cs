@@ -22,6 +22,11 @@ public sealed record ArrearsAccountDto(
     Guid? ContractId, Guid? ObligationAccountId,
     // Where this account's rent is actually collected: "Canonical" (this checkout), "FacilityMonthly" (a monthly facility whose rent rows are still on the facility's own monthly
     // operation, so New Collection has nothing to take), or "Daily" (a daily-billed stall, collected from its daily payments). Null from an older API: read CanCollect.
-    string? CollectVia = null);
+    string? CollectVia = null,
+    // Stall rent: the stall the contract is for, so a monthly facility's unpaid months can be opened for that stall. Null for space rental.
+    Guid? StallId = null);
 
 public sealed record ArrearsWorkspaceDto(DateOnly AsOf, IReadOnlyList<ArrearsAccountDto> Accounts, decimal Total, decimal ArrearsTotal, decimal DelinquentTotal);
+
+/// <summary>One unpaid billing month of a stall's current contract, collected on the facility's own monthly operation. Every figure is the monthly record's own.</summary>
+public sealed record MobileUnpaidMonthDto(int Year, int Month, decimal TotalBill, decimal AmountPaid, decimal BalanceDue);

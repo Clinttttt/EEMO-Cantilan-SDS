@@ -1,7 +1,16 @@
 /* Arrears and Delinquency: a quiet list (name, operation, amount) that opens a details sheet; registers and dividers, one control language. */
 .ar-input { display: block; width: 100%; min-height: 46px; margin-bottom: 10px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
 .ar-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); outline: none; }
-.ar-select { appearance: auto; }
+.ar-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; }
+.ar-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ar-pick svg { flex: 0 0 auto; width: 18px; height: 18px; fill: none; stroke: var(--mobile-text-secondary); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.ar-pick-title { margin-bottom: 6px; }
+.ar-opts { margin: 0; padding: 0; list-style: none; }
+.ar-opt { display: flex; width: 100%; min-height: 50px; align-items: center; justify-content: space-between; gap: 12px; padding: 0 2px; border: 0; border-bottom: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); font-size: 15px; text-align: left; }
+.ar-opts li:last-child .ar-opt { border-bottom: 0; }
+.ar-opt.on { color: var(--mobile-blue); font-weight: 600; }
+.ar-opt.on::after { content: '✓'; font-weight: 700; }
+.ar-opt:focus-visible, .ar-pick:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -2px; }
 
 /* The three reasons fill the width as equal segments: nothing scrolls sideways, nothing is cut off. */
 .ar-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
@@ -23,7 +32,7 @@
 .ar-item:last-child { border-bottom: 0; }
 .ar-row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 10px 14px; border: 0; background: transparent; color: var(--mobile-text); text-align: left; }
 .ar-row:active { background: var(--mobile-blue-subtle); }
-.ar-text { display: flex; flex-direction: column; min-width: 0; }
+.ar-text { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
 .ar-text strong { overflow: hidden; font-size: 15px; font-weight: 600; color: var(--mobile-navy); text-overflow: ellipsis; white-space: nowrap; }
 .ar-text small { overflow: hidden; margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
 .ar-amount { flex: 0 0 auto; font-size: 15px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -61,3 +70,13 @@
 .ar-code-box small { font-size: 12px; color: var(--mobile-text-secondary); }
 .ar-code-box strong { font-size: 26px; letter-spacing: 3px; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
 .ar-primary:focus-visible, .ar-secondary:focus-visible, .ar-cancel:focus-visible, .ar-confirm input:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+
+/* Loading: the shape of the list that is coming, not a line of text. */
+.sk { display: block; border-radius: 6px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.sk-input, .sk-seg { height: 46px; margin-bottom: 10px; border-radius: 12px; }
+.sk-sum { height: 92px; margin: 4px 0 12px; border-radius: 14px; }
+.sk-name { width: 55%; height: 14px; }
+.sk-op { width: 40%; height: 11px; margin-top: 7px; }
+.sk-amt { flex: 0 0 auto; width: 76px; height: 14px; }

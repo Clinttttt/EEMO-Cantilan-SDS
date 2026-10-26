@@ -1,0 +1,39 @@
+/* Collect arrears on a monthly facility's stall: the month picker is New Collection's own (SpaceMonthsView); this page only adds the collect bar and one sheet. */
+.am-who { display: flex; flex-direction: column; gap: 2px; margin: 2px 2px 12px; }
+.am-who strong { font-size: 16px; color: var(--mobile-navy); }
+.am-who small { font-size: 13px; color: var(--mobile-text-secondary); }
+.am-done { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-blue-subtle); font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.am-note { margin: 10px 2px; font-size: 13px; color: var(--mobile-text-secondary); text-align: center; }
+.am-more { display: block; width: 100%; min-height: 46px; margin: 6px 0; border: 1px solid var(--mobile-blue); border-radius: 12px; background: transparent; color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
+.am-bar { position: sticky; bottom: 0; margin: 12px -2px 0; padding: 10px 2px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--mobile-bg, #edf2fa) 70%, transparent); }
+.am-bar .am-primary { width: 100%; min-height: 48px; border-radius: 12px; font-size: 15px; font-weight: 600; }
+.am-more:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -3px; }
+
+.am-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(15, 23, 42, .45); }
+.am-sheet { width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--mobile-surface); }
+.am-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.am-sheet-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--mobile-navy); }
+.am-sheet-amount { font-size: 18px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.am-field { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.am-field span { font-weight: 400; }
+.am-input { display: block; width: 100%; min-height: 46px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.am-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); outline: none; }
+.am-hint { margin: -4px 0 12px; font-size: 13px; line-height: 1.4; color: var(--mobile-text-secondary); }
+.am-error { margin: 0 0 12px; font-size: 13px; color: var(--mobile-danger, #b42318); }
+.am-actions { display: flex; gap: 10px; }
+.am-actions > button { flex: 1 1 0; min-height: 46px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.am-primary { border: 1px solid var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
+.am-primary:disabled { opacity: .5; }
+.am-cancel { border: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); }
+.am-primary:focus-visible, .am-cancel:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+
+/* Loading: the picker's shape (summary, then months), not a line of text. */
+.sk { display: block; border-radius: 6px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
+@keyframes sk-pulse { 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
+.sk-card { height: 96px; margin-bottom: 12px; border-radius: 14px; }
+.sk-list { border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
+.sk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 14px; border-bottom: 1px solid var(--mobile-border); }
+.sk-row:last-child { border-bottom: 0; }
+.sk-name { width: 40%; height: 14px; }
+.sk-amt { width: 76px; height: 14px; }
