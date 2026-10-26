@@ -288,6 +288,8 @@ public class ApplicationEfBoundaryTests
         "SpaceFollowUpWorkflow.cs",
         "HistoricalArrearsReader.cs",
         "HistoricalAccessWorkflow.cs",
+        // ST-17: the online monthly-rent poster is the same atomic canonical posting as the Mobile rent path, entered from the gateway settlement.
+        "OnlineRentCanonicalPoster.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
         "FeeScheduleCollectionWorkflow.Office.cs",

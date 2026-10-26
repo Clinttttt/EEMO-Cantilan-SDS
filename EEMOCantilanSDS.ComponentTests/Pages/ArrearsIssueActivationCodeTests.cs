@@ -70,8 +70,12 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
 
     private void Open(IRenderedComponent<Arrears> cut, string payer)
     {
-        cut.FindAll("button").First(b => b.GetAttribute("aria-label")?.Contains(payer) == true).Click();
-        cut.WaitForAssertion(() => Assert.NotNull(cut.Find("[role=dialog]")), Timeout);
+        cut.WaitForAssertion(() =>
+        {
+            if (cut.FindAll("[role=dialog]").Count == 0)
+                cut.FindAll("button").First(b => b.GetAttribute("aria-label")?.Contains(payer) == true).Click();
+            Assert.NotNull(cut.Find("[role=dialog]"));
+        }, Timeout);
     }
 
     private void Fill(IRenderedComponent<Arrears> cut, string phone = "09171234567", string? days = null)
