@@ -2,6 +2,7 @@ using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -111,17 +112,64 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.Null(item.Days);       // a month's remainder, not days counted out
     }
 
-    // ST-13: only monthly stall rent is payable online; utilities and per-day fish stay listed as read-only balances.
-    [Theory]
-    [InlineData(PayorPayableKind.Monthly, true)]
-    [InlineData(PayorPayableKind.NpmDaily, true)]
-    [InlineData(PayorPayableKind.NpmUtility, false)]
-    [InlineData(PayorPayableKind.NpmFish, false)]
-    public void PayableItem_IsPayableOnlineOnlyForStallRent(PayorPayableKind kind, bool expected)
+    // Only monthly Stall Rent is payable online. A daily-billed market's balance (whole-month aggregate included) stays listed but read-only.
+    [Fact]
+    public async Task DailyBilledMarketBalance_IsListedButNotPayableOnline()
     {
-        var item = new PayorPayableItemDto(Guid.NewGuid(), "1", FacilityCode.NPM, 2026, 6, "2026-06", 100m, kind);
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", PhilippineTime.Today.AddMonths(-1), 3, 900m);
+        ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
 
-        Assert.Equal(expected, item.PayableOnline);
+        var settlement = new Mock<INpmMonthSettlementService>();
+        settlement.Setup(s => s.ComputeWholeMonthPayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new NpmMonthPayable(28, 840m));
+
+        var item = Assert.Single(await new PayorRepository(ctx, settlement.Object).GetPayableItemsAsync(payor));
+
+        Assert.Equal(840m, item.BalanceDue);   // still visible
+        Assert.False(item.PayableOnline);
+    }
+
+    [Fact]
+    public async Task MonthlyStallRent_ListsEveryEarlierPeriod_EachPayableByItself()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
+        var earlier = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-2).Year, PhilippineTime.Today.AddMonths(-2).Month, 2400m, "test");
+        var previous = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-1).Year, PhilippineTime.Today.AddMonths(-1).Month, 2400m, "test");
+        ctx.AddRange(tcc, stall, contract, earlier, previous, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        Assert.True(items.Count >= 3);   // two earlier periods + the current month: nothing is auto-spread or hidden
+        Assert.All(items, i => Assert.True(i.PayableOnline));
+        Assert.Equal(items.Count, items.Select(i => i.Period).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task MonthlyRecordNotOnLegacyAuthority_IsNotOfferedOnline()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
+        var pending = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-1).Year, PhilippineTime.Today.AddMonths(-1).Month, 2400m, "test");
+        pending.MarkSettlementPendingCutover();
+        ctx.AddRange(tcc, stall, contract, pending, PayorStallLink.Create(payor, stall.Id));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        Assert.False(items.Single(i => i.Period == pending.PeriodKey).PayableOnline);
     }
 
     [Fact]

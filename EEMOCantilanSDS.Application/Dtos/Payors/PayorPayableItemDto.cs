@@ -31,8 +31,9 @@ public sealed record PayorPayableItemDto(
     string? FacilityShortName = null)
 {
     /// <summary>
-    /// ST-13: false = listed as an outstanding balance only (metered utilities, per-day fish); new online checkout is monthly
-    /// stall rent only. Derived from <see cref="Kind"/> so it always agrees with the initiate guard; older clients ignore it.
+    /// false = a read-only outstanding balance (pay at the office or to the collector): new online checkout is monthly Stall
+    /// Rent only. Set by the repository from the same rule the initiate guard enforces (facility billing basis + kind +
+    /// settlement authority), so the button and the server cannot disagree. Defaults true for an older API.
     /// </summary>
-    public bool PayableOnline => Kind is not (PayorPayableKind.NpmUtility or PayorPayableKind.NpmFish);
+    public bool PayableOnline { get; init; } = true;
 }
