@@ -6448,6 +6448,12 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("MunicipalityId", "ContractId");
+
+                    b.HasIndex("MunicipalityId", "ObligationAccountId");
+
+                    b.HasIndex("MunicipalityId", "PayorUserId");
+
                     b.HasIndex("PayorUserId", "ContractId")
                         .IsUnique()
                         .HasFilter("\"ContractId\" IS NOT NULL");
@@ -7427,11 +7433,51 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Navigation("Stall");
                 });
 
+            modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorHistoricalAccessCode", b =>
+                {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ObligationAccountId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("EEMOCantilanSDS.Domain.Entities.Users.PayorLiabilityLink", b =>
                 {
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Tenancy.Municipality", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Facilities.Contract", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ContractId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("EEMOCantilanSDS.Domain.Entities.Revenue.ObligationAccount", null)
+                        .WithMany()
+                        .HasForeignKey("MunicipalityId", "ObligationAccountId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("EEMOCantilanSDS.Domain.Entities.Users.PayorUser", null)
                         .WithMany()
-                        .HasForeignKey("PayorUserId")
+                        .HasForeignKey("MunicipalityId", "PayorUserId")
+                        .HasPrincipalKey("MunicipalityId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
