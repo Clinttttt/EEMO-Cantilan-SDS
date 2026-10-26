@@ -59,5 +59,8 @@ public class UpdateStallCommandValidator : AbstractValidator<UpdateStallCommand>
         RuleFor(x => x.ContractYears)
             .InclusiveBetween(0, 50).WithMessage("Contract duration must be between 0 and 50 years")
             .When(x => x.ContractYears.HasValue);
+        RuleFor(x => x.ContractMonths!.Value)
+            .InclusiveBetween(0, 11).WithMessage("Months must be between 0 and 11.")
+            .When(x => x.ContractMonths.HasValue);
     }
 }

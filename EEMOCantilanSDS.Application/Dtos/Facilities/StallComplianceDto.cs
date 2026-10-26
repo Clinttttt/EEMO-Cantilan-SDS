@@ -33,7 +33,8 @@ public record StallComplianceDto(
     decimal? FullPeriodRentObligation = null,
     // The fully elapsed unpaid months behind MissedMonths with what each still owes, in billing order. Filled only where the caller counts
     // a missed-month span (the delinquency source); null elsewhere. This is what lets each obligation be classified on its own.
-    IReadOnlyList<UnpaidMonthDto>? UnpaidMonths = null
+    IReadOnlyList<UnpaidMonthDto>? UnpaidMonths = null,
+    int? DurationMonths = null
 );
 
 /// <summary>One fully elapsed unpaid billing month of a stall account and what is still owed on it (partial payments already deducted).</summary>

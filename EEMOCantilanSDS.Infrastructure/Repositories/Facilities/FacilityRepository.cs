@@ -221,7 +221,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                     .Where(s => s.Status == StallStatus.Active)
                     .Select(s => new
                     {
-                        Contracts = s.Contracts.Select(c => new { c.IsActive, c.EffectivityDate, c.DurationYears }),
+                        Contracts = s.Contracts.Select(c => new { c.IsActive, c.EffectivityDate, c.DurationYears, c.DurationMonths }),
                         HasPaid = s.PaymentRecords.Any(p => p.BillingYear == year
                             && p.BillingMonth == month
                             && p.Status == PaymentStatus.Paid)
@@ -244,7 +244,7 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
                 : f.Stalls.Count(s => !s.HasPaid
                     && s.Contracts.Any(c => c.IsActive
                         && c.EffectivityDate <= monthEnd
-                        && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears))),
+                        && monthStart <= DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears, c.DurationMonths))),
             f.VegetableSectionLabel,
             f.FishSectionLabel,
             f.MeatSectionLabel,

@@ -44,6 +44,8 @@ public class StallHolderRowDto
     public string StallNo { get; set; } = string.Empty;
     public DateOnly EffectivityDate { get; set; }
     public int DurationYears { get; set; }
+    /// <summary>Extra months beyond <see cref="DurationYears"/> (Custom Space Rental only). Null = a yearly term.</summary>
+    public int? DurationMonths { get; set; }
     public double? AreaSqm { get; set; }
     public decimal MonthlyRentalRate { get; set; }
     public decimal ActualMonthlyRental { get; set; }

@@ -29,6 +29,10 @@ public class RenewStallContractCommandHandler(
 
         var actor = currentUser.Username ?? "Admin";
 
+        // A term in months belongs to a Custom Space Rental facility only; any other facility stays on whole years.
+        if (request.DurationMonths is > 0 && stall.Facility?.AllowsMonthTerms != true)
+            return Result<bool>.Failure("Contract duration in months is only available for a Custom Space Rental facility.", ResultStatus.Invalid);
+
         // Corrections the office made on the renewal form, applied before the new term is written so the term
         // records the rate it is actually let at. Null means "as it stands": the rate, area and note are left
         // untouched, which is what plain "Proceed" does. The daily rate is carried through deliberately —
@@ -82,7 +86,8 @@ public class RenewStallContractCommandHandler(
             request.DurationYears,
             stall.MonthlyRate,
             createdBy: actor,
-            arrangement: request.Arrangement);
+            arrangement: request.Arrangement,
+            durationMonths: request.DurationMonths);
 
         await stallRepository.AddContractAsync(renewed, ct);
 

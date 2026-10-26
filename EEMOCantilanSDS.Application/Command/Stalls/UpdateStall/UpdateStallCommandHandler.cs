@@ -50,7 +50,10 @@ public class UpdateStallCommandHandler(
                 // Checked HERE and not in the validator because only this point knows the arrangement: the command does not
                 // carry it, and nought is a legitimate value for an occupancy with no signed contract, which the stall DTO
                 // reports for any stall without an active term.
-                if (activeContract.Arrangement == OccupancyArrangement.SignedContract && request.ContractYears.Value < 1)
+                if (request.ContractMonths is > 0 && stall.Facility?.AllowsMonthTerms != true)
+                    return Result<StallDto>.Failure("Contract duration in months is only available for a Custom Space Rental facility.", ResultStatus.Invalid);
+
+                if (activeContract.Arrangement == OccupancyArrangement.SignedContract && request.ContractYears.Value < 1 && !(request.ContractMonths is > 0))
                 {
                     return Result<StallDto>.Failure(
                         "A signed contract must run for at least one year. Record it as a space-only occupancy if there is no " +
@@ -61,7 +64,8 @@ public class UpdateStallCommandHandler(
                 activeContract.UpdateTerms(
                     DateOnly.FromDateTime(request.ContractDate.Value),
                     request.ContractYears.Value,
-                    "Admin");
+                    "Admin",
+                    request.ContractMonths);
             }
         }
 

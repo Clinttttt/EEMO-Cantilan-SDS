@@ -376,7 +376,8 @@ public partial class StallRepository
                     && closedSections.Any(s => string.Equals(s.Trim(), stall.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase)),
                 // How far behind this account is, by the same rule a live one is judged by.
                 monthsUnpaid,
-                isNpm ? rateSnapshot.MonthRule.Basis : NpmMonthBasis.RentGoal));
+                isNpm ? rateSnapshot.MonthRule.Basis : NpmMonthBasis.RentGoal,
+                contract.DurationMonths));
         }
 
         return result

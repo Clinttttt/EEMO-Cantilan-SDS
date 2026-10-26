@@ -106,7 +106,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
             rows = rows.Where(d => d.F.StallNo.ToLower().Contains(term) || d.F.FacilityName.ToLower().Contains(term)
                 || db.Contracts.Any(c => c.StallId == d.F.StallId && c.MunicipalityId == tenant
                     && c.EffectivityDate <= monthEnd
-                    && (c.EndedOn ?? (c.DurationYears <= 0 ? c.EffectivityDate : c.EffectivityDate.AddYears(c.DurationYears).AddDays(-1))) >= monthStart
+                    && (c.EndedOn ?? (c.DurationYears <= 0 && c.DurationMonths == null ? c.EffectivityDate : c.EffectivityDate.AddMonths(c.DurationYears * 12 + (c.DurationMonths ?? 0)).AddDays(-1))) >= monthStart
                     && !db.Contracts.Any(later => later.StallId == c.StallId && later.MunicipalityId == tenant
                         && later.EffectivityDate > c.EffectivityDate && later.EffectivityDate <= monthEnd)
                     && ((c.ActualOccupant != null && c.ActualOccupant.ToLower().Contains(term)) || c.NameOnContract.ToLower().Contains(term)
@@ -172,7 +172,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
                join b in bills on s.Id equals b.StallId into joined
                from b in joined.DefaultIfEmpty()
                where b != null || s.Contracts.Any(c => c.EffectivityDate <= end
-                   && (c.EndedOn ?? (c.DurationYears <= 0 ? c.EffectivityDate : c.EffectivityDate.AddYears(c.DurationYears).AddDays(-1))) >= start)
+                   && (c.EndedOn ?? (c.DurationYears <= 0 && c.DurationMonths == null ? c.EffectivityDate : c.EffectivityDate.AddMonths(c.DurationYears * 12 + (c.DurationMonths ?? 0)).AddDays(-1))) >= start)
                select new Fact
                {
                    StallId = s.Id, BillId = b == null ? (Guid?)null : b.Id, StallNo = s.StallNo, FacilityName = s.Facility!.Name, FacilityCode = s.Facility.Code,
@@ -209,7 +209,7 @@ public sealed class UtilityRegisterReader(AppDbContext db, ICurrentUserService u
                join b in bills on s.Id equals b.StallId into joined
                from b in joined.DefaultIfEmpty()
                where b != null || s.Contracts.Any(c => c.EffectivityDate <= end
-                   && (c.EndedOn ?? (c.DurationYears <= 0 ? c.EffectivityDate : c.EffectivityDate.AddYears(c.DurationYears).AddDays(-1))) >= start)
+                   && (c.EndedOn ?? (c.DurationYears <= 0 && c.DurationMonths == null ? c.EffectivityDate : c.EffectivityDate.AddMonths(c.DurationYears * 12 + (c.DurationMonths ?? 0)).AddDays(-1))) >= start)
                select new Fact
                {
                    StallId = s.Id, BillId = b == null ? (Guid?)null : b.Id, StallNo = s.StallNo, FacilityName = s.Facility!.Name, FacilityCode = s.Facility.Code,

@@ -30,4 +30,5 @@ public record RenewStallContractCommand(
     decimal? MonthlyRate = null,
     double? AreaSqm = null,
     string? AreaNote = null,
-    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract) : IRequest<Result<bool>>;
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract,
+    int? DurationMonths = null) : IRequest<Result<bool>>;

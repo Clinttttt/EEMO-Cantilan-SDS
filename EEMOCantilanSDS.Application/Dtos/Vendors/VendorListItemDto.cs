@@ -49,5 +49,8 @@ public sealed record VendorListItemDto(
     /// stall its closure closed. The server refuses it as well - a disabled button is not a guard - and the register on the
     /// Closed Accounts page carries the same rule.
     /// </remarks>
-    bool SectionClosed = false
+    bool SectionClosed = false,
+
+    /// <summary>Extra months beyond <see cref="ContractYears"/> (Custom Space Rental only). Null = a yearly term.</summary>
+    int? ContractMonths = null
 );

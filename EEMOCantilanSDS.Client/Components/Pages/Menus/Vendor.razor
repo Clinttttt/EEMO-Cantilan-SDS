@@ -260,16 +260,16 @@ else
                         <div class="dv-kv-row">
                             <dt class="dv-kv-key">Contract duration</dt>
                             <dd class="dv-kv-val">
-                                @if (!DetailVendor.HasSignedContract || DetailVendor.ContractYears == 0)
+                                @if (!DetailVendor.HasSignedContract || (DetailVendor.ContractYears == 0 && !(DetailVendor.ContractMonths > 0)))
                                 {
                                     <span class="dv-muted">@(DetailVendor.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract")</span>
                                 }
                                 else
                                 {
-                                    @($"{DetailVendor.ContractYears} year{(DetailVendor.ContractYears > 1 ? "s" : "")}")
+                                    @(DomainRules.DescribeTerm(DetailVendor.ContractYears, DetailVendor.ContractMonths))
                                     @if (DetailVendor.ContractDate.HasValue)
                                     {
-                                        var expiry = DomainRules.TermLastDay(DetailVendor.ContractDate.Value, DetailVendor.ContractYears);
+                                        var expiry = DomainRules.TermLastDay(DetailVendor.ContractDate.Value, DetailVendor.ContractYears, DetailVendor.ContractMonths);
                                         <span class="dv-expiry @(expiry < _now ? "dv-expiry-expired" : "dv-expiry-ok")">(expires @expiry.ToString("MMM d, yyyy"))</span>
                                     }
                                 }
@@ -511,13 +511,13 @@ else
 
     private string RegistryContract(VendorEntry v)
     {
-        if (!v.HasSignedContract || v.ContractYears == 0 || !v.ContractDate.HasValue)
+        if (!v.HasSignedContract || (v.ContractYears == 0 && !(v.ContractMonths > 0)) || !v.ContractDate.HasValue)
             return v.Arrangement == Domain.Enums.OccupancyArrangement.Extension ? "No contract (extension)" : "No contract";
-        var expiry = DomainRules.TermLastDay(v.ContractDate.Value, v.ContractYears);
+        var expiry = DomainRules.TermLastDay(v.ContractDate.Value, v.ContractYears, v.ContractMonths);
         var expired = expiry < _now;
         var soon = !expired && expiry <= _now.AddMonths(DomainRules.ExpiringSoonMonths);
         var name = !string.IsNullOrEmpty(v.ContractName) && v.ContractName != v.ActualOccupant ? $"{v.ContractName} · " : "";
-        return $"{name}{v.ContractYears} years · {(expired ? "expired" : soon ? "expiring soon" : "expires")} {expiry:MMM yyyy}";
+        return $"{name}{DomainRules.DescribeTerm(v.ContractYears, v.ContractMonths)} · {(expired ? "expired" : soon ? "expiring soon" : "expires")} {expiry:MMM yyyy}";
     }
 
     private RenderFragment<VendorEntry> RegistryActions => v => @<RentalRegistryActionButtons
@@ -699,6 +699,7 @@ else
                 AreaSqm = item.AreaSqm ?? 0,
                 ContractDate = item.ContractDate,
                 ContractYears = item.ContractYears,
+                ContractMonths = item.ContractMonths,
                 Arrangement = item.Arrangement,
                 MonthlyRate = item.MonthlyRate,
             ResolvedDailyFee = item.ResolvedDailyFee,
@@ -832,6 +833,7 @@ else
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public int ContractYears { get; set; }
+        public int? ContractMonths { get; set; }
         /// <summary>
         /// How the space is held. A space let without a signed contract carries an open-ended term in the record
         /// (so it never falls due for renewal), which must never be printed as a number of years.
@@ -1067,6 +1069,7 @@ else
             AreaSqm = v.AreaSqm,
             ContractDate = v.ContractDate,
             ContractYears = v.ContractYears,
+            ContractMonths = v.ContractMonths ?? 0,
             MonthlyRate = v.MonthlyRate,
             ActualMonthlyRental = v.ActualMonthlyRental,
             AreaLocation = v.AreaLocation,
@@ -1122,7 +1125,8 @@ else
                         : Form.ContractName.Trim(),
                 Remarks: null,
                 ContractDate: Form.ContractDate,
-                ContractYears: Form.ContractYears);
+                ContractYears: Form.ContractYears,
+                ContractMonths: Form.ContractMonths > 0 ? Form.ContractMonths : null);
 
             var updateResult = await StallsApi.UpdateStallAsync(v.StallGuid, updateCommand);
             if (!updateResult.IsSuccess) { FormError = updateResult.Error ?? "Failed to update stall"; return; }

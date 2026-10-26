@@ -25,4 +25,6 @@ public record UpdateStallCommand(
     string? NameOnContract,
     string? Remarks,
     DateTime? ContractDate = null,
-    int? ContractYears = null) : IRequest<Result<StallDto>>;
+    int? ContractYears = null,
+    /// <summary>Extra months beyond <see cref="ContractYears"/> (0-11), Custom Space Rental only. Null/0 keeps a yearly term.</summary>
+    int? ContractMonths = null) : IRequest<Result<StallDto>>;

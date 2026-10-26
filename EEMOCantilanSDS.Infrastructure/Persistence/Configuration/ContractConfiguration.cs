@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
 
             builder.Property(s => s.EffectivityDate);
             builder.Property(s=> s.DurationYears);
+            builder.Property(s => s.DurationMonths);
 
             // How the space is held. Existing rows are signed contracts, which is what the default records.
             builder.Property(s => s.Arrangement)

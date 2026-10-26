@@ -33,4 +33,6 @@ public record CreateStallCommand(
     /// same; what is absent is the leasee name, the term and the contract rate, and the official sheets print
     /// "No contract" for those rows.
     /// </summary>
-    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract) : IRequest<Result<StallDto>>;
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract,
+    /// <summary>Extra months beyond <see cref="ContractYears"/> (0-11). Only a Custom Space Rental facility accepts it; null/0 is the yearly term every other facility uses.</summary>
+    int? ContractMonths = null) : IRequest<Result<StallDto>>;

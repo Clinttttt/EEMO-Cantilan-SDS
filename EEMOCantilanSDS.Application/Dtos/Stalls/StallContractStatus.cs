@@ -22,7 +22,7 @@ public static class StallContractStatus
 
         // Same expiry formula as the domain entity (Contract.ComputeExpiry / Contract.ExpiryDate), so the
         // facility page's "current vendor" rule can never drift from the closed-accounts / roster rule.
-        var expiry = Contract.ComputeExpiry(DateOnly.FromDateTime(dto.ContractDate.Value), dto.ContractYears);
+        var expiry = Contract.ComputeExpiry(DateOnly.FromDateTime(dto.ContractDate.Value), dto.ContractYears, dto.ContractMonths);
         return expiry >= today;
     }
 }
