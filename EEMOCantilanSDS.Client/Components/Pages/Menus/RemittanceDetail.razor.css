@@ -162,3 +162,15 @@
 /* Signatories close the printed summary only. */
 .rm-print-sign { display: none; }
 @media print { .rm-print-sign { display: block; margin-top: 28px; break-inside: avoid; } }
+
+/* One checkout, several collections: a single expandable row; every collection and SRC stays itemized beneath it. */
+.rm-group { cursor: pointer; }
+.rm-group td { font-weight: 600; }
+.rm-group:hover td { background: var(--accent-soft); }
+.rm-group:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.rm-group-title { display: inline-flex; align-items: center; gap: 6px; }
+.rm-chevron { display: inline-block; width: 12px; color: var(--accent); }
+.rm-child td { background: var(--surface-subtle, #f7f9fc); }
+.rm-child .rm-child-source { padding-left: 28px; }
+.rm-child[hidden] { display: none; }
+@media print { .rm-child[hidden] { display: table-row; } .rm-child td { background: none; } }

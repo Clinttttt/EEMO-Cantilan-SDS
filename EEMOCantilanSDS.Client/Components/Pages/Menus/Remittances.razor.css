@@ -582,3 +582,12 @@
 .rm-review-dialog .v3-modal-header { justify-content: space-between; flex: none; }
 .rm-review-dialog .rm-form { min-height: 0; margin: 0; overscroll-behavior: contain; }
 .rm-review-dialog .v3-modal-footer { flex: none; }
+
+/* One checkout, several collections: a single expandable row; its children keep their own checkbox, SRC and amount. */
+.rm-group td { font-weight: 600; }
+.rm-group-title { display: inline-flex; align-items: center; gap: 6px; }
+.rm-chevron { display: inline-block; width: 12px; color: var(--accent); }
+.rm-child td { background: var(--surface-subtle, #f7f9fc); }
+.rm-child .rm-child-source { padding-left: 28px; }
+.rm-group { cursor: pointer; }
+.rm-group:hover td { background: var(--accent-soft); }

@@ -165,24 +165,71 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach (var item in Eligible)
+                        @foreach (var group in EligibleRows)
                         {
-                            var draft = item.Draft;
-                            var collection = item.Collection;
-                            <tr @key="collection.CollectionId" class="rm-row" tabindex="0" aria-label="@($"Open details of {collection.ReferenceCode}")"
-                                @onclick="() => OpenReceipt(item)" @onkeydown="e => OnRowKey(e, item)">
-                                @if (Preparation)
+                            @if (group.SessionId is { } sessionId)
+                            {
+                                var open = _openSessions.Contains(sessionId);
+                                var picked = group.Items.Count(i => i.Draft.Selected.Contains(i.Collection.CollectionId));
+                                var first = group.Items[0];
+                                var payers = group.Items.Select(i => i.Collection.PayerName).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct().ToList();
+                                var instruments = group.Items.Select(i => i.Collection.Instrument).Where(i => i is not null).Distinct().ToList();
+                                <tr @key="sessionId" class="rm-row rm-group" tabindex="0" aria-expanded="@(open ? "true" : "false")" aria-label="@($"One checkout, {group.Items.Count} collections {Money(group.Items.Sum(i => i.Collection.NetAmount))}")"
+                                    @onclick="() => ToggleSession(sessionId)" @onkeydown="e => OnGroupKey(e, sessionId)">
+                                    @if (Preparation)
+                                    {
+                                    <td class="rm-check" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input type="checkbox" aria-label="@($"Include all {group.Items.Count} collections of this checkout")" checked="@(picked == group.Items.Count)" @onchange="e => ToggleGroup(group, e.Value is true)" /></td>
+                                    }
+                                    <td>@first.Collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@first.Draft.Name</td>
+                                    <td><span class="rm-group-title"><span class="rm-chevron" aria-hidden="true">@(open ? "▾" : "▸")</span>One checkout · @group.Items.Count collections@(Preparation && picked > 0 && picked < group.Items.Count ? $" · {picked} selected" : "")</span>@if (payers.Count > 0) {<span class="v3-block">@(payers.Count == 1 ? payers[0] : $"{payers[0]} + {payers.Count - 1} more")</span>}</td>
+                                    <td>@foreach (var instrument in instruments) {<InstrumentChip Instrument="@InstrumentCode(instrument!.Value)" />}</td>
+                                    <td class="v3-num">@Money(group.Items.Sum(i => i.Collection.NetAmount))</td>
+                                    <td><span class="rm-pill">Unremitted</span></td>
+                                </tr>
+                                @if (open)
                                 {
-                                <td class="rm-check" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
-                                           @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
+                                    @foreach (var item in group.Items)
+                                    {
+                                        var draft = item.Draft;
+                                        var collection = item.Collection;
+                                        <tr @key="collection.CollectionId" class="rm-row rm-child" tabindex="0" aria-label="@($"Open details of {collection.ReferenceCode}")"
+                                            @onclick="() => OpenReceipt(item)" @onkeydown="e => OnRowKey(e, item)">
+                                            @if (Preparation)
+                                            {
+                                            <td class="rm-check" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                                       @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
+                                            }
+                                            <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                            <td>@draft.Name</td>
+                                            <td class="rm-child-source">@SourceLabel(collection)<span class="v3-block rm-trace">@collection.ReferenceCode</span></td>
+                                            <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@InstrumentCode(instrument)" />} else {<span>—</span>}</td>
+                                            <td class="v3-num">@Money(collection.NetAmount)</td>
+                                            <td><span class="rm-pill">Unremitted</span></td>
+                                        </tr>
+                                    }
                                 }
-                                <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
-                                <td>@draft.Name</td>
-                                <td>@SourceLabel(collection)@if (!string.IsNullOrWhiteSpace(collection.PayerName)) {<span class="v3-block">@collection.PayerName</span>}</td>
-                                <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@InstrumentCode(instrument)" />} else {<span>—</span>}</td>
-                                <td class="v3-num">@Money(collection.NetAmount)</td>
-                                <td><span class="rm-pill">Unremitted</span></td>
-                            </tr>
+                            }
+                            else
+                            {
+                                var item = group.Items[0];
+                                var draft = item.Draft;
+                                var collection = item.Collection;
+                                <tr @key="collection.CollectionId" class="rm-row" tabindex="0" aria-label="@($"Open details of {collection.ReferenceCode}")"
+                                    @onclick="() => OpenReceipt(item)" @onkeydown="e => OnRowKey(e, item)">
+                                    @if (Preparation)
+                                    {
+                                    <td class="rm-check" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true"><input type="checkbox" aria-label="@($"Include {SourceLabel(collection)} {collection.BusinessDate.ToString("MMM d", CultureInfo.InvariantCulture)} {Money(collection.NetAmount)}")" checked="@draft.Selected.Contains(collection.CollectionId)"
+                                               @onchange="e => Toggle(draft, collection.CollectionId, e.Value is true)" /></td>
+                                    }
+                                    <td>@collection.BusinessDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</td>
+                                    <td>@draft.Name</td>
+                                    <td>@SourceLabel(collection)@if (!string.IsNullOrWhiteSpace(collection.PayerName)) {<span class="v3-block">@collection.PayerName</span>}</td>
+                                    <td>@if (collection.Instrument is { } instrument) {<InstrumentChip Instrument="@InstrumentCode(instrument)" />} else {<span>—</span>}</td>
+                                    <td class="v3-num">@Money(collection.NetAmount)</td>
+                                    <td><span class="rm-pill">Unremitted</span></td>
+                                </tr>
+                            }
                         }
                         @if (!Eligible.Any())
                         {
@@ -502,6 +549,33 @@
             .OrderBy(x => x.c.BusinessDate).ThenBy(x => x.c.ReferenceCode, StringComparer.Ordinal);
     private IEnumerable<(Draft Draft, RemittanceCollectionDto Collection)> Eligible => AllEligible
         .Where(c => string.IsNullOrEmpty(_sourceFilter) || SourceLabel(c.Collection) == _sourceFilter);
+
+    /// <summary>One row per Mobile checkout whose collections are ALL shown, otherwise one row per collection. Presentation only: selection and totals stay per CollectionId.</summary>
+    private sealed record EligibleRow(Guid? SessionId, IReadOnlyList<(Draft Draft, RemittanceCollectionDto Collection)> Items);
+    private readonly HashSet<Guid> _openSessions = [];
+    private IEnumerable<EligibleRow> EligibleRows
+    {
+        get
+        {
+            var items = Eligible.ToList();
+            var shown = items.Select(i => i.Collection.CollectionId).ToHashSet();
+            var sessionOf = new Dictionary<Guid, Guid>();
+            foreach (var draft in _drafts)
+                foreach (var session in draft.Scope.Sessions ?? [])
+                    if (session.CollectionIds.Count > 1 && session.CollectionIds.All(shown.Contains))
+                        foreach (var id in session.CollectionIds) sessionOf[id] = session.SessionId;
+            var emitted = new HashSet<Guid>();
+            foreach (var item in items)
+            {
+                if (!sessionOf.TryGetValue(item.Collection.CollectionId, out var sid)) { yield return new(null, [item]); continue; }
+                if (!emitted.Add(sid)) continue;
+                yield return new(sid, items.Where(i => sessionOf.TryGetValue(i.Collection.CollectionId, out var other) && other == sid).ToList());
+            }
+        }
+    }
+    private void ToggleSession(Guid id) { if (!_openSessions.Remove(id)) _openSessions.Add(id); }
+    private void OnGroupKey(KeyboardEventArgs e, Guid id) { if (e.Key is "Enter" or " ") ToggleSession(id); }
+    private static void ToggleGroup(EligibleRow group, bool include) { foreach (var (draft, collection) in group.Items) Toggle(draft, collection.CollectionId, include); }
 
     /// <summary>Drafts that will become records: a collector with nothing selected is left out, never recorded as zero.</summary>
     private IEnumerable<Draft> Recordable => _drafts.Where(d => d.Selected.Count > 0);

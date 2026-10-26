@@ -278,6 +278,88 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void OneCheckoutIsOneExpandableRow_SelectingItSelectsEveryCollectionOnce_AndTheTotalsStayPerCollection()
+    {
+        var other = Guid.NewGuid();
+        var scope = Scope();
+        scope = scope with
+        {
+            Collections = [.. scope.Collections, new RemittanceCollectionDto(other, new DateOnly(2026, 9, 5), "SRC-2026-000103",
+                RevenueInstrumentType.OfficialReceipt, "Solo", 20m, [new RemittanceBreakdownDto(Guid.NewGuid(), "Stall Rental", 20m)])],
+            ExpectedAmount = 100m,
+            Sessions = [new EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup(Guid.NewGuid(), [CollectionA, CollectionB])]
+        };
+        ServePosition(Position(20000m, 19900m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(scope));
+        RecordRemittanceRequest? sent = null;
+        _api.Setup(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()))
+            .Callback<RecordRemittanceRequest>(r => sent = r)
+            .ReturnsAsync(Result<RemittanceDetailDto>.Success(Detail(80m, 80m)));
+
+        var cut = RenderComponent<NewRemittance>();
+
+        const string rows = "[aria-label='Collections for remittance'] tbody tr";
+        cut.WaitForAssertion(() =>
+        {
+            var shown = cut.FindAll(rows);
+            Assert.Equal(2, shown.Count);                                          // the checkout, and the lone collection
+            Assert.Contains("One checkout · 2 collections", shown[0].TextContent);
+            Assert.Contains("₱80.00", shown[0].TextContent);                         // combined amount
+            Assert.Equal("false", shown[0].GetAttribute("aria-expanded"));
+        }, Timeout);
+
+        cut.FindAll(rows)[0].Click();                                              // expand: both SRCs, each with its own checkbox
+        cut.WaitForAssertion(() =>
+        {
+            var shown = cut.FindAll(rows);
+            Assert.Equal(4, shown.Count);
+            Assert.Contains("SRC-2026-000101", shown[1].TextContent);
+            Assert.Contains("SRC-2026-000102", shown[2].TextContent);
+        }, Timeout);
+
+        cut.Find("input[aria-label^='Include all 2 collections']").Change(true);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("₱80.00", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent);
+            Assert.Contains("Selected · 2 of 3", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent);
+        }, Timeout);
+
+        // One child can still be taken out; the checkout is then partly selected, never double counted.
+        cut.FindAll(rows)[2].QuerySelector("input[type='checkbox']")!.Change(false);
+        cut.WaitForAssertion(() => Assert.Contains("Selected · 1 of 3", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent), Timeout);
+        cut.Find("input[aria-label^='Include all 2 collections']").Change(true);
+        cut.WaitForAssertion(() => Assert.Contains("Selected · 2 of 3", cut.Find("[aria-label='Collections for remittance'] tfoot").TextContent), Timeout);
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Review Remittance").Click();
+        cut.WaitForAssertion(() => cut.Find("form[aria-label='Confirm remittance']"), Timeout);
+        cut.Find("form[aria-label='Confirm remittance']").Submit();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(sent);
+            Assert.Equal(new[] { CollectionA, CollectionB }.Order(), sent!.CollectionIds!.Order());   // each underlying collection exactly once
+            Assert.Equal(80m, sent.AmountRemitted);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void ACheckoutWhoseCollectionsAreNotAllListedStaysIndividual()
+    {
+        var scope = Scope() with { Sessions = [new EEMOCantilanSDS.Application.Common.Revenue.CollectionSessionDisplayGroup(Guid.NewGuid(), [CollectionA, Guid.NewGuid()])] };
+        ServePosition(Position(20000m, 19920m));
+        _api.Setup(x => x.GetScopeAsync(CollectorId, It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<RevenueInstrumentType?>()))
+            .ReturnsAsync(Result<RemittanceScopeDto>.Success(scope));
+
+        var cut = RenderComponent<NewRemittance>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(2, cut.FindAll("[aria-label='Collections for remittance'] tbody tr").Count);
+            Assert.DoesNotContain("One checkout", cut.Markup);
+        }, Timeout);
+    }
+
+    [Fact]
     public void HistoryListsRemittances_WithTheirDifference_AndLinksToTheirViewAndPrint()
     {
         ServePosition(Position());

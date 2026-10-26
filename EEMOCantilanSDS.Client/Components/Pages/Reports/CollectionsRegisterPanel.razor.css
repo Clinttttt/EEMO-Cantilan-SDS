@@ -216,3 +216,15 @@
         flex: 1 1 auto;
     }
 }
+
+/* One checkout, several SRCs: a single expandable row; each SRC stays itemized beneath it. */
+.cr-group { cursor: pointer; }
+.cr-group td { font-weight: 600; }
+.cr-group:hover td { background: var(--accent-soft); }
+.cr-group:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.cr-group-title { display: inline-flex; align-items: center; gap: 6px; }
+.cr-chevron { display: inline-block; width: 12px; color: var(--accent); }
+.cr-child td { background: var(--surface-subtle, #f7f9fc); }
+.cr-child .cr-child-src { padding-left: 24px; }
+.cr-child[hidden] { display: none; }
+@media print { .cr-child[hidden] { display: table-row; } .cr-child td { background: none; } }
