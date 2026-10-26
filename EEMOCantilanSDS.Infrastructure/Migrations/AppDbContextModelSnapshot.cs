@@ -2165,6 +2165,10 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid?>("PayorUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ReceiptReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<DateTime>("RecordedAtUtc")
                         .HasColumnType("timestamp with time zone");
 

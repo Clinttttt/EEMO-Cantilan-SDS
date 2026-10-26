@@ -47,6 +47,31 @@ public sealed partial class CollectionSessionTests
         (await new ObligationWorkflow(s.Db, s.Head, s.TenantRef, new Clock()).GetRegisterAsync(s.AccountId)).Value!;
 
     [SkippableFact]
+    public async Task OptionalReceiptReference_UnregisteredNumber_PostsOneSrcWithoutConsumingStock_AndKeepsReference()
+    {
+        var s = await SeedOrAsync(new DateOnly(Today.Year, 4, 1));
+        await using var db = s.Db;
+        var items = new[] { OrMonth(s, Today.Year, 4, 1_000m), OrMonth(s, Today.Year, 5, 400m) };
+        var intent = OrIntent(s, null, items) with { ReceiptReference = " 365363 " };
+        var quote = (await s.Flow.QuoteAsync(intent)).Value!;
+        Assert.True(quote.CanRecord, string.Join("; ", quote.Problems.Select(p => p.Message)));
+        Assert.Equal(1_400m, quote.GrandTotal);
+
+        var recorded = await Record(s.Flow, intent);
+        Assert.Equal(1_400m, Assert.Single(recorded.Collections).Amount);
+        var collection = await db.Collections.Include(x => x.Lines).SingleAsync();
+        Assert.Equal("365363", collection.ReceiptReference);
+        Assert.Equal(2, collection.Lines.Count);
+        Assert.Equal(0, await db.AccountableDocuments.CountAsync(d => d.State == AccountableDocumentState.Consumed));
+        Assert.Null((await db.PostingOperations.SingleAsync()).AccountableDocumentId);
+        var activity = await new CollectionActivityReader(db).GetAsync(s.W.TenantId, Today, Today);
+        Assert.Equal("Entered reference (unverified): 365363", Assert.Single(activity.Where(e => e.CollectionId == collection.Id)).DocumentNumber);
+
+        var replay = (await s.Flow.RecordAsync(new(intent, quote.QuoteFingerprint))).Value!;
+        Assert.True(replay.ExistingOutcome);
+        Assert.Equal(1, await db.Collections.CountAsync());
+    }
+    [SkippableFact]
     public async Task OneOr_ThreeMonths_PostsOneCollectionWithALinePerMonth_ConsumesTheOrOnce_AndReplayAndConflictAreSafe()
     {
         var s = await SeedOrAsync(new DateOnly(Today.Year, 4, 1));

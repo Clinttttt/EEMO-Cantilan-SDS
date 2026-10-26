@@ -255,14 +255,22 @@ public sealed partial class CollectionComposerWorkflow
                 var period = facts.Period;
                 projections.Add(_ => period.ApplyCanonicalSettlement());
             }
-            var receipt = await NpmReceiptEvidence.ResolveAsync(db, currentUser, tenantId, instrument ?? RevenueInstrumentType.CashTicket, request.OfficialReceiptNumber, ct);
-            if (!receipt.IsSuccess) return await Reject("RECEIPT_UNAVAILABLE", receipt.Error!);
-            if (receipt.Value is null) return await Reject("RECEIPT_UNAVAILABLE", "Enter the Official Receipt number.");
+            // Entered references never consume an accountable form. Preserve the separately authorized registered-OR path.
+            AccountableDocument? document = null;
+            if (string.IsNullOrWhiteSpace(request.ReceiptReference))
+            {
+                var receipt = await NpmReceiptEvidence.ResolveAsync(db, currentUser, tenantId, instrument ?? RevenueInstrumentType.CashTicket, request.OfficialReceiptNumber, ct);
+                if (!receipt.IsSuccess) return await Reject("RECEIPT_UNAVAILABLE", receipt.Error!);
+                if (receipt.Value is null) return await Reject("RECEIPT_UNAVAILABLE", "Enter the Official Receipt number.");
+                document = receipt.Value;
+            }
+            else if (!string.IsNullOrWhiteSpace(request.OfficialReceiptNumber))
+                return await Reject("RECEIPT_MODE_CONFLICT", "Choose either a registered OR or an informational reference.");
             var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
                 tenantId, request.ClientOperationId, IntentVersion, normalized, MobileObligationOrigin, ActorIdentity(actor),
-                actor.Username, actor.Role, request.BusinessDate, actor.Username, lines, receipt.Value,
+                actor.Username, actor.Role, request.BusinessDate, actor.Username, lines, document,
                 collectorId: collectorId, payorId: account.PayorId, payerName: payerName,
-                sourceProjections: projections, ct: ct);
+                sourceProjections: projections, ct: ct, receiptReference: request.ReceiptReference);
             return Result<EcfPostOutcomeDto>.Success(new EcfPostOutcomeDto(
                 collection.Id, collection.ReferenceCode, "Posted", collection.TotalAmount, collection.Lines.Count, false));
         }

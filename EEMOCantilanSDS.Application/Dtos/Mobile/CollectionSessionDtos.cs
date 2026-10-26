@@ -51,8 +51,10 @@ public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, Dat
     IReadOnlyList<CollectionSessionItemIntent> Items,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null,
-    // One physical OR for several months of ONE space account: those items post as one Collection with a line per month (absent = SRC only).
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OfficialReceiptNumber = null);
+    // Registered OR retains its existing stock/custody validation.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OfficialReceiptNumber = null,
+    // Optional entered reference, not an issued/registered receipt. One SRC with itemized months; no custody state changes.
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ReceiptReference = null);
 public sealed record RecordCollectionSessionRequest(CollectionSessionIntent Intent, string? QuoteFingerprint);
 public sealed record CollectionSessionProblem(Guid? ClientItemId, string Code, string Message);
 public sealed record CollectionSessionItemQuote(Guid ClientItemId, CollectionSessionItemKind Kind,

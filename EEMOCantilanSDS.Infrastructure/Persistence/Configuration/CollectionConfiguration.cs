@@ -25,6 +25,7 @@ public sealed class CollectionConfiguration : IEntityTypeConfiguration<Collectio
         builder.Property(x => x.PayorId);
         builder.Property(x => x.PayorUserId);
         builder.Property(x => x.PayerName).HasMaxLength(200);
+        builder.Property(x => x.ReceiptReference).HasMaxLength(100);
         builder.Property(x => x.TotalAmount).HasPrecision(18, 2).IsRequired();
         builder.Property(x => x.ClientOperationId);
 

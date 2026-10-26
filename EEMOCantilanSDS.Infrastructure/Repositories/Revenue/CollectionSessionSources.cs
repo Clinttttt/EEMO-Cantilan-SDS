@@ -418,7 +418,8 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
                     return Fail("SourceNotAvailable", "No approved Official Receipt policy is effective for this rental.");
-                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) && !CollectorOperationCodes.IsSpaceObligation(operationCode))
+                if ((!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) || !string.IsNullOrWhiteSpace(session.ReceiptReference))
+                    && !CollectorOperationCodes.IsSpaceObligation(operationCode))
                     return Fail("ReceiptNotSupported", "An Official Receipt number cannot be entered for this rental yet. Clear it to record the SRC.");
                 if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber)
                     && (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false })
@@ -452,7 +453,7 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
         var account = items[0].Obligation!.AccountId;
         var posted = await Composer.PostMobileObligationMonthsAsync(new(operation, account,
             items.Select(i => new MobileObligationMonthAmount(i.Obligation!.Year, i.Obligation.Month, i.ConfirmedAmount)).ToArray(),
-            session.BusinessDate, session.OfficialReceiptNumber ?? ""), ct);
+            session.BusinessDate, session.OfficialReceiptNumber ?? "", session.ReceiptReference), ct);
         if (!posted.IsSuccess) throw new CollectionSessionPostingException(items[0].ClientItemId, "The account or receipt changed during posting. Review the checkout.");
         return new(posted.Value!.CollectionId, posted.Value.ReferenceCode, RevenueInstrumentType.OfficialReceipt, posted.Value.Amount,
             items.Select(i => i.ClientItemId).ToArray(), "Posted");

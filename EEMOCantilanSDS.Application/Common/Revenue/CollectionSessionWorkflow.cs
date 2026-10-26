@@ -105,11 +105,15 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                 if (resolved.Quote is { } quote) quotes.Add(quote with { GroupId = ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId) });
             }
         }
-        // One physical OR covers months of ONE liable space account only: anything else would copy the OR across independent Collections.
-        if (errors.Count == 0 && !string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber))
+        // Registered ORs and entered references each group months of ONE liable space account; never mix their meanings.
+        if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) && !string.IsNullOrWhiteSpace(intent.ReceiptReference))
+            errors.Add(new(null, "ReceiptModeConflict", "Choose either a registered OR or an informational reference."));
+        if (intent.ReceiptReference?.Trim().Length > 100)
+            errors.Add(new(null, "ReceiptReferenceTooLong", "The optional reference cannot exceed 100 characters."));
+        if (errors.Count == 0 && (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) || !string.IsNullOrWhiteSpace(intent.ReceiptReference)))
         {
             var accounts = intent.Items!.Select(i => i.Kind == CollectionSessionItemKind.Obligation ? i.Obligation?.AccountId : null).Distinct().ToList();
-            if (intent.OfficialReceiptNumber.Length > 100 || accounts.Count != 1 || accounts[0] is null || quotes.Any(q => q.Instrument != EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt
+            if (intent.OfficialReceiptNumber?.Length > 100 || accounts.Count != 1 || accounts[0] is null || quotes.Any(q => q.Instrument != EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt
                     || !EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.IsSpaceObligation(q.OperationCode)))
                 errors.Add(new(null, "ReceiptNeedsOneSpaceAccount", "One Official Receipt can cover months of one space account only."));
         }
@@ -147,7 +151,7 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     return;
                 }
                 var collections = new List<CollectionSessionCollection>();
-                if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber))
+                if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber) || !string.IsNullOrWhiteSpace(intent.ReceiptReference))
                 {
                     // Preflight proved one space account; the identity is the session's lowest item so a replay resolves to the same single Collection.
                     var items = intent.Items.OrderBy(i => i.ClientItemId).ToList();

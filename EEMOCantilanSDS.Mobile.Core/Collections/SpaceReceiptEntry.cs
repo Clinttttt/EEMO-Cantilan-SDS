@@ -3,8 +3,8 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 namespace EEMOCantilanSDS.Mobile.Collections;
 
 /// <summary>
-/// When one physical Official Receipt may be entered for a checkout: only when every item is a month of the SAME space account.
-/// The server re-checks this and the receipt itself (registered, unused, in the collector's custody); this only decides whether to offer the field.
+/// One optional reference can accompany any month(s) of the SAME space account.
+/// It is collector-entered information, not proof of accountable form issuance or custody.
 /// </summary>
 public static class SpaceReceiptEntry
 {
