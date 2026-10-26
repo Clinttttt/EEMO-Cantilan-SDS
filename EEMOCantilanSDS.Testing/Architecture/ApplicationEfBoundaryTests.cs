@@ -287,6 +287,7 @@ public class ApplicationEfBoundaryTests
         "ReportGovernanceWorkflow.cs",
         "SpaceFollowUpWorkflow.cs",
         "HistoricalArrearsReader.cs",
+        "HistoricalAccessWorkflow.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
         "FeeScheduleCollectionWorkflow.Office.cs",

@@ -91,6 +91,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorUser> PayorUsers { get; }
         DbSet<PayorActivationCode> PayorActivationCodes { get; }
         DbSet<PayorStallLink> PayorStallLinks { get; }
+        DbSet<PayorHistoricalAccessCode> PayorHistoricalAccessCodes { get; }
+        DbSet<PayorLiabilityLink> PayorLiabilityLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
         DbSet<CollectorOperationAssignment> CollectorOperationAssignments { get; }
         DbSet<EEMOCantilanSDS.Domain.Entities.Revenue.CollectorOperationActivation> CollectorOperationActivations { get; }

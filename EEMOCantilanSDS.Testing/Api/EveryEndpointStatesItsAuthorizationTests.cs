@@ -96,6 +96,7 @@ public sealed class EveryEndpointStatesItsAuthorizationTests
         "OnlinePaymentsController.WebhookAsync",
         "OnlinePaymentsController.WebhookForTenantAsync",
         "PayorAuthController.ActivateAsync",
+        "PayorAuthController.ActivateHistoricalAsync",
         "PayorAuthController.LoginAsync",
         "PayorAuthController.RefreshAsync",
         "PlatformSetupController.CreateFirstOperator",

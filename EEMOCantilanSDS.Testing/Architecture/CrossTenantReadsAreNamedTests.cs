@@ -64,6 +64,7 @@ public class CrossTenantReadsAreNamedTests
         "AuthRepository.cs",
         "TokenService.cs",
         "PayorRepository.cs",
+        "HistoricalAccessWorkflow.cs",   // ST-19: anonymous historical activation finds its tenant-bound code and the platform-wide payor number, like PayorRepository
         "CollectorRepository.cs",
         "CollectorDeviceTokenRepository.cs",
         "AdminRepository.cs",

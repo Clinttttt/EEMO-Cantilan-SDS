@@ -44,6 +44,7 @@ public static class TenantBackupTableNames
         ["TrmTransporters"] = "Terminal transporters",
         ["TrmTrips"] = "Terminal trips",
         ["PayorStallLinks"] = "Payor–stall links",
+        ["PayorLiabilityLinks"] = "Payor historical-account links",
         ["CollectorFacilityAssignments"] = "Collector assignments",
         ["CollectorOperationAssignments"] = "Collector operation assignments",
         ["GovernedServices"] = "Governed services",

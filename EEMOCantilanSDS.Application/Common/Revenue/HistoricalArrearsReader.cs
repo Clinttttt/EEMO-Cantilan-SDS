@@ -23,21 +23,33 @@ public sealed class HistoricalArrearsReader(
     IFacilityReportsRepository reports, IClosedStallAccountQueries closed, SpaceFollowUpWorkflow space, IAppDbContext db,
     ICurrentUserService user, ICurrentMunicipalityAccessor tenant, IClock clock)
 {
-    public async Task<ArrearsWorkspaceDto> GetForCollectorAsync(CancellationToken ct)
+    /// <summary>The signed-in actor's own view: a collector's assigned facilities and operations, or the whole tenant for a Head (Admin / SuperAdmin).</summary>
+    public async Task<ArrearsWorkspaceDto> GetForActorAsync(CancellationToken ct)
     {
         var today = clock.PhilippineToday;
         var empty = new ArrearsWorkspaceDto(today, [], 0m, 0m, 0m);
         var tenantId = tenant.MunicipalityId;
-        if (!user.IsAuthenticated || user.Role != "Collector" || user.CollectorId is not { } collectorId || tenantId == Guid.Empty ||
-            user.MunicipalityId is { } claimed && claimed != tenantId) return empty;
-        var collector = await db.CollectorUsers.AsNoTracking().Include(x => x.FacilityAssignments)
-            .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
-        if (collector is null) return empty;
-        var accounts = new List<ArrearsAccountDto>();
+        if (!user.IsAuthenticated || tenantId == Guid.Empty || user.MunicipalityId is { } claimed && claimed != tenantId) return empty;
+        HashSet<FacilityCode>? scope = null;   // null = every facility of the tenant (Head)
+        if (user.Role == "Collector")
+        {
+            if (user.CollectorId is not { } collectorId) return empty;
+            var collector = await db.CollectorUsers.AsNoTracking().Include(x => x.FacilityAssignments)
+                .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
+            if (collector is null) return empty;
+            scope = collector.FacilityAssignments.Select(a => a.FacilityCode).ToHashSet();
+        }
+        else if (user.Role is not ("Admin" or "SuperAdmin")) return empty;
+        return await BuildAsync(today, tenantId, scope, ct);
+    }
 
-        var assigned = collector.FacilityAssignments.Select(a => a.FacilityCode).ToHashSet();
+    public async Task<ArrearsWorkspaceDto> GetForCollectorAsync(CancellationToken ct) => user.Role == "Collector" ? await GetForActorAsync(ct) : new(clock.PhilippineToday, [], 0m, 0m, 0m);
+
+    private async Task<ArrearsWorkspaceDto> BuildAsync(DateOnly today, Guid tenantId, HashSet<FacilityCode>? assigned, CancellationToken ct)
+    {
+        var accounts = new List<ArrearsAccountDto>();
         var facilities = (await db.Facilities.AsNoTracking().Where(f => f.MunicipalityId == tenantId && f.IsActive).ToListAsync(ct))
-            .Where(f => assigned.Contains(f.Code)).ToDictionary(f => f.Code);
+            .Where(f => assigned is null || assigned.Contains(f.Code)).ToDictionary(f => f.Code);
         if (facilities.Count > 0)
         {
             // Live accounts: the present occupancy's own months (Delinquent) and its previous-year / expired-contract months (Arrears).
@@ -65,7 +77,7 @@ public sealed class HistoricalArrearsReader(
                     accounts.Add(StallRow(facility, a.StallNo, a.Section, a.Occupant, a.ContractId, StatusOf(a), a.Uncollected, 0m, a.MonthsUnpaid, null, null, SpaceArrears.EndedOccupancy));
         }
 
-        var items = await space.GetForCollectorAsync(today, ct);
+        var items = assigned is null ? await space.GetAsync(today, null, ct, includeEarlierTerms: true) : await space.GetForCollectorAsync(today, ct);
         var spaceIds = items.Select(i => i.AccountId).Distinct().ToArray();
         var spaceAccounts = spaceIds.Length == 0 ? new Dictionary<Guid, ObligationAccount>()
             : await db.ObligationAccounts.AsNoTracking().Where(x => x.MunicipalityId == tenantId && spaceIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, ct);

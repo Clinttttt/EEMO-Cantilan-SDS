@@ -38,6 +38,18 @@ public class PayorAuthController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    /// <summary>ST-19: a debtor with no payor account activates one with an office-issued code for a HISTORICAL account. The existing stall activation is unchanged.</summary>
+    [HttpPost("activate-historical")]
+    [AllowAnonymous]
+    [EnableRateLimiting("auth")]
+    public async Task<ActionResult<TokenResponseDto>> ActivateHistoricalAsync([FromBody] EEMOCantilanSDS.Application.Dtos.Payors.RedeemHistoricalAccessRequest request, [FromServices] EEMOCantilanSDS.Application.Common.Revenue.HistoricalAccessWorkflow workflow, CancellationToken ct)
+    {
+        var result = await workflow.ActivateAsync(request, ct);
+        if (result.IsSuccess)
+            CookieHelper.SetAuthCookies(Response, result.Value!.AccessToken, result.Value.RefreshToken);
+        return HandleResponse(result);
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     [EnableRateLimiting("auth")]

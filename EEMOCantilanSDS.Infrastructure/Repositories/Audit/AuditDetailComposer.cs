@@ -223,6 +223,8 @@ public static class AuditDetailComposer
         ("Updated", "PayorActivationCode") => "Updated the activation code of",
         ("Deleted", "PayorActivationCode") => "Revoked the activation code of",
 
+        ("Created", "PayorHistoricalAccessCode") => "Issued a historical-account access code for",
+        ("Created", "PayorLiabilityLink") => "Linked a payor to the historical account of",
         ("Created", "PayorStallLink") => "Linked a payor to",
         ("Deleted", "PayorStallLink") => "Unlinked a payor from",
         ("Updated", "PayorStallLink") => "Updated the payor link of",

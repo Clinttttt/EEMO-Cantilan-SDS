@@ -34,7 +34,7 @@ public static class TenantDataTables
         "Facilities", "FacilityRates", "WeighingRateVersions", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "TenantOperationSettings", "TerminalSectionSettings", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
         "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures", "NpmOperatingSchedules",
         "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "SlaughterAnimalLabels", "TpmVendors",
-        "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "CollectorFacilityAssignments",
+        "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "PayorLiabilityLinks", "CollectorFacilityAssignments",
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable
         // because it decides which dates were market days: restoring the attendances without it would leave the
         // office's own collections falling on days its schedule says were not market days.
@@ -60,6 +60,8 @@ public static class TenantDataTables
         ["Users"] =
             "Credentials. Accounts, password hashes and second-factor enrolments are never exported and never "
             + "replaced: a restored snapshot must not be able to reinstate a removed account or an old password.",
+        ["PayorHistoricalAccessCodes"] =
+            "One-time secrets bound to a historical liable account. Spent on use and expiring; restoring one would revive a credential the office already retired.",
         ["PayorActivationCodes"] =
             "One-time secrets. A vendor's app activation code is spent on use and expires; restoring one would "
             + "revive a credential the office already retired.",

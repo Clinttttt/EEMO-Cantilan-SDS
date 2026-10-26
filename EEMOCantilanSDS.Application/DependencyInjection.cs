@@ -77,6 +77,7 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.ReportGovernanceWorkflow>();
             services.AddScoped<Common.Revenue.SpaceFollowUpWorkflow>();
             services.AddScoped<Common.Revenue.HistoricalArrearsReader>();
+            services.AddScoped<Common.Revenue.HistoricalAccessWorkflow>();
             services.AddScoped<Common.Revenue.PenaltyDefinitionWorkflow>();
             services.AddScoped<Common.Revenue.DirectFineCollectionWorkflow>();
             services.AddScoped<Common.Revenue.FineAssessmentWorkflow>();

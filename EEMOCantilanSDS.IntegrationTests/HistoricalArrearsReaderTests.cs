@@ -22,7 +22,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// contract (stall rent) or obligation account (space rental). A successor never carries a predecessor's debt and a collector sees only what they are assigned to.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public class HistoricalArrearsReaderTests(PostgresFixture db)
+public partial class HistoricalArrearsReaderTests(PostgresFixture db)
 {
     private static readonly DateOnly Now = new(2026, 10, 19);
 
