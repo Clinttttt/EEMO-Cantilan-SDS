@@ -169,7 +169,7 @@
 }
 
 /* ── Operation status and Available to add ── */
-.rev-note { margin: 0; padding: 10px 20px 0; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.rev-note { margin: 0; padding: 10px 20px; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
 .rev-note-flush { padding: 0 0 12px; }
 .rev-gaps { margin-top: 2px; color: var(--text-secondary); font-size: 0.75rem; font-weight: 400; }
 .rev-notice { margin: 0 0 12px; }

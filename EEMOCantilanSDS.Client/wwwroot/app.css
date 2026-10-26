@@ -3829,3 +3829,55 @@ h1[tabindex="-1"]:focus {
 .v3-page.orp-embedded { min-height: 0; padding: 0; background: none; }
 .orp-embedded-actions { align-self: flex-end; }
 .v3-page.orp-embedded > .orp-own-header { display: none; }
+
+/* ══════════════════════════════════════════
+   MOTION (2026-10-26)
+   One restrained set of durations and easings, applied as DEFAULTS: a component that sets its own animation or transition keeps it (the
+   defaults below are zero or low specificity, and every keyframe animates only its `from` state, so an element always settles on its own
+   styles and never on a transform or opacity this file left behind). Everything that moves is gated on no-preference, so a person who has
+   asked for reduced motion gets the same screens without it. No exit animations: a closing dialog leaves at once, as before.
+══════════════════════════════════════════ */
+:root {
+    --motion-fast: 120ms;
+    --motion-base: 180ms;
+    --motion-slow: 240ms;
+    --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes motion-fade-in { from { opacity: 0; } }
+@keyframes motion-pop-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } }
+@keyframes motion-drawer-in { from { opacity: 0.6; transform: translateX(32px); } }
+@keyframes motion-rise-in { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes motion-bar-in { from { opacity: 0; transform: scaleY(0.3); } }
+
+/* Colour, border and shadow changes ease instead of snapping (hover, focus, selection, press). Zero specificity: any rule that already
+   states a transition wins. */
+:where(button, a, summary, input, select, textarea, [role="tab"], [role="button"], [role="menuitem"], [role="option"], .v3-btn) {
+    transition: background-color var(--motion-fast) ease, border-color var(--motion-fast) ease, color var(--motion-fast) ease,
+                box-shadow var(--motion-fast) ease, opacity var(--motion-fast) ease;
+}
+:where(tbody tr, .v3-table tr, li) { transition: background-color var(--motion-fast) ease; }
+
+@media (prefers-reduced-motion: no-preference) {
+    /* A page eases in when the route changes (the new page's root is a new element). Opacity only: a transform would move any fixed child
+       with it for the length of the animation. Dialogs, drawers and their backdrops are excluded, they have their own entrance below. */
+    .admin-main > :not([class*="backdrop"], [class*="overlay"], [class*="scrim"], [class*="drawer"], [class*="modal"], [role="dialog"], [role="status"], [role="alert"]) {
+        animation: motion-fade-in var(--motion-slow) var(--motion-ease) backwards;
+    }
+
+    /* Backdrops fade; a centred dialog rises a little; a docked drawer slides in from its edge. */
+    :where([class*="backdrop"], [class*="overlay"], [class*="scrim"]) {
+        animation: motion-fade-in var(--motion-base) linear backwards;
+    }
+    :where([role="dialog"], [aria-modal="true"]) {
+        animation: motion-pop-in var(--motion-base) var(--motion-ease) backwards;
+    }
+    :where(aside[class*="drawer"], [role="dialog"][class*="drawer"], .v3-modal.v3-drawer, .cfg-drawer) {
+        animation: motion-drawer-in var(--motion-slow) var(--motion-ease) backwards;
+    }
+
+    /* A notice that appears after an action (saved, refused, nothing found) eases in instead of popping. */
+    :where(.v3-notice, .v3-notice-error, [role="alert"].v3-notice) {
+        animation: motion-rise-in var(--motion-base) var(--motion-ease) backwards;
+    }
+}
