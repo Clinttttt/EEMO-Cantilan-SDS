@@ -110,3 +110,29 @@ The platform operator (`platform_operator` claim) is confined to `/api/activatio
 ## Tests
 
 - New: `EEMOCantilanSDS.Testing/Api/EveryEndpointStatesItsAuthorizationTests.cs` (7 cases: no action without a statement; anonymous surface pinned; OR correction not open to collectors x4), `EEMOCantilanSDS.Testing/Infrastructure/Persistence/TenantlessEntitiesArePinnedTests.cs` (1 case).
+
+## Remediation (2026-10-26)
+
+Branch `worktree-agent-ade2e82646630968a`, rebased on `feat/v17-ui-finance-accounts-20261025` (90c0b362). Fixes are in commit `c240fe2e`; the ST-19 concurrency test follows it.
+
+| # | Finding | Status | Test |
+|---|---------|--------|------|
+| 4 | api/database-health visible to every LGU Head | FIXED (tenant-scoped view). The platform operator gets the shared-database snapshot (`/api/database-health` added to the `PlatformOperatorBoundaryMiddleware` allow-list); a Head gets only `TenantSizeBytes`/`ProvisionedStorageBytes`, other fields neutral. FRONTEND NOTE: `DatabaseHealthPanel.razor` now shows 0 connections / 0 deadlocks for a Head; the UI lane should hide the platform rows for a Head. | `GetDatabaseHealthQueryHandlerTests`, `PlatformOperatorBoundaryMiddlewareTests` |
+| 5 | System settings fell back to the default municipality / Cantilan constants | FIXED: unresolved tenant returns 404. (Per-field constants for a blank name on a resolved tenant remain.) | `GetSystemSettingsQueryHandlerTests.An_unresolved_tenant_is_an_explicit_error...` (was red) |
+| 6 | `SyncRepository.IsOperationProcessedAsync` global across tenants | FIXED: every lookup pinned to `CurrentMunicipalityId`. No schema change: the legacy global unique index stays (a colliding id from another LGU fails its insert instead of being reported as synced); a composite index adds nothing while the global one exists, and dropping it was not proved safe. | `CrossTenantDeviceAndSyncIsolationTests.AnotherLgusOperationId...` (was red) |
+| 7 | Device token upsert/remove by token only | FIXED: re-point only inside the same municipality (handover between collectors of one LGU); another LGU's token returns 409; removal is tenant-filtered and owner-matched. | `CrossTenantDeviceAndSyncIsolationTests` (2), `RegisterDeviceTokenCommandHandlerTests`, `RemoveDeviceTokenCommandHandlerTests` |
+| 9 | Cache namespace falls back to `cantilan-sds` | FIXED: an authenticated token with a municipality id but no resolvable code is refused (`ClaimTenantContext`, `TokenService`); token-less flows and `Guid.Empty` users keep the pinned default. | `ClaimTenantContextTests`, `TokenServiceMunicipalityClaimTests` (were red) |
+| 8 | Payor phone is global by rule | OPEN (product decision) | - |
+| - | Suspended / deactivated municipality blocked at login and refresh | OPEN. `Municipality.IsActive` is false only for Upcoming LGUs and `MarkUpcoming()` has no caller; no suspend feature exists. Admin, collector and payor login and `ValidateRefreshToken` do not read it. Enforcing needs a ruling (an Upcoming LGU's onboarding accounts must still sign in before activation). | - |
+| - | Client-supplied cross-tenant FKs | VERIFIED partially: no `Attach`/`EntityState` writes in Application or repositories; every creating handler taking `request.*Id` also loads through the tenant-filtered context. No exhaustive per-FK proof; DB FKs stay single-column outside the collection domain. | scan only |
+| - | Collector-only vs office-only endpoints | VERIFIED by `EveryEndpointStatesItsAuthorizationTests` | existing |
+| - | Payor isolation | VERIFIED: history requires `LinkExistsAsync`; balances and payable items key on the token user. | `GetPayorPaymentHistoryIsolationTests` (new) |
+
+### ST-19 historical access (HistoricalAccessWorkflow, PayorHistoricalAccessCodes, PayorLiabilityLinks)
+
+- Issuer authorization `SuperAdmin,Admin,Collector`; eligibility from `GetForActorAsync` (collector sees only assigned operations); token tenant must equal resolved tenant. Tested.
+- Expiry, wrong number, other tenant, single use, reissue invalidation, payer confirmation: tested in `HistoricalArrearsReaderTests`.
+- Anonymous `POST api/payorauth/activate-historical`: `auth` rate limit; one generic refusal for unknown/expired/wrong-number codes (no enumeration). The 409 "already activated" appears only after code and number matched.
+- Concurrency: 6 simultaneous redemptions of one code give exactly one payor and one link, no server error (`Two_simultaneous_activations...`, passes). The guarantee rests on the unique payor username and unique link indexes, not an atomic claim of the code row; the test may not always force the overlap.
+- Payor reads: `GetMineAsync` filters by payor id and tenant; nothing is payable online.
+- OPEN hardening (no data risk today): codes are stored in plain text (same as existing `PayorActivationCode`); `PayorLiabilityLinks.ContractId/ObligationAccountId` and the code table have no DB foreign keys and no composite same-tenant FK (compare the `HasAlternateKey(MunicipalityId, Id)` pattern in AccountableDocument tables). The workflow derives all ids from tenant-filtered reads; a DB guarantee needs alternate keys on Users/Contracts/ObligationAccounts plus a new additive migration and its own safety review.
