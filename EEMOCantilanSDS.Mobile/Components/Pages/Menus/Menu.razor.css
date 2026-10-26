@@ -474,21 +474,40 @@
 .menu-readiness-note { display: block; margin-top: 3px; font-size: 11px; font-weight: 400; line-height: 1.35; color: var(--mobile-text-secondary); }
 .menu-readiness-standalone { margin: 0 4px 10px; }
 
-/* Secondary entry beside New Collection: the same width and touch target, outlined so New Collection stays the primary action. */
+/* Secondary entry beside New Collection: a card in the same language as the operation rows below it (tile, title, one line of help, chevron),
+   so New Collection stays the single filled primary action. */
 .menu-arrears-link {
     display: flex;
     width: 100%;
-    min-height: 46px;
+    min-height: 60px;
     align-items: center;
-    justify-content: center;
+    gap: 12px;
     margin: 0 0 12px;
+    padding: 10px 12px;
     border: 1px solid var(--mobile-border);
-    border-radius: 12px;
+    border-radius: 14px;
     background: var(--mobile-surface);
     color: var(--mobile-navy);
-    font-size: 14px;
-    font-weight: 600;
+    text-align: left;
 }
+
+.menu-arrears-link:active { background: var(--mobile-blue-subtle); }
+
+.menu-arrears-mark {
+    display: grid;
+    flex: 0 0 40px;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border-radius: 10px;
+    background: var(--mobile-blue-subtle);
+}
+
+.menu-arrears-mark svg { width: 22px; height: 22px; fill: none; stroke: var(--mobile-blue); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+.menu-arrears-text { display: flex; flex: 1 1 auto; flex-direction: column; min-width: 0; }
+.menu-arrears-text strong { font-size: 15px; font-weight: 600; color: var(--mobile-navy); }
+.menu-arrears-text small { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
 
 .menu-arrears-link:focus-visible {
     outline: 2px solid var(--mobile-blue);
