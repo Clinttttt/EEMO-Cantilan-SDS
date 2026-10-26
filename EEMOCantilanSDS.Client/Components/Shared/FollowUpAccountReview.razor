@@ -1,6 +1,7 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Constants
 @using EEMOCantilanSDS.Domain.Common
 @using EEMOCantilanSDS.Domain.Enums
 @inject IObligationsApiClient Accounts
@@ -116,7 +117,7 @@
                         @if (_account.ContractName is { Length: > 0 }) { <div><dt>Name on contract</dt><dd>@_account.ContractName</dd></div> }
                         @if (_account.ContractReference is { Length: > 0 }) { <div><dt>Contract reference</dt><dd>@_account.ContractReference</dd></div> }
                         @if (_account.ContractEffectiveDate is { } start) { <div><dt>Signed commencement</dt><dd>@start.ToString("MMM d, yyyy")</dd></div> }
-                        @if (_account.ContractYears is { } years) { <div><dt>Recorded duration</dt><dd>@years years</dd></div> }
+                        @if (_account.ContractYears is { } years) { <div><dt>Recorded duration</dt><dd>@DomainRules.DescribeTerm(years, _account.ContractMonths)</dd></div> }
                     }
                     @if (Context.FacilityItem is { } item) {
                         <div><dt>Follow-up reason</dt><dd>@item.Reason</dd></div>

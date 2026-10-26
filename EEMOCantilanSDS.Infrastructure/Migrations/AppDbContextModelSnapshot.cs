@@ -3808,6 +3808,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasPrecision(12, 2)
                         .HasColumnType("numeric(12,2)");
 
+                    b.Property<int?>("ContractMonths")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ContractName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -4543,6 +4546,9 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<Guid>("LifecycleEventId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("Months")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");
 
@@ -4579,7 +4585,7 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
 
                     b.ToTable("SpaceContractTerms", null, t =>
                         {
-                            t.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 1 AND 50");
+                            t.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 0 AND 50 AND (\"Years\" >= 1 OR \"Months\" IS NOT NULL) AND (\"Months\" IS NULL OR \"Months\" BETWEEN 1 AND 11)");
                         });
                 });
 

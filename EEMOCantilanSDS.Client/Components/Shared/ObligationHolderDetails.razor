@@ -128,10 +128,10 @@
             if (!string.IsNullOrWhiteSpace(Account.ContractReference)) rows.Add(new("Contract reference", Account.ContractReference));
             rows.Add(new("Facility", Operation));
             rows.Add(new("Space no.", Account.SubjectLabel));
-            if (Account.ContractEffectiveDate is { } start && Account.ContractYears is { } years && years > 0)
+            if (Account.ContractEffectiveDate is { } start && Account.ContractYears is { } years && (years > 0 || Account.ContractMonths > 0))
             {
-                var expiry = DomainRules.TermLastDay(start, years);
-                rows.Add(new("Contract duration", $"{years} year{(years > 1 ? "s" : "")}", Note: $"(expires {expiry.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})", NoteExpired: expiry < PhilippineTime.Today));
+                var expiry = DomainRules.TermLastDay(start, years, Account.ContractMonths);
+                rows.Add(new("Contract duration", DomainRules.DescribeTerm(years, Account.ContractMonths) ?? "", Note: $"(expires {expiry.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)})", NoteExpired: expiry < PhilippineTime.Today));
             }
             else rows.Add(new("Contract duration", "No contract", true));
             rows.Add(new("Active from", Account.ActiveFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)));

@@ -18,7 +18,7 @@ public static class SpaceArrears
     public static DateOnly? TermLastDay(ObligationAccount account, IReadOnlyList<SpaceContractTerm> ordered) =>
         ordered.Count > 0 ? ordered[^1].LastDay
         : account.Arrangement == OccupancyArrangement.SignedContract && account.ContractEffectiveDate is { } start && account.ContractYears is { } years
-            ? DomainRules.TermLastDay(start, years) : null;
+            ? DomainRules.TermLastDay(start, years, account.ContractMonths) : null;
 
     /// <summary>An ended occupancy, then an expired contract (a term that has run out, or an earlier renewed term), then a previous calendar year.</summary>
     public static string? Basis(ObligationAccount account, IReadOnlyList<SpaceContractTerm> ordered, DateOnly periodStart, DateOnly asOf)

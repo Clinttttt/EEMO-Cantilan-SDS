@@ -33,4 +33,4 @@ public sealed record ContractMonitoringRowDto(
     string? ContractReference, DateOnly OccupancyStart, DateOnly? EffectivityDate, int? DurationYears,
     DateOnly? ExpiryDate, int? DaysUntilExpiry, ContractMonitoringStatus Status, DateOnly? ClosureDate,
     decimal? ApprovedCharge, ContractMonitoringChargeFrequency ChargeFrequency, decimal? ContractStatedAmount,
-    decimal? AreaSqm, string? AreaLocation);
+    decimal? AreaSqm, string? AreaLocation, int? DurationMonths = null);

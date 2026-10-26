@@ -76,5 +76,34 @@ public sealed class SpaceTermRenewalsTests : TestContext
         Assert.Equal((LifecycleAction.Renew, 3, "Lorenofs B. Brando", "KM-5", "Renewal approved, Res. 12"),
             (execution.Command.Action, execution.Command.TermYears, execution.Command.ContractName, execution.Command.Reference, execution.Command.Reason));
         cut.WaitForAssertion(() => Assert.Contains("Nothing to renew", cut.Markup), Wait);   // renewed: it drops off
+        Assert.Null(execution.Command.TermMonths);                                             // a yearly renewal carries no months, as before
+    }
+
+    [Fact]
+    public void RenewsForMonths_ShowsTheMonthAwareEnd_SendsMonthsInsteadOfAYear_AndRefusesAZeroLengthTerm()
+    {
+        var ended = Space("Lorenofs Brando", "5", new DateOnly(2022, 10, 25));
+        _accounts.Setup(x => x.GetAccountsAsync(ObligationKind.KanmanggaySpaceRental)).ReturnsAsync(Result<IReadOnlyList<ObligationAccountDto>>.Success([ended]));
+        _lifecycle.Setup(x => x.GetManyAsync(LifecycleSource.SpaceRental, It.IsAny<IReadOnlyList<Guid>>()))
+            .ReturnsAsync(() => Result<IReadOnlyList<AccountLifecycleDto>>.Success([Life(ended.Id, true)]));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/operations/kanmanggay/renewals");
+
+        var cut = RenderComponent<SpaceTermRenewals>();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".str-table tbody tr")), Wait);
+        cut.Find("#spr-start").Change("2026-10-01");
+        cut.Find("#spr-reason").Input("Renewal approved, Res. 13");
+        cut.Find("#spr-years").Change("0");
+        cut.Find("#spr-months").Change("0");
+        Assert.Equal("—", cut.Find(".str-ends").TextContent.Trim());                          // no term yet: no end is invented
+        cut.Find(".str-form").Submit();
+        Assert.Empty(_executed);
+        Assert.Contains("whole years", cut.Markup);
+
+        cut.Find("#spr-months").Change("6");
+        Assert.Equal("Mar 31, 2027", cut.Find(".str-ends").TextContent.Trim());               // Oct 1 + 6 months, minus a day
+        cut.Find(".str-form").Submit();
+        cut.WaitForAssertion(() => Assert.Single(_executed), Wait);
+        var command = _executed[0].Execution.Command;
+        Assert.Equal((LifecycleAction.Renew, (int?)null, (int?)6), (command.Action, command.TermYears, command.TermMonths));
     }
 }

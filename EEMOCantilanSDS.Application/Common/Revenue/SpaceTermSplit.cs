@@ -27,19 +27,19 @@ public static class SpaceTermSplit
     public static IReadOnlyList<SpaceTermDto>? Split(ObligationAccount account, IReadOnlyList<SpaceContractTerm> ordered, IReadOnlyList<ObligationQuoteDto> quotes)
     {
         if (ordered.Count == 0) return null;
-        var starts = new List<(DateOnly Start, int? Years, string? Name, string? Reference)>
-            { (account.ContractEffectiveDate ?? account.ActiveFrom, account.ContractYears, account.ContractName, account.ContractReference) };
-        starts.AddRange(ordered.Select(t => (t.Commencement, (int?)t.Years, t.ContractName, t.Reference)));
+        var starts = new List<(DateOnly Start, int? Years, int? Months, string? Name, string? Reference)>
+            { (account.ContractEffectiveDate ?? account.ActiveFrom, account.ContractYears, account.ContractMonths, account.ContractName, account.ContractReference) };
+        starts.AddRange(ordered.Select(t => (t.Commencement, (int?)t.Years, t.Months, t.ContractName, t.Reference)));
 
         var result = new List<SpaceTermDto>(starts.Count);
         for (var i = 0; i < starts.Count; i++)
         {
-            var (start, years, name, reference) = starts[i];
+            var (start, years, months, name, reference) = starts[i];
             DateOnly? next = i + 1 < starts.Count ? starts[i + 1].Start : null;
             // The first term also owns any period before its recorded effectivity (an account opened ahead of its paper term).
             var own = quotes.Where(q => (i == 0 || q.PeriodStart >= start) && (next is null || q.PeriodStart < next)).ToList();
-            result.Add(new SpaceTermDto(i + 1, start, years, years is { } y ? DomainRules.TermLastDay(start, y) : null, next?.AddDays(-1),
-                name, reference, own.Sum(q => q.AssessedAmount), own.Sum(q => q.SettledAmount), own.Sum(q => q.OutstandingAmount), next is null));
+            result.Add(new SpaceTermDto(i + 1, start, years, years is { } y ? DomainRules.TermLastDay(start, y, months) : null, next?.AddDays(-1),
+                name, reference, own.Sum(q => q.AssessedAmount), own.Sum(q => q.SettledAmount), own.Sum(q => q.OutstandingAmount), next is null, months));
         }
         return result;
     }

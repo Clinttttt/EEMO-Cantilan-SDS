@@ -23,6 +23,8 @@ public sealed class ContractMonitoringRecord
     public DateOnly OccupancyStart { get; init; }
     public DateOnly? EffectivityDate { get; init; }
     public int? DurationYears { get; init; }
+    /// <summary>Extra months beyond DurationYears (a months-only space term has 0 years). Null = yearly.</summary>
+    public int? DurationMonths { get; init; }
     public DateOnly? ExpiryDate { get; init; }
     public bool Ended { get; init; }
     public DateOnly? ClosureDate { get; init; }

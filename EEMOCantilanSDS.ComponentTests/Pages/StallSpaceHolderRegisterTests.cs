@@ -259,7 +259,7 @@ public sealed class StallSpaceHolderRegisterTests : TestContext
         var lines = Uri.UnescapeDataString(cut.Find("a[download]").GetAttribute("href")!)
             .Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.TrimEnd('\r')).ToList();
 
-        Assert.EndsWith("Status,Event,Event Date,Event Amount,Location / Note", lines[0]);
+        Assert.EndsWith("Status,Event,Event Date,Event Amount,Location / Note,Term in Months", lines[0]);
         var line = Assert.Single(lines, l => l.Contains("Fiesta Seller"));
         Assert.Contains("Event lot", line);
         Assert.Contains("Event-based", line);

@@ -69,6 +69,8 @@ public sealed class SpaceContractTerm : BaseEntity, IMunicipalityOwned
     public Guid? PriorTermId { get; private set; }
     public DateOnly Commencement { get; private set; }
     public int Years { get; private set; }
+    /// <summary>Extra months beyond <see cref="Years"/> (1-11); Years is 0 for a months-only term. Null = a yearly term, exactly as before.</summary>
+    public int? Months { get; private set; }
     public string? ContractName { get; private set; }
     public string? Reference { get; private set; }
     /// <summary>The office's approval evidence (resolution, signed document reference).</summary>
@@ -81,21 +83,22 @@ public sealed class SpaceContractTerm : BaseEntity, IMunicipalityOwned
     private SpaceContractTerm() { }
 
     /// <summary>The last day the term covers, by the same rule as every other term (<see cref="DomainRules.TermLastDay"/>).</summary>
-    public DateOnly LastDay => DomainRules.TermLastDay(Commencement, Years);
+    public DateOnly LastDay => DomainRules.TermLastDay(Commencement, Years, Months);
 
     public static SpaceContractTerm Create(Guid municipalityId, Guid accountId, Guid registrationId, Guid? priorTermId, DateOnly commencement,
-        int years, string? contractName, string? reference, string approvalEvidence, Guid lifecycleEventId, Guid actorId, string actorName, DateTime recordedAtUtc)
+        int years, string? contractName, string? reference, string approvalEvidence, Guid lifecycleEventId, Guid actorId, string actorName, DateTime recordedAtUtc,
+        int? months = null)
     {
         if (municipalityId == Guid.Empty || accountId == Guid.Empty || registrationId == Guid.Empty || lifecycleEventId == Guid.Empty)
             throw new ArgumentException("A tenant, account, registration and lifecycle event are required.");
-        if (years is < 1 or > 50) throw new ArgumentException("A term runs 1-50 years.", nameof(years));
+        var term = DomainRules.NormalizeSpaceTerm(years, months);
         if (string.IsNullOrWhiteSpace(approvalEvidence) || approvalEvidence.Trim().Length > 500) throw new ArgumentException("Approval evidence of up to 500 characters is required.", nameof(approvalEvidence));
         if (contractName?.Length > 200 || reference?.Length > 200) throw new ArgumentException("Name and reference are limited to 200 characters.");
         if (string.IsNullOrWhiteSpace(actorName) || actorName.Length > 100 || recordedAtUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("A valid actor and UTC time are required.");
         return new SpaceContractTerm
         {
             Id = Guid.NewGuid(), MunicipalityId = municipalityId, ObligationAccountId = accountId, SpaceRegistrationId = registrationId,
-            PriorTermId = priorTermId, Commencement = commencement, Years = years,
+            PriorTermId = priorTermId, Commencement = commencement, Years = term.Years!.Value, Months = term.Months,
             ContractName = string.IsNullOrWhiteSpace(contractName) ? null : contractName.Trim(),
             Reference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim(),
             ApprovalEvidence = approvalEvidence.Trim(), LifecycleEventId = lifecycleEventId, ActorId = actorId, ActorName = actorName.Trim(), RecordedAtUtc = recordedAtUtc

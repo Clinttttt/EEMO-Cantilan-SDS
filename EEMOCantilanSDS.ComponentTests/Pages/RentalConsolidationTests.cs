@@ -90,7 +90,7 @@ public sealed class RentalConsolidationTests : TestContext
         var duration = km.FindComponents<FhSelect>().Single(x => x.Instance.AriaLabel == "Contract Duration (No. of Years)");
         Assert.True(duration.Instance.Block);
         Assert.Equal("3", duration.Instance.Value);
-        Assert.Equal(new[] { ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…") }, duration.Instance.Options);
+        Assert.Equal(new[] { ("0", "No whole years"), ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…") }, duration.Instance.Options);
         Assert.Null(duration.Instance.DisabledValues);
         Assert.NotEmpty(original.FindComponents<FhSelect>());
         Assert.Empty(km.FindAll("#obw-contract-years"));
@@ -100,7 +100,7 @@ public sealed class RentalConsolidationTests : TestContext
         SpaceHolderWorkspaceTests.SaveVisualArtifact(facility.ToLowerInvariant() + "-shared-registration", original.Markup);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-shared-registration", km.Markup);
         duration.Find("button").Click();
-        Assert.Equal(5, duration.FindAll("[role='option']").Count);
+        Assert.Equal(6, duration.FindAll("[role='option']").Count);
         Assert.Empty(duration.FindAll(".fh-dd-disabled"));
         SpaceHolderWorkspaceTests.SaveVisualArtifact("km-duration-open", km.Markup);
         duration.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "1 year").Click();

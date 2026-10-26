@@ -125,9 +125,15 @@ public sealed class SpaceLifecycleWorkflow(
     {
         var raw = string.Join('|', accountId, (int)c.Action, c.EffectiveDate?.DayNumber.ToString() ?? "-", (c.NewHolder ?? string.Empty).Trim().ToUpperInvariant(),
             c.NewPayorId?.ToString() ?? "-", c.ConfirmDistinctHolder ? 1 : 0, c.Amount?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? "-",
-            c.TermYears?.ToString() ?? "-", (c.ContractName ?? string.Empty).Trim(), (c.Reference ?? string.Empty).Trim(), c.Arrangement?.ToString() ?? "-",
+            (c.TermYears?.ToString() ?? "-") + (c.TermMonths is { } tm ? "m" + tm : ""), (c.ContractName ?? string.Empty).Trim(), (c.Reference ?? string.Empty).Trim(), c.Arrangement?.ToString() ?? "-",
             (c.Reason ?? string.Empty).Trim(), (c.Evidence ?? string.Empty).Trim());
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(raw))).ToLowerInvariant();
+    }
+
+    private static bool TermIsValid(int? years, int? months)
+    {
+        try { DomainRules.NormalizeSpaceTerm(years, months); return true; }
+        catch (ArgumentException) { return false; }
     }
 
     private static DateOnly FirstOfNextMonth(DateOnly d) => new DateOnly(d.Year, d.Month, 1).AddMonths(1);
@@ -146,7 +152,7 @@ public sealed class SpaceLifecycleWorkflow(
         var a = s.Account;
         DateOnly? lastDay = null;
         if (s.LastTerm is { } term) lastDay = term.LastDay;
-        else if (a.ContractEffectiveDate is { } ce && a.ContractYears is { } cy) lastDay = DomainRules.TermLastDay(ce, cy);
+        else if (a.ContractEffectiveDate is { } ce && a.ContractYears is { } cy) lastDay = DomainRules.TermLastDay(ce, cy, a.ContractMonths);
         var laterOccupancy = a.ActiveTo is { } closedOn && s.Occupancies.Any(x => x.Id != a.Id && x.ActiveFrom > closedOn);
         return new(a.Kind, s.Registration is not null, RentalAccountStates.HasEnded(a.ActiveTo, Today), a.ActiveTo is { } e && e >= Today ? e : null, a.RetiredAtUtc is not null,
             s.HasSuccessor || laterOccupancy, a.Arrangement == OccupancyArrangement.SignedContract, lastDay, Today);
@@ -218,8 +224,9 @@ public sealed class SpaceLifecycleWorkflow(
                     if (c.Amount is not { } approved || approved <= 0m || decimal.Round(approved, 2) != approved)
                         return Block(ApprovedAmountRequired, "Enter the approved monthly amount for the new holder.");
                     amount = approved;
-                    if (c.TermYears is { } termYears && (termYears is < 1 or > 50 || c.Arrangement != OccupancyArrangement.SignedContract))
-                        return Block(InvalidRequest, "A contract term (1-50 years) is recorded only for a signed contract.");
+                    if ((c.TermYears is not null || c.TermMonths is not null) && (!TermIsValid(c.TermYears, c.TermMonths) || c.Arrangement != OccupancyArrangement.SignedContract))
+                        return Block(InvalidRequest, c.TermMonths is null ? "A contract term (1-50 years) is recorded only for a signed contract."
+                            : "A contract term (1 month to 50 years) is recorded only for a signed contract.");
                     if (c.NewPayorId is { } payorId && payorId != Guid.Empty
                         && !await db.Payors.AsNoTracking().AnyAsync(x => x.MunicipalityId == actor.TenantId && x.Id == payorId, ct))
                         return Block(InvalidRequest, "Choose an existing Business Payor, or leave it blank.");
@@ -234,8 +241,11 @@ public sealed class SpaceLifecycleWorkflow(
                     return Block(ClosureMonthOwnershipPending, $"The closure month ({closedOn:MMM yyyy}) stays with the previous holder. Choose {earliest:MMM d, yyyy} or later.");
                 if (start < new DateOnly(2020, 1, 1) || start > Today.AddDays(366)) return Block(InvalidRequest, "Choose a realistic start date (not more than a year ahead).");
                 facts["Start"] = start.ToString("MMM d, yyyy");
-                if (action == SpaceLifecycleAction.Reassign && c.TermYears is { } signedYears)
-                    facts["Contract term"] = $"{start:MMM d, yyyy} to {DomainRules.TermLastDay(start, signedYears):MMM d, yyyy}";
+                if (action == SpaceLifecycleAction.Reassign && (c.TermYears is not null || c.TermMonths is not null))
+                {
+                    var signedTerm = DomainRules.NormalizeSpaceTerm(c.TermYears, c.TermMonths);
+                    facts["Contract term"] = $"{start:MMM d, yyyy} to {DomainRules.TermLastDay(start, signedTerm.Years ?? 0, signedTerm.Months):MMM d, yyyy}";
+                }
                 return new(null, null, version, facts, space, amount, start);
             }
             case SpaceLifecycleAction.Renew:
@@ -246,8 +256,10 @@ public sealed class SpaceLifecycleWorkflow(
                 if (commence <= last)
                     return Block(RenewalOverlapsTerm, $"The new term must begin after the current term ends ({last.AddDays(1):MMM d, yyyy} or later).");
                 if (commence > Today.AddDays(366)) return Block(InvalidRequest, "Choose a realistic start date (not more than a year ahead).");
-                if (c.TermYears is not { } years || years is < 1 or > 50) return Block(InvalidRequest, "Enter the new term in whole years (1-50).");
-                facts["New term"] = $"{commence:MMM d, yyyy}, {years} year{(years == 1 ? "" : "s")}";
+                if ((c.TermYears is null && c.TermMonths is null) || !TermIsValid(c.TermYears, c.TermMonths))
+                    return Block(InvalidRequest, c.TermMonths is null ? "Enter the new term in whole years (1-50)." : "Enter the new term as years and/or months (1 month to 50 years).");
+                var newTerm = DomainRules.NormalizeSpaceTerm(c.TermYears, c.TermMonths);
+                facts["New term"] = $"{commence:MMM d, yyyy}, {DomainRules.DescribeTerm(newTerm.Years, newTerm.Months)}";
                 return new(null, null, version, facts, space, Start: commence, PriorTerm: space.LastTerm, PriorLastDay: last);
             }
             case SpaceLifecycleAction.Retire:
@@ -348,7 +360,8 @@ public sealed class SpaceLifecycleWorkflow(
                     if (arrangement == OccupancyArrangement.SignedContract || account.AreaSqm is not null || account.AreaLocation is not null)
                         successor.SetLeaseDetails(action == SpaceLifecycleAction.Resume ? account.ContractName : command.ContractName,
                             newSigned ? start : null, newSigned ? command.TermYears : null, account.AreaSqm, account.AreaLocation,
-                            action == SpaceLifecycleAction.Resume && arrangement == OccupancyArrangement.SignedContract ? account.ContractMonthlyRate : null);
+                            action == SpaceLifecycleAction.Resume && arrangement == OccupancyArrangement.SignedContract ? account.ContractMonthlyRate : null,
+                            newSigned ? command.TermMonths : null);
                     successor.FollowOccupancy(account);
                     var rate = ObligationRate.Create(actor.TenantId, successor.Id, start, eval.Amount!.Value, actor.Username);
                     db.ObligationAccounts.Add(successor);
@@ -364,8 +377,8 @@ public sealed class SpaceLifecycleWorkflow(
                     evt = SpaceLifecycleEvent.Record(actor.TenantId, registration.Id, action, account.Id, null, commence, execution.ClientOperationId,
                         fingerprint, eval.Version, reason, command.Evidence, actor.UserId, actor.Username, now);
                     // Appended evidence only: no rate, assessment, period or Collection is touched, and the account's own descriptive term is left as recorded.
-                    db.SpaceContractTerms.Add(SpaceContractTerm.Create(actor.TenantId, account.Id, registration.Id, eval.PriorTerm?.Id, commence, command.TermYears!.Value,
-                        command.ContractName, command.Reference, command.Evidence ?? reason, evt.Id, actor.UserId, actor.Username, now));
+                    db.SpaceContractTerms.Add(SpaceContractTerm.Create(actor.TenantId, account.Id, registration.Id, eval.PriorTerm?.Id, commence, command.TermYears ?? 0,
+                        command.ContractName, command.Reference, command.Evidence ?? reason, evt.Id, actor.UserId, actor.Username, now, command.TermMonths));
                     break;
                 }
                 default:

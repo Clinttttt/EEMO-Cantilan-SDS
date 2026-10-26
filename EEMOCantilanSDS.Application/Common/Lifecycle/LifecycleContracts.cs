@@ -119,7 +119,9 @@ public sealed record LifecycleCommand(
     int? TermYears = null,
     string? ContractName = null,
     string? Reference = null,
-    EEMOCantilanSDS.Domain.Enums.OccupancyArrangement? Arrangement = null);
+    EEMOCantilanSDS.Domain.Enums.OccupancyArrangement? Arrangement = null,
+    /// <summary>Reassign (signed)/Renew: extra months beyond TermYears, or the whole term when TermYears is null. Null = a yearly term, as before.</summary>
+    int? TermMonths = null);
 
 /// <summary>The outcome of a preview: whether the command could be executed now, why not, and the state version to confirm.</summary>
 public sealed record LifecyclePreviewDto(
