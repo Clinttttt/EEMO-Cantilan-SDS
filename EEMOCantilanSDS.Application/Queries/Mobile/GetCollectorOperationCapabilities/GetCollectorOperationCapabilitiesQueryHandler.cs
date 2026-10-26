@@ -42,11 +42,24 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
         if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
             return Result<CollectorOperationCapabilitiesDto>.Forbidden();
 
+        var built = await BuildForCollectorAsync(tenantId, collectorId, ct);
+        return built is null
+            ? Result<CollectorOperationCapabilitiesDto>.NotFound()
+            : Result<CollectorOperationCapabilitiesDto>.Success(built);
+    }
+
+    /// <summary>
+    /// The capability facts for one collector of a tenant, from server state only (no caller identity). The collector's own endpoint above and the Head's
+    /// Revenue Sources readiness both read it, so what the Head is told an operation can do is exactly what that collector's app is told. Null when the
+    /// collector is not in this tenant.
+    /// </summary>
+    public async Task<CollectorOperationCapabilitiesDto?> BuildForCollectorAsync(Guid tenantId, Guid collectorId, CancellationToken ct)
+    {
         var collector = await db.CollectorUsers.AsNoTracking()
             .Include(x => x.FacilityAssignments)
             .SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId, ct);
         if (collector is null)
-            return Result<CollectorOperationCapabilitiesDto>.NotFound();
+            return null;
 
         var today = clock.PhilippineToday;
         var assigned = (await db.CollectorOperationAssignments.AsNoTracking()
@@ -125,12 +138,12 @@ public sealed class GetCollectorOperationCapabilitiesQueryHandler(
             operations.Add(await EvaluateWcfAsync(tenantId, collector.IsActive, collectorId, code, name, today, ct));
         }
 
-        return Result<CollectorOperationCapabilitiesDto>.Success(new(collectorId, today, operations.Select(x => x with {
+        return new CollectorOperationCapabilitiesDto(collectorId, today, operations.Select(x => x with {
             Family = x.OperationCode == CollectorOperationCodes.Terminal ? CollectionFamily.Terminal
                 : x.OperationCode == CollectorOperationCodes.Slaughterhouse ? CollectionFamily.Slaughterhouse
                 : CollectorOperationCodes.IsSpaceObligation(x.OperationCode) || x.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental ? CollectionFamily.Space
                 : x.OperationCode == CollectorOperationCodes.NpmDaily ? CollectionFamily.Rent : CollectionFamily.Market
-        }).ToArray()));
+        }).ToArray());
     }
 
     public const string ServiceSetupRequired = "SERVICE_SETUP_REQUIRED";

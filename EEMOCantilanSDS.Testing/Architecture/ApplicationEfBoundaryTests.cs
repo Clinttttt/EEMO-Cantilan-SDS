@@ -225,6 +225,10 @@ public class ApplicationEfBoundaryTests
         // the existing SettlementCutoverWorkflow; it writes nothing itself.
         "WcfActivationWorkflow.cs",
         "EcfActivationWorkflow.cs",
+        // Revenue Sources: adding an operation lists it and creates its revenue source in one transaction (tenant-scoped, version-checked, idempotent); the setup
+        // read reuses the Collector app's own capability evaluation and writes nothing.
+        "AddTenantOperationCommandHandler.cs",
+        "GetOperationSetupQueryHandler.cs",
         // ST-20: the facility-month rent activation reads one facility's stalls and month rows, creates the missing Unpaid rows and proves readiness in one
         // serializable transaction, then drives each row through SettlementCutoverWorkflow; it writes no Collection, authority state or revenue itself.
         "RentActivationWorkflow.cs",
