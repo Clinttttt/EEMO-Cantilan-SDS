@@ -23,7 +23,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 /// balance read only from canonical allocations.
 /// </summary>
 [Collection(PostgresCollection.Name)]
-public sealed class ObligationAccountTests(PostgresFixture db)
+public sealed partial class ObligationAccountTests(PostgresFixture db)
 {
     [SkippableFact]
     public async Task Holder_and_approved_rate_save_atomically_without_repricing_history()

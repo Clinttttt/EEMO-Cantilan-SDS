@@ -101,6 +101,7 @@ public sealed class ContractsMonitoringQueries(AppDbContext db, ICurrentMunicipa
                                OccupancyStart = contract.EffectivityDate,
                                EffectivityDate = contract.Arrangement == OccupancyArrangement.SignedContract ? contract.EffectivityDate : null,
                                DurationYears = contract.Arrangement == OccupancyArrangement.SignedContract && contract.DurationYears > 0 ? contract.DurationYears : null,
+                               DurationMonths = null,
                                Ended = stall.Status == StallStatus.Closed || contract.EndedOn < today || !contract.IsActive && (contract.EndedOn == null || contract.EndedOn < today),
                                ClosureDate = stall.Status == StallStatus.Closed ? stall.ClosedAt : contract.EndedOn,
                                ApprovedCharge = facility.Archetype == BillingArchetype.MonthlyRental ? contract.ActualMonthlyRental ?? contract.MonthlyRentalRate : null,
