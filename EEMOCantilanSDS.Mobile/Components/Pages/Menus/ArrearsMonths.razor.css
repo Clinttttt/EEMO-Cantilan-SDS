@@ -1,39 +1,68 @@
-/* Collect arrears on a monthly facility's stall: the month picker is New Collection's own (SpaceMonthsView); this page only adds the collect bar and one sheet. */
-.am-who { display: flex; flex-direction: column; gap: 2px; margin: 2px 2px 12px; }
-.am-who strong { font-size: 16px; color: var(--mobile-navy); }
-.am-who small { font-size: 13px; color: var(--mobile-text-secondary); }
-.am-done { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-blue-subtle); font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
-.am-note { margin: 10px 2px; font-size: 13px; color: var(--mobile-text-secondary); text-align: center; }
-.am-more { display: block; width: 100%; min-height: 46px; margin: 6px 0; border: 1px solid var(--mobile-blue); border-radius: 12px; background: transparent; color: var(--mobile-blue); font-size: 14px; font-weight: 600; }
-.am-bar { position: sticky; bottom: 0; margin: 12px -2px 0; padding: 10px 2px calc(10px + env(safe-area-inset-bottom)); background: linear-gradient(to top, var(--mobile-bg, #edf2fa) 70%, transparent); }
-.am-bar .am-primary { width: 100%; min-height: 48px; border-radius: 12px; font-size: 15px; font-weight: 600; }
-.am-more:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: -3px; }
+/* Collect arrears: the New Collection screen's own surfaces (copied from CollectionSessionEditor, whose styles are scoped), so both read as one. */
+.collection-entry { margin-bottom: 14px; padding: 14px 16px 18px; border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); }
+.collection-entry h2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
+.collection-entry p, .collection-message { font-size: 13px; color: var(--mobile-text-secondary); }
+.collection-entry > p { margin: 10px 0 2px; }
+.collection-entry > p:last-child { margin-bottom: 0; }
+.collection-message { margin: 10px 2px 0; text-align: center; }
+.collection-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--mobile-border); font-size: 13px; }
+.collection-option { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 0; background: transparent; border: 0; border-bottom: 1px solid var(--mobile-border); color: var(--mobile-text); text-align: left; font-size: 14px; }
+.collection-link { border: 0; background: transparent; padding: 8px 8px 8px 0; color: var(--mobile-blue); font-size: 12px; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
 
-.am-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(15, 23, 42, .45); }
-.am-sheet { width: 100%; max-height: 90vh; overflow-y: auto; padding: 18px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 18px 18px 0 0; background: var(--mobile-surface); }
-.am-sheet-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.am-sheet-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--mobile-navy); }
-.am-sheet-amount { font-size: 18px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
-.am-field { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--mobile-text-secondary); }
-.am-field span { font-weight: 400; }
-.am-input { display: block; width: 100%; min-height: 46px; margin-bottom: 12px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
-.am-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); outline: none; }
-.am-hint { margin: -4px 0 12px; font-size: 13px; line-height: 1.4; color: var(--mobile-text-secondary); }
-.am-error { margin: 0 0 12px; font-size: 13px; color: var(--mobile-danger, #b42318); }
-.am-actions { display: flex; gap: 10px; }
-.am-actions > button { flex: 1 1 0; min-height: 46px; border-radius: 12px; font-size: 14px; font-weight: 600; }
-.am-primary { border: 1px solid var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
-.am-primary:disabled { opacity: .5; }
-.am-cancel { border: 1px solid var(--mobile-border); background: transparent; color: var(--mobile-text); }
-.am-primary:focus-visible, .am-cancel:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2px; }
+.collection-small { flex: 0 0 auto; min-height: 44px; padding: 0 16px; border: 1px solid var(--mobile-blue); border-radius: 10px; background: transparent; color: var(--mobile-blue); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.collection-row > .collection-small { min-height: 36px; padding: 0 12px; }
+.collection-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 4px 0 20px; }
+.collection-actions-one { grid-template-columns: 1fr; }
+.collection-primary, .collection-secondary { min-height: 46px; padding: 0 12px; border-radius: 12px; font-size: 14px; font-weight: 600; }
+.collection-primary { border: 1px solid var(--mobile-blue); background: var(--mobile-blue); color: #ffffff; }
+.collection-secondary { border: 1px solid var(--mobile-blue); background: transparent; color: var(--mobile-blue); }
+.collection-small:disabled, .collection-secondary:disabled, .collection-primary:disabled { opacity: 1; cursor: not-allowed; }
+.collection-small:disabled, .collection-secondary:disabled { border-color: #c3cfdc; color: #46586d; background: transparent; }
+.collection-primary:disabled { border-color: #d5dde7; background: #d5dde7; color: #3b4d62; }
 
-/* Loading: the picker's shape (summary, then months), not a line of text. */
-.sk { display: block; border-radius: 6px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
+.collection-entry .form-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
+.collection-entry .form-optional { font-weight: 400; color: var(--mobile-text-secondary); }
+.collection-entry .form-input, .sheet .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
+.collection-entry .form-input:focus, .sheet .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
+.sheet .form-field { display: block; margin: 0 0 14px; }
+.sheet .form-field .form-input { display: block; width: 100%; box-sizing: border-box; }
+.form-field.sheet-receipt { padding-top: 16px; }
+
+.payer-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; }
+.payer-name { min-width: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--mobile-navy); }
+.payer-option-text { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.payer-option-text small { margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--mobile-text-secondary); }
+
+.item-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--mobile-border); }
+.item-row:last-child { border-bottom: 0; }
+.item-main { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; }
+.item-name { font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.item-context { margin-top: 2px; font-size: 12px; color: var(--mobile-text-secondary); }
+.item-actions { display: flex; gap: 4px; margin-top: 2px; }
+.item-amount { display: flex; flex-direction: column; align-items: flex-end; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.item-amount strong { font-size: 14px; color: var(--mobile-navy); }
+.item-amount span { margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--mobile-text-secondary); }
+
+.review-summary { padding-top: 6px; padding-bottom: 12px; }
+.review-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--mobile-border); font-size: 14px; color: var(--mobile-text-secondary); font-variant-numeric: tabular-nums; }
+.review-row strong { font-weight: 600; color: var(--mobile-navy); }
+.review-total { padding-top: 12px; border-bottom: 0; font-size: 15px; font-weight: 700; color: var(--mobile-navy); }
+.review-total strong { font-size: 20px; font-weight: 700; }
+.review-problem { margin: 8px 0 12px; padding: 8px 10px; border-left: 3px solid var(--mobile-danger); border-radius: 0 6px 6px 0; background: var(--mobile-danger-subtle); font-size: 13px; line-height: 1.4; color: var(--mobile-text); }
+.review-problem strong { margin-right: 6px; color: var(--mobile-danger); }
+
+.collection-available-fees { display: grid; gap: 5px; margin: 12px 0; min-width: 0; }
+.collection-available-caption { color: #526984; font-size: 12px; font-weight: 700; margin-bottom: 3px; }
+.collection-available-fees .collection-option { background: #f6f9fd; border: 1px solid #dee8f5; border-radius: 9px; padding: 11px 12px; min-width: 0; }
+.option-text { display: flex; flex-direction: column; min-width: 0; gap: 3px; overflow-wrap: anywhere; }
+.option-text strong { font-size: 13px; color: #1a3f69; }
+.option-text small { font-size: 11px; color: #637891; }
+
+/* Loading: the screen's own shape (Source, then Items), not a line of text. */
+.sk { display: block; border-radius: 14px; background: var(--mobile-border); animation: sk-pulse 1.4s ease-in-out infinite; }
 @keyframes sk-pulse { 50% { opacity: .55; } }
 @media (prefers-reduced-motion: reduce) { .sk { animation: none; } }
-.sk-card { height: 96px; margin-bottom: 12px; border-radius: 14px; }
-.sk-list { border: 1px solid var(--mobile-border); border-radius: 14px; background: var(--mobile-surface); overflow: hidden; }
-.sk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 0 14px; border-bottom: 1px solid var(--mobile-border); }
-.sk-row:last-child { border-bottom: 0; }
-.sk-name { width: 40%; height: 14px; }
-.sk-amt { width: 76px; height: 14px; }
+.sk-source { height: 88px; margin-bottom: 14px; }
+.sk-items { height: 180px; }
