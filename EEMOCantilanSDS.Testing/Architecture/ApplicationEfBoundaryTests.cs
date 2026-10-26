@@ -225,6 +225,11 @@ public class ApplicationEfBoundaryTests
         // the existing SettlementCutoverWorkflow; it writes nothing itself.
         "WcfActivationWorkflow.cs",
         "EcfActivationWorkflow.cs",
+        // ST-20: the facility-month rent activation reads one facility's stalls and month rows, creates the missing Unpaid rows and proves readiness in one
+        // serializable transaction, then drives each row through SettlementCutoverWorkflow; it writes no Collection, authority state or revenue itself.
+        "RentActivationWorkflow.cs",
+        // ST-20: preserves one older legacy monthly-rent payload as a ReconciliationRequired PostingOperation (idempotent, no Collection or balance).
+        "LegacyRentPayloadReconciliation.cs",
         "BusinessPayorWorkflow.cs",
         // WCF Mobile collection enablement: derives readiness from WCF policy, assignments, Cash Ticket custody and WCF
         // postings awaiting review, and writes the one tenant activation row with its audit entry in one transaction.
