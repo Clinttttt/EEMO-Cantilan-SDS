@@ -39,6 +39,8 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     public string? ContractName { get; private set; }
     public DateOnly? ContractEffectiveDate { get; private set; }
     public int? ContractYears { get; private set; }
+    /// <summary>Extra months beyond <see cref="ContractYears"/> (1-11); for a months-only term ContractYears is 0. Null = a yearly contract, exactly as before.</summary>
+    public int? ContractMonths { get; private set; }
     public decimal? AreaSqm { get; private set; }
     public string? AreaLocation { get; private set; }
     /// <summary>
@@ -170,7 +172,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
 
     /// <summary>Stores source-native descriptive evidence; never changes assessment or account lifecycle.</summary>
     public void SetLeaseDetails(string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
-        decimal? contractMonthlyRate = null)
+        decimal? contractMonthlyRate = null, int? months = null)
     {
         if (!IsMonthlySpaceKind(Kind))
             throw new ArgumentException("Lease details apply only to monthly space accounts.");
@@ -184,15 +186,15 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Lease name/location exceeds allowed length.");
         if (area is < 0m or > 1000000m || area is { } sqm && decimal.Round(sqm, 2) != sqm)
             throw new ArgumentException("Area must be a nonnegative number with up to two decimals.");
-        if (Arrangement != OccupancyArrangement.SignedContract && (name is not null || contractDate is not null || years is not null))
+        if (Arrangement != OccupancyArrangement.SignedContract && (name is not null || contractDate is not null || years is not null || months is not null))
             throw new ArgumentException("Signed contract evidence requires signed contract occupancy.");
-        if (years is not null && years is < 1 or > 50)
-            throw new ArgumentException("Contract duration must be between 1 and 50 years.");
+        var term = DomainRules.NormalizeSpaceTerm(years, months);
         if (contractDate is { } date && (date.Year != ActiveFrom.Year || date.Month != ActiveFrom.Month))
             throw new ArgumentException("Contract effective date and billing start must be within the same month.");
         ContractName = name;
         ContractEffectiveDate = contractDate;
-        ContractYears = years;
+        ContractYears = term.Years;
+        ContractMonths = term.Months;
         AreaSqm = area is 0m ? null : area;
         AreaLocation = note;
         ContractMonthlyRate = contractMonthlyRate is 0m ? null : contractMonthlyRate;
@@ -202,7 +204,7 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
     /// moving occupancy to another person requires closure and a new accountable term instead.</summary>
     public void CorrectHolderEvidence(string actualOccupant, OccupancyArrangement arrangement, string? reference,
         string? contractName, DateOnly? contractDate, int? years, decimal? area, string? location,
-        bool hasAssessedPeriods, decimal? contractMonthlyRate = null)
+        bool hasAssessedPeriods, decimal? contractMonthlyRate = null, int? months = null)
     {
         if (!IsMonthlySpaceKind(Kind) || ActiveTo is not null)
             throw new ArgumentException("Only active monthly space accounts may correct holder details.");
@@ -211,11 +213,18 @@ public sealed class ObligationAccount : BaseEntity, IMunicipalityOwned
             throw new ArgumentException("Enter an actual occupant up to 200 characters.");
         if ((hasAssessedPeriods || PayorId is not null) && !string.Equals(holder, ActualOccupant, StringComparison.Ordinal))
             throw new ArgumentException("This account has assessed history or a linked Payor. Close it and open a successor for a different occupant.");
-        if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || years != ContractYears))
+        if (hasAssessedPeriods && (arrangement != Arrangement || contractDate != ContractEffectiveDate || !SameTerm(years, months)))
             throw new ArgumentException("Recorded lease basis, start and term are locked after assessment. Correct descriptive notes only.");
         SetOccupancyBasis(arrangement, reference);
-        SetLeaseDetails(contractName, contractDate, years, area, location, contractMonthlyRate);
+        SetLeaseDetails(contractName, contractDate, years, area, location, contractMonthlyRate, months);
         ActualOccupant = holder;
+    }
+
+    // Compared in canonical form so "12 months" and "1 year" are one term; an unrecorded term stays unrecorded.
+    private bool SameTerm(int? years, int? months)
+    {
+        try { var t = DomainRules.NormalizeSpaceTerm(years, months); return t.Years == ContractYears && t.Months == ContractMonths; }
+        catch (ArgumentException) { return false; }
     }
 
     /// <summary>

@@ -122,7 +122,7 @@ public sealed class SpaceContractTermConfiguration : IEntityTypeConfiguration<Sp
     public void Configure(EntityTypeBuilder<SpaceContractTerm> builder)
     {
         builder.ToTable("SpaceContractTerms", table =>
-            table.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 1 AND 50"));
+            table.HasCheckConstraint("CK_SpaceContractTerms_Years", "\"Years\" BETWEEN 0 AND 50 AND (\"Years\" >= 1 OR \"Months\" IS NOT NULL) AND (\"Months\" IS NULL OR \"Months\" BETWEEN 1 AND 11)"));
         builder.HasKey(x => x.Id);
         builder.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         builder.Property(x => x.ContractName).HasMaxLength(200);
