@@ -20,7 +20,7 @@ public class InitiateOnlinePaymentCommandHandler(
     IPaymentGateway paymentGateway,
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork, IClock clock) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
     public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
@@ -87,16 +87,29 @@ public class InitiateOnlinePaymentCommandHandler(
             isNewRecord = true;
         }
 
-        if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(
-                "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
-                ResultStatus.Conflict);
+        // A Canonical row is charged its canonical rent outstanding (the figure settlement will post and require); a
+        // transitioning row is paused; a Legacy row keeps its legacy balance.
+        decimal amount;
+        if (record.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
+        {
+            var quote = await canonicalRent.QuoteAsync(record, cancellationToken);
+            if (!quote.Payable)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "Online checkout is not available for this rent period right now. " + quote.Reason, ResultStatus.Conflict);
+            amount = quote.Amount;
+        }
+        else
+        {
+            if (record.SettlementAuthorityState != SettlementAuthority.Legacy)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "Online checkout is paused while this monthly source is transitioning to canonical settlement. Contact the office for reconciliation.",
+                    ResultStatus.Conflict);
 
-        // Only an outstanding balance is payable (full balance — no partial online payments in v1).
-        if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
-            return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
-
-        var amount = record.BalanceDue;
+            // Only an outstanding balance is payable (full balance — no partial online payments in v1).
+            if (record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
+                return Result<InitiateOnlinePaymentResultDto>.Failure("This period has no outstanding balance.", ResultStatus.Conflict);
+            amount = record.BalanceDue;
+        }
 
         // If the payor already has an unfinished checkout for this period (e.g. they backed out), send them back to the
         // SAME session rather than opening a duplicate — that is the double-payment guard. Only while it still asks for

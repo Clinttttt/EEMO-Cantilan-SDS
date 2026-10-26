@@ -33,6 +33,7 @@ namespace EEMOCantilanSDS.Application
                 Common.Interface.Services.IOnlinePaymentSettlementService,
                 Common.Payments.OnlinePaymentSettlementService>();
 
+            services.AddScoped<Common.Payments.OnlineRentCanonicalPoster>();
             services.AddScoped<Common.Payments.NpmMonthSettlementService>();
             services.AddScoped<Common.Payments.INpmMonthSettlementService, Common.Payments.NpmMonthSettlementBridge>();
             // Deliberately not bound to configuration: no setting can activate an unfinished source.

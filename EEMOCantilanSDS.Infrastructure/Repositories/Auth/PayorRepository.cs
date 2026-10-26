@@ -288,8 +288,8 @@ public class PayorRepository(
                 items.Add(new PayorPayableItemDto(
                     stall.Id, stall.StallNo, facility, r.BillingYear, r.BillingMonth, r.PeriodKey, r.BalanceDue)
                 {
-                    // Initiate refuses a source that is not on legacy authority; the button must not be offered either.
-                    PayableOnline = r.SettlementAuthorityState == SettlementAuthority.Legacy
+                    // Initiate pauses a source that is transitioning (PendingCutover); Legacy and Canonical rows are payable.
+                    PayableOnline = r.SettlementAuthorityState != SettlementAuthority.PendingCutover
                 });
             }
 
