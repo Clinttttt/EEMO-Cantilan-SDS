@@ -418,8 +418,10 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
                     return Fail("SourceNotAvailable", "No approved Official Receipt policy is effective for this rental.");
+                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber) && !CollectorOperationCodes.IsSpaceObligation(operationCode))
+                    return Fail("ReceiptNotSupported", "An Official Receipt number cannot be entered for this rental yet. Clear it to record the SRC.");
                 if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber)
-                    && (!CollectorOperationCodes.IsSpaceObligation(operationCode) || (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false }))
+                    && (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false })
                     return Fail("ReceiptUnavailable", "The Official Receipt must be registered, unused and in your accountable-form custody.");
                 return (Q(operationCode, quote.KindLabel, $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
                     RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, new { quote.AccountId, quote.PeriodId,

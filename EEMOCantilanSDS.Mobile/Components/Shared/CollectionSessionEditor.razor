@@ -243,7 +243,7 @@ else
             }
             @if (Correction is null && SpaceReceiptEntry.Applies(_items))
             {
-                <label class="form-field"><span class="form-label">Official Receipt No. <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
+                <label class="form-field sheet-receipt"><span class="form-label">Official Receipt No. <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
                 <div class="sheet-note">@(_items.Count > 1 ? "One receipt for all of these months. Leave blank to record each month on its own." : "Leave blank if no receipt has been issued.")</div>
             }
         </section>

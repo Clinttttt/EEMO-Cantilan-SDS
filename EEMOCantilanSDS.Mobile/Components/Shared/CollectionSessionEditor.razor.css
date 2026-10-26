@@ -172,3 +172,6 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-monthly-route > strong { font-size: 13px; color: #204f8b; }
 .collection-monthly-route p { font-size: 12px; line-height: 1.5; color: #506781; margin: 0; }
 .collection-monthly-route .collection-small { justify-self: start; }
+
+/* The one-receipt field sits under the item list's divider: breathing room above its label so it does not crowd the line. */
+.form-field.sheet-receipt { padding-top: 16px; }
