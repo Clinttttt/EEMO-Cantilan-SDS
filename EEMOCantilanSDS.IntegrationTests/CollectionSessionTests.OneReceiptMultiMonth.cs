@@ -3,9 +3,10 @@ using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
-using EEMOCantilanSDS.Infrastructure.Repositories.Reports;
+using EEMOCantilanSDS.Infrastructure.Repositories;
 using EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 using Microsoft.EntityFrameworkCore;
 
@@ -147,7 +148,7 @@ public sealed partial class CollectionSessionTests
         var voided = await mobile.RemoveAsync(new(Guid.NewGuid(), id, new(MobileCorrectionReason.EnteredByMistake)));
         Assert.True(voided.IsSuccess, voided.Error);
         var correction = await db.CollectionCorrections.Include(c => c.Lines).SingleAsync();
-        Assert.Equal(-1_400m, correction.Amount);
+        Assert.Equal(-1_400m, correction.FinancialEffectAmount);
         Assert.Equal(2, correction.Lines.Count);
         var after = await OrRegisterAsync(s);
         Assert.Equal(1_000m, after.Single(p => p.PeriodStart == new DateOnly(Today.Year, 4, 1)).OutstandingAmount);          // balances are owed again
