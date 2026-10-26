@@ -8,8 +8,8 @@ using MediatR;
 
 namespace EEMOCantilanSDS.Application.Queries.Mobile.GetMobileUnpaidMonths;
 
-/// <summary>The unpaid months of one stall's CURRENT contract that are still collected on the facility's own monthly operation.</summary>
-public sealed record GetMobileUnpaidMonthsQuery(Guid StallId) : IRequest<Result<IReadOnlyList<MobileUnpaidMonthDto>>>;
+/// <summary>The unpaid months of one contract of a stall that are still collected on the facility's own monthly operation: the current contract, or (with <c>ContractId</c>) the former contract an Arrears row belongs to.</summary>
+public sealed record GetMobileUnpaidMonthsQuery(Guid StallId, Guid? ContractId = null) : IRequest<Result<IReadOnlyList<MobileUnpaidMonthDto>>>;
 
 /// <summary>
 /// A collector sees a stall's unpaid months only for a facility they are assigned to, and only the rows whose money is still authoritative on the legacy monthly
@@ -30,12 +30,19 @@ public sealed class GetMobileUnpaidMonthsQueryHandler(
         // A daily-billed market is collected from its daily calendar; there is no monthly record to settle.
         if (stall.Facility.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket) return Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success([]);
 
+        // A contract is named only for a stall it belongs to: a former lessee's months are collected on THEIR contract, never mixed into a successor's.
+        if (request.ContractId is { } contractId && !stall.Contracts.Any(c => c.Id == contractId)) return Result<IReadOnlyList<MobileUnpaidMonthDto>>.NotFound();
+
         var today = clock.PhilippineToday;
+        // The contract whose months these are: the one named, else the occupancy in force now.
+        var contract = request.ContractId is { } named ? stall.Contracts.First(c => c.Id == named) : stall.Occupancies(today).LastOrDefault()?.Contract;
         var thisMonth = new DateOnly(today.Year, today.Month, 1);
-        var rows = await ledger.GetOutstandingMonthsAsync(request.StallId, null, null, ct);
+        var rows = await ledger.GetOutstandingMonthsAsync(request.StallId, request.ContractId, null, ct);
         var months = rows
             .Where(r => r.BalanceDue > 0m && r.SettlementAuthority == SettlementAuthority.Legacy
-                && DateOnly.TryParseExact(r.Period + "-01", "yyyy-MM-dd", out var start) && start < thisMonth)
+                && DateOnly.TryParseExact(r.Period + "-01", "yyyy-MM-dd", out var start) && start < thisMonth
+                // The same billing rule the Arrears register uses (a term of N years bills N x 12 months, never the anniversary month), so this list and the Arrears total agree.
+                && (contract is null || contract.BillsCalendarMonth(start.Year, start.Month)))
             .Select(r => new MobileUnpaidMonthDto(int.Parse(r.Period[..4]), int.Parse(r.Period[5..7]), r.TotalBill, r.AmountPaid, r.BalanceDue))
             .OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
         return Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success(months);

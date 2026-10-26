@@ -37,7 +37,7 @@ public interface IMobileApiClient
         Task.FromResult(Result<FishMeatRegistrationRequestDto>.Failure("Registration requests unavailable."));
     Task<Result<NpmRegistrationRequestPage>> GetNpmRequestsAsync(int page = 1, int pageSize = 25) => Task.FromResult(Result<NpmRegistrationRequestPage>.Failure("Registration requests unavailable."));
     /// <summary>Bounded, category-filtered pages of the registered sources assigned to this collector. Online only; nothing is cached or computed here.</summary>
-    Task<Result<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync(Guid stallId) => Task.FromResult(Result<IReadOnlyList<MobileUnpaidMonthDto>>.Failure("Unpaid months are unavailable."));
+    Task<Result<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync(Guid stallId, Guid? contractId = null) => Task.FromResult(Result<IReadOnlyList<MobileUnpaidMonthDto>>.Failure("Unpaid months are unavailable."));
     Task<Result<ArrearsWorkspaceDto>> GetArrearsWorkspaceAsync() => Task.FromResult(Result<ArrearsWorkspaceDto>.Failure("Arrears are unavailable."));
     Task<Result<HistoricalAccessCodeDto>> IssueHistoricalAccessCodeAsync(IssueHistoricalAccessRequest request) => Task.FromResult(Result<HistoricalAccessCodeDto>.Failure("Code issuance is unavailable."));
     Task<Result<CollectionSourcePage>> BrowseCollectionSourcesAsync(string? category, string? search, int skip, int take) => Task.FromResult(Result<CollectionSourcePage>.Failure("Source browsing unavailable."));

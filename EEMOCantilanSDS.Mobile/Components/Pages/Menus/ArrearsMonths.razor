@@ -111,7 +111,7 @@
         _state = State.Loading;
         try
         {
-            var result = await Api.GetUnpaidMonthsAsync(Stall);
+            var result = await Api.GetUnpaidMonthsAsync(Stall, Contract == Guid.Empty ? null : Contract);
             if (result.IsSuccess && result.Value is { } months) { _months = months; _picked.RemoveWhere(k => !months.Any(m => Key(m.Year, m.Month) == k)); _state = State.Ready; }
             else _state = State.Offline;
         }

@@ -308,8 +308,8 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
 
     // The unpaid months of one stall's current contract that are still collected on the facility's own monthly operation (a delinquent month is paid from here).
     [HttpGet("monthly/unpaid-months")]
-    public async Task<ActionResult<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync([FromQuery] Guid stallId) =>
-        HandleResponse(await Sender.Send(new GetMobileUnpaidMonthsQuery(stallId)));
+    public async Task<ActionResult<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync([FromQuery] Guid stallId, [FromQuery] Guid? contractId = null) =>
+        HandleResponse(await Sender.Send(new GetMobileUnpaidMonthsQuery(stallId, contractId)));
 
     [HttpPost("monthly/collections/record")]
     public async Task<ActionResult<bool>> RecordMonthlyCollectionAsync([FromBody] RecordMobileMonthlyCollectionRequest request)
