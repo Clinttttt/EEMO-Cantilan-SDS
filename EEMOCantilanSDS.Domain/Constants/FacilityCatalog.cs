@@ -6,7 +6,9 @@ namespace EEMOCantilanSDS.Domain.Constants
     /// Canonical presentation defaults for the 8 standard facility types. Used when offering a facility a
     /// tenant has not configured yet (the "available to add" list) and as the seed defaults when one is
     /// added. Rates and billing behaviour remain per-LGU data (<c>FacilityRate</c> / <c>BillingArchetype</c>);
-    /// this only supplies a sensible name/short-name so the UI never shows a bare enum code.
+    /// this only supplies a sensible name/short-name so the UI never shows a bare enum code. The names are municipality-NEUTRAL (the
+    /// codes stay the stable identity, the Head names the facility in their own words on adding it), and the two commercial centers stay
+    /// distinguishable: TCC is "Commercial Center", NCC is "New Commercial Center". Nothing here renames a facility already configured.
     /// </summary>
     public static class FacilityCatalog
     {
@@ -30,14 +32,14 @@ namespace EEMOCantilanSDS.Domain.Constants
 
         public static (string Name, string ShortName) Defaults(FacilityCode code) => code switch
         {
-            FacilityCode.NPM => ("New Public Market", "NPM"),
-            FacilityCode.TCC => ("Tampak Commercial Center", "TCC"),
+            FacilityCode.NPM => ("Public Market", "NPM"),
+            FacilityCode.TCC => ("Commercial Center", "TCC"),
             FacilityCode.NCC => ("New Commercial Center", "NCC"),
             FacilityCode.BBQ => ("Barbecue Stand", "BBQ"),
             FacilityCode.ICE => ("Iceplant", "ICE"),
             FacilityCode.SLH => ("Slaughterhouse", "SLH"),
             FacilityCode.TRM => ("Transport Terminal", "TRM"),
-            FacilityCode.TPM => ("Tabo-an Public Market", "TPM"),
+            FacilityCode.TPM => ("Weekly Market", "TPM"),
             // Custom slots have no canonical name — the Head names them; this is only a placeholder.
             _ => ("Custom Facility", "CUS"),
         };
