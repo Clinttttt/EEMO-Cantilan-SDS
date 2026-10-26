@@ -15,13 +15,7 @@ public class RenewStallContractCommandValidator : AbstractValidator<RenewStallCo
         // very case the arrangement exists to record. The same condition the create form already applies.
         RuleFor(x => x.DurationYears)
             .GreaterThan(0).WithMessage("Contract duration must be at least 1 year.")
-            .When(x => x.Arrangement == OccupancyArrangement.SignedContract && !(x.DurationMonths is > 0));
-        RuleFor(x => x.DurationMonths!.Value)
-            .InclusiveBetween(1, 11).WithMessage("Months must be between 1 and 11.")
-            .When(x => x.DurationMonths is > 0 && x.Arrangement == OccupancyArrangement.SignedContract);
-        RuleFor(x => x.DurationYears)
-            .InclusiveBetween(0, 50).WithMessage("Contract duration cannot exceed 50 years.")
-            .When(x => x.DurationMonths is > 0);
+            .When(x => x.Arrangement == OccupancyArrangement.SignedContract);
 
         RuleFor(x => x.ActualOccupant).NotEmpty().WithMessage("Occupant is required.");
 

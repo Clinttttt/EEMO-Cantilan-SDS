@@ -45,16 +45,7 @@ public class CreateStallCommandValidator : AbstractValidator<CreateStallCommand>
             .LessThanOrEqualTo(10).WithMessage("Contract duration cannot exceed 10 years")
             // Only a signed contract has a term. A space-only or extension occupancy runs until the office ends it,
             // so asking for a number of years would be asking for something the office does not have.
-            .When(x => x.Arrangement == OccupancyArrangement.SignedContract && !(x.ContractMonths is > 0));
-
-        // A Custom Space Rental term may carry months: 0 years + 1-11 months, or years + months, up to 10 years in all.
-        RuleFor(x => x.ContractMonths!.Value)
-            .InclusiveBetween(1, 11).WithMessage("Months must be between 1 and 11.")
-            .When(x => x.ContractMonths is > 0 && x.Arrangement == OccupancyArrangement.SignedContract);
-        RuleFor(x => x.ContractYears)
-            .InclusiveBetween(0, 10).WithMessage("Contract duration cannot exceed 10 years")
-            .Must((x, years) => years * 12 + x.ContractMonths!.Value <= 120).WithMessage("Contract duration cannot exceed 10 years")
-            .When(x => x.Arrangement == OccupancyArrangement.SignedContract && x.ContractMonths is > 0);
+            .When(x => x.Arrangement == OccupancyArrangement.SignedContract);
 
         RuleFor(x => x.NameOnContract)
             .Empty().WithMessage("There is no signed contract, so there is no leasee name on one to record.")

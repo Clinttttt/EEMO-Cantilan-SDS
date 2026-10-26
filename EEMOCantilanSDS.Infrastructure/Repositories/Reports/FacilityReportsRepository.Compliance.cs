@@ -335,8 +335,7 @@ public partial class FacilityReportsRepository
                 fishKilosByStall.GetValueOrDefault(s.Id), totalBill,
                 reviewedMonth is null ? null : reviewedMonth.Position.Assessment - reviewedMonth.Position.Credits,
                 // Only the delinquency source counts a span of its own; it is the one reader that classifies each month.
-                countMissedFrom is null ? null : missedDetail,
-                contract?.DurationMonths));
+                countMissedFrom is null ? null : missedDetail));
         }
 
         return rows.OrderBy(r => NaturalStallSortKey(r.StallNo), StringComparer.Ordinal).ToList();

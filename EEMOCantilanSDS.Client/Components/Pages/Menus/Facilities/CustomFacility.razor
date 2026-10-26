@@ -109,7 +109,7 @@ else
             ContractDate = dto.ContractDate,
             MonthlyRate = dto.MonthlyRate,
             IsActive = dto.Status == StallStatus.Active,
-            IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, dto.ContractMonths, PhilippineTime.Now),
+            IsTermExpired = DomainRules.TermHasExpired(dto.ContractDate, dto.ContractYears, PhilippineTime.Now),
             ORNumber = orNumber,
             IsPaid = isPaid,
             IsPartial = isPartial,

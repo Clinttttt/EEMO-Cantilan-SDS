@@ -51,7 +51,7 @@ public partial class StallRepository
                 Contract = s.Contracts
                     .Where(c => c.IsActive)
                     .OrderByDescending(c => c.EffectivityDate)
-                    .Select(c => new { c.ActualOccupant, c.EffectivityDate, c.DurationYears, c.DurationMonths })
+                    .Select(c => new { c.ActualOccupant, c.EffectivityDate, c.DurationYears })
                     .FirstOrDefault()
             })
             .ToListAsync(ct);
@@ -60,7 +60,7 @@ public partial class StallRepository
         foreach (var s in rows)
         {
             if (s.Contract is null) continue;
-            var expiry = DomainRules.TermLastDay(s.Contract.EffectivityDate, s.Contract.DurationYears, s.Contract.DurationMonths);
+            var expiry = DomainRules.TermLastDay(s.Contract.EffectivityDate, s.Contract.DurationYears);
             var expired = asOf > expiry;
             var expiringSoon = !expired && expiry <= horizon;
             if (!expired && !expiringSoon) continue;

@@ -151,16 +151,16 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
         }
         var quotes = new List<RentObligationQuoteDto>();
         var periods = stalls.SelectMany(stall => stall.Contracts
-                .Where(contract => contract.PayorId == payorId && contract.TermMonths > 0)
+                .Where(contract => contract.PayorId == payorId && contract.DurationYears > 0)
                 .SelectMany(contract =>
                 {
                     var start = new DateOnly(contract.EffectivityDate.Year, contract.EffectivityDate.Month, 1);
-                    var expiry = contract.ExpiryDate;
+                    var expiry = Contract.ComputeExpiry(contract.EffectivityDate, contract.DurationYears);
                     var latest = businessDate < expiry ? businessDate : expiry;
                     var end = new DateOnly(latest.Year, latest.Month, 1);
                     var result = new List<(Stall Stall, int Year, int Month)>();
                     for (var month = start; month <= end; month = month.AddMonths(1))
-                        if (ContractMonthBills(contract.TermMonths, contract.EffectivityDate, month.Year, month.Month))
+                        if (ContractMonthBills(contract.DurationYears, contract.EffectivityDate, month.Year, month.Month))
                             result.Add((stall, month.Year, month.Month));
                     return result;
                 }))
@@ -339,11 +339,11 @@ public sealed class MonthlyRentCollectionSourceAdapter(IAppDbContext db)
         RevenueClassification Classification,
         RevenueClassificationPolicy Policy);
 
-    private static bool ContractMonthBills(int termMonths, DateOnly effectivityDate, int year, int month)
+    private static bool ContractMonthBills(int durationYears, DateOnly effectivityDate, int year, int month)
     {
-        if (termMonths <= 0) return false;
+        if (durationYears <= 0) return false;
         var first = effectivityDate.Year * 12 + effectivityDate.Month - 1;
         var asked = year * 12 + month - 1;
-        return asked >= first && asked < first + termMonths;
+        return asked >= first && asked < first + durationYears * 12;
     }
 }

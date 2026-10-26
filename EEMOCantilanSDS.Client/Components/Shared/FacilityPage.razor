@@ -552,8 +552,7 @@
             VendorForm.ContractYears,
             CustomSectionName: npmCustomSection,
             ReuseVacatedStall: _takeOverVacatedStall,
-            Arrangement: VendorForm.Arrangement,
-            ContractMonths: VendorForm.ContractMonths > 0 ? VendorForm.ContractMonths : null);
+            Arrangement: VendorForm.Arrangement);
 
         var result = await StallsApi.CreateStallAsync(command);
 

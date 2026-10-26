@@ -23,16 +23,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         public string? NameOnContract { get; private set; }
         public DateOnly EffectivityDate { get; private set; }
         public int DurationYears { get; private set; }
-
-        /// <summary>
-        /// Extra months beyond <see cref="DurationYears"/> (1-11), only ever set for a Custom Space Rental facility: the term is then
-        /// DurationYears × 12 + DurationMonths calendar months (a months-only term has 0 years). Null is a yearly term, which is every
-        /// contract recorded before this existed and every other facility.
-        /// </summary>
-        public int? DurationMonths { get; private set; }
-
-        /// <summary>The whole term in calendar months.</summary>
-        public int TermMonths => DurationYears * 12 + (DurationMonths ?? 0);
         public decimal MonthlyRentalRate { get; private set; }
         public decimal? ActualMonthlyRental { get; private set; }
         public bool IsActive { get; private set; } = true;
@@ -66,7 +56,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             UpdatedBy = updatedBy;
         }
 
-        public DateOnly ExpiryDate => ComputeExpiry(EffectivityDate, DurationYears, DurationMonths);
+        public DateOnly ExpiryDate => ComputeExpiry(EffectivityDate, DurationYears);
 
         /// <summary>
         /// The single source of the contract-expiry formula: the last day INSIDE the term, which is the day before the
@@ -82,10 +72,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// </remarks>
         public static DateOnly ComputeExpiry(DateOnly effectivityDate, int durationYears) =>
             DomainRules.TermLastDay(effectivityDate, durationYears);
-
-        /// <summary>Month-aware form: a yearly term (months null) returns exactly the year result.</summary>
-        public static DateOnly ComputeExpiry(DateOnly effectivityDate, int durationYears, int? durationMonths) =>
-            DomainRules.TermLastDay(effectivityDate, durationYears, durationMonths);
 
         /// <summary>
         /// Whether this term owes rent for the given calendar month, for a MONTHLY-billed space.
@@ -104,11 +90,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// </summary>
         public bool BillsCalendarMonth(int year, int month)
         {
-            if (TermMonths <= 0) return false;
+            if (DurationYears <= 0) return false;
 
             var firstBillingMonth = EffectivityDate.Year * 12 + (EffectivityDate.Month - 1);
             var asked = year * 12 + (month - 1);
-            return asked >= firstBillingMonth && asked < firstBillingMonth + TermMonths;
+            return asked >= firstBillingMonth && asked < firstBillingMonth + DurationYears * 12;
         }
 
         public decimal WholeYearRental => MonthlyRentalRate * 12;
@@ -130,7 +116,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// longer differ because there is only one.
         /// </para>
         /// </summary>
-        public bool IsExpiredOn(DateOnly asOf) => DomainRules.TermHasExpired(EffectivityDate, DurationYears, DurationMonths, asOf);
+        public bool IsExpiredOn(DateOnly asOf) => DomainRules.TermHasExpired(EffectivityDate, DurationYears, asOf);
 
         /// <summary>
         /// True when the term has not run out on <paramref name="asOf"/> but does within
@@ -162,11 +148,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             decimal? actualMonthlyRental = null,
             string? remarks = null,
             string createdBy = "System",
-            OccupancyArrangement arrangement = OccupancyArrangement.SignedContract,
-            int? durationMonths = null)
+            OccupancyArrangement arrangement = OccupancyArrangement.SignedContract)
         {
             var signed = arrangement == OccupancyArrangement.SignedContract;
-            var months = signed ? NormalizeMonths(ref durationYears, durationMonths) : null;
 
             // A signed contract of nought years is not a contract, and the office confirmed (2026-08-16) that it is invalid.
             // Every caller already refused it — the create form's validator, the stallholder import, assigning a past occupant,
@@ -175,7 +159,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
             //
             // Zero remains legitimate for an occupancy WITHOUT a signed contract, where it means "no term was stated": such a
             // row is given the open-ended sentinel just below, which is why it is not treated as expired.
-            if (signed && durationYears < 1 && months is null)
+            if (signed && durationYears < 1)
             {
                 throw new ArgumentOutOfRangeException(nameof(durationYears),
                     "A signed contract must run for at least one year. Record it as a space-only occupancy if there is no " +
@@ -194,7 +178,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 // An occupancy without a contract has no term: it runs until the office ends it. The open-ended
                 // length keeps it out of renewal and expiry work, and the sheets print no term for it.
                 DurationYears = signed ? durationYears : DomainRules.OpenEndedTermYears,
-                DurationMonths = months,
                 MonthlyRentalRate = monthlyRate,
                 ActualMonthlyRental = actualMonthlyRental,
                 Remarks = remarks,
@@ -204,18 +187,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
                 CreatedBy = createdBy
             };
         }
-        /// <summary>
-        /// A term with extra months is stored in the one canonical shape (whole years plus 1-11 months, so 12 months IS 1 year) and must be
-        /// 1 month to 50 years. No months (null or 0) leaves the year untouched, which is every legacy caller.
-        /// </summary>
-        private static int? NormalizeMonths(ref int durationYears, int? durationMonths)
-        {
-            if (durationMonths is null or 0) return null;
-            var term = DomainRules.NormalizeSpaceTerm(durationYears, durationMonths);
-            durationYears = term.Years!.Value;
-            return term.Months;
-        }
-
         public void UpdateOccupant(string actualOccupant, string? nameOnContract, string updatedBy)
         {
             ActualOccupant = actualOccupant;
@@ -242,15 +213,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// instead would break correcting a space-only occupancy's effectivity date, which is a legitimate thing to do.
         /// </para>
         /// </summary>
-        public void UpdateTerms(DateOnly effectivityDate, int durationYears, string updatedBy, int? durationMonths = null)
+        public void UpdateTerms(DateOnly effectivityDate, int durationYears, string updatedBy)
         {
             if (durationYears < 0)
                 throw new ArgumentOutOfRangeException(nameof(durationYears), "Contract duration cannot be negative.");
 
             var signed = Arrangement == OccupancyArrangement.SignedContract;
-            var months = signed ? NormalizeMonths(ref durationYears, durationMonths) : null;
 
-            if (signed && durationYears == 0 && months is null)
+            if (signed && durationYears == 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(durationYears),
                     "A signed contract must run for at least one year. Record it as a space-only occupancy if there is no " +
@@ -259,7 +229,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
 
             EffectivityDate = effectivityDate;
             DurationYears = signed ? durationYears : DomainRules.OpenEndedTermYears;
-            DurationMonths = months;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
         }

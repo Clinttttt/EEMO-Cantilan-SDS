@@ -43,7 +43,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
             if (s.Status != StallStatus.Active) return true;
             var contract = s.Contracts.FirstOrDefault(c => c.IsActive);
             if (contract is null) return true;
-            return today <= contract.ExpiryDate;
+            return today <= DomainRules.TermLastDay(contract.EffectivityDate, contract.DurationYears);
         }).ToList();
 
         var activeStalls = visibleStalls.Where(s => s.Status == StallStatus.Active).ToList();
@@ -132,8 +132,7 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 s.Facility!.Code == FacilityCode.NPM ? NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf) : null,
                 // Its section is closed, so this row states its status and refuses to reopen on its own.
                 !string.IsNullOrWhiteSpace(s.CustomSectionName)
-                    && closedSections.Any(n => string.Equals(n.Trim(), s.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase)),
-                ContractMonths: activeContract?.DurationMonths
+                    && closedSections.Any(n => string.Equals(n.Trim(), s.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase))
             );
         }).ToList();
 

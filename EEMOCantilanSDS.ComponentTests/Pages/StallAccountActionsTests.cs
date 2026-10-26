@@ -34,7 +34,6 @@ public sealed class StallAccountActionsTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton<BrandingState>();
-        Services.AddSingleton(FacilityCatalogFixture.WithNoRecord());
     }
 
     /// <summary>An expired account: term lapsed, stall still open, nobody else in it.</summary>

@@ -23,6 +23,4 @@ public record RenewStallContractRequest(
     /// How the renewed occupancy is held. Defaulted to a signed contract, so every existing caller — including the bulk
     /// "Renew all", which is deliberately signed-only — behaves exactly as before.
     /// </summary>
-    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract,
-    /// <summary>Extra months beyond <see cref="DurationYears"/> (1-11), Custom Space Rental only.</summary>
-    int? DurationMonths = null);
+    OccupancyArrangement Arrangement = OccupancyArrangement.SignedContract);

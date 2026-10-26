@@ -195,12 +195,6 @@ namespace EEMOCantilanSDS.Domain.Constants
                && durationYears != OpenEndedTermYears
                && TermLastDay(start, durationYears) < asOf;
 
-        /// <summary>Month-aware form of <see cref="TermHasExpired(DateOnly?, int, DateOnly)"/>: a term with extra months always has a finite end.</summary>
-        public static bool TermHasExpired(DateOnly? effectivity, int durationYears, int? durationMonths, DateOnly asOf)
-            => durationMonths is null or 0
-                ? TermHasExpired(effectivity, durationYears, asOf)
-                : effectivity is { } start && TermLastDay(start, durationYears, durationMonths) < asOf;
-
         /// <summary>
         /// The last day INSIDE a term: the day before the anniversary, so N years is exactly N × 12 months.
         /// </summary>
@@ -269,14 +263,6 @@ namespace EEMOCantilanSDS.Domain.Constants
         /// <remarks>For the console's DTOs, which carry DateTime. Returns the date at midnight; the time is not meaningful.</remarks>
         public static DateTime TermLastDay(DateTime effectivity, int durationYears) =>
             TermLastDay(DateOnly.FromDateTime(effectivity), durationYears).ToDateTime(TimeOnly.MinValue);
-
-        /// <inheritdoc cref="TermHasExpired(DateOnly?, int, int?, DateOnly)"/>
-        public static bool TermHasExpired(DateTime? effectivity, int durationYears, int? durationMonths, DateTime asOf)
-            => TermHasExpired(
-                effectivity is { } d ? DateOnly.FromDateTime(d) : null,
-                durationYears,
-                durationMonths,
-                DateOnly.FromDateTime(asOf));
 
         /// <inheritdoc cref="TermHasExpired(DateOnly?, int, DateOnly)"/>
         public static bool TermHasExpired(DateTime? effectivity, int durationYears, DateTime asOf)

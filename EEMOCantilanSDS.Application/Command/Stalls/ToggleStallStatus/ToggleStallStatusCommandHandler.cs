@@ -93,7 +93,7 @@ public class ToggleStallStatusCommandHandler(
 
         bool ContractEffectiveOn(DateOnly d) =>
             stall.Contracts.Any(c => c.IsActive
-                && c.EffectivityDate <= d && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears, c.DurationMonths) >= d);
+                && c.EffectivityDate <= d && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears) >= d);
 
         if (stall.Facility?.Code == FacilityCode.NPM)
         {
@@ -126,7 +126,7 @@ public class ToggleStallStatusCommandHandler(
                 var mStart = cursor;
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
                 var effective = stall.Contracts.Any(c => c.IsActive
-                    && c.EffectivityDate <= mEnd && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears, c.DurationMonths) >= mStart);
+                    && c.EffectivityDate <= mEnd && DomainRules.TermLastDay(c.EffectivityDate, c.DurationYears) >= mStart);
 
                 if (effective && await monthlyExceptionRepository.GetAsync(stall.Id, cursor.Year, cursor.Month, ct) is null)
                 {

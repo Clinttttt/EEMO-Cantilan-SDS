@@ -140,28 +140,20 @@
                         @if (Form.HasSignedContract)
                         {
                             <div class="avm-group">
-                                <label class="avm-label">@(MonthTerms ? "Contract Duration" : "Contract Duration (No. of Years)")</label>
+                                <label class="avm-label">Contract Duration (No. of Years)</label>
                                 @if (IsEditing)
                                 {
-                                    <div class="avm-input avm-input-locked">@(EEMOCantilanSDS.Domain.Constants.DomainRules.DescribeTerm(Form.ContractYears, Form.ContractMonths) ?? "No contract")</div>
+                                    <div class="avm-input avm-input-locked">@(Form.ContractYears > 0 ? $"{Form.ContractYears} year{(Form.ContractYears > 1 ? "s" : "")}" : "No contract")</div>
                                 }
                                 else
                                 {
                                     <FhSelect Block="true" Caption="" Value="@(_customYears ? "custom" : Form.ContractYears.ToString())"
-                                              Options="@(MonthTerms ? ContractYearOptionsWithMonths : ContractYearOptions)" ValueChanged="OnContractYearsSelected" />
+                                              Options="ContractYearOptions" ValueChanged="OnContractYearsSelected" />
                                     @if (_customYears)
                                     {
                                         <input class="avm-input" style="margin-top:8px;" type="number" min="1" max="10" step="1"
                                                placeholder="Enter years (1–10)" @bind="Form.ContractYears" @bind:event="oninput" />
                                         <span class="avm-hint-muted">Custom contract term — 1 to 10 years.</span>
-                                    }
-                                    @if (MonthTerms)
-                                    {
-                                        @* A Custom Space Rental term may add months (or be months only): e.g. 6 months, or 1 year 6 months. *@
-                                        <label class="avm-label avm-label-spaced">Plus months (optional)</label>
-                                        <FhSelect Block="true" Caption="" Value="@Form.ContractMonths.ToString()"
-                                                  Options="ContractMonthOptions" ValueChanged="OnContractMonthsSelected" />
-                                        <span class="avm-hint-muted">@TermSummary</span>
                                     }
                                 }
                             </div>
@@ -651,7 +643,7 @@
 
             // Reflect a non-preset contract term (4, 6–10) as "Custom…" so the input shows and the value
             // is preserved; the standard presets (1/2/3/5) use the dropdown directly. Minimum term is 1 year.
-            _customYears = Form.ContractYears is not (1 or 2 or 3 or 5) && !(MonthTerms && Form.ContractYears == 0);
+            _customYears = Form.ContractYears is not (1 or 2 or 3 or 5);
         }
         else if (!Show)
         {
@@ -837,23 +829,6 @@
         ("1", "1 year"), ("2", "2 years"), ("3", "3 years"), ("5", "5 years"), ("custom", "Custom…"),
     };
 
-    // A Custom Space Rental term can be months only, so "No whole years" is offered there and nowhere else.
-    private static readonly IReadOnlyList<(string Value, string Label)> ContractYearOptionsWithMonths =
-        new List<(string, string)> { ("0", "No whole years") }.Concat(ContractYearOptions).ToList();
-
-    private static readonly IReadOnlyList<(string Value, string Label)> ContractMonthOptions =
-        new List<(string, string)> { ("0", "No extra months") }
-            .Concat(Enumerable.Range(1, 11).Select(m => (m.ToString(), $"{m} month{(m == 1 ? "" : "s")}"))).ToList();
-
-    /// <summary>True for a Custom Space Rental facility: the only kind whose term may carry months.</summary>
-    private bool MonthTerms => RentalFacilityMark is { } code
-        && FacilityCatalog.CustomCategoryOf(code) == CustomFacilityCategory.SpaceRental;
-
-    private string TermSummary => EEMOCantilanSDS.Domain.Constants.DomainRules.DescribeTerm(Form.ContractYears, Form.ContractMonths is > 0 ? Form.ContractMonths : null) is { } t
-        ? $"Term: {t}." : "Choose at least one year or one month.";
-
-    private void OnContractMonthsSelected(string value) => Form.ContractMonths = int.TryParse(value, out var months) ? months : 0;
-
     /// <summary>
     /// The three bases of occupancy the office's registers record. The wording is the office's own, so a clerk
     /// choosing here is choosing exactly what will be printed on the official list.
@@ -921,7 +896,6 @@
         // cannot carry particulars the office does not hold, whatever was typed before the basis was changed.
         Form.ContractName = string.Empty;
         Form.ContractYears = 0;
-        Form.ContractMonths = 0;
         _customYears = false;
 
         // Nor does a stall number. The office does not number these spaces at all, so the clerk is not asked for one
@@ -1032,8 +1006,6 @@
         public double AreaSqm { get; set; }
         public DateTime? ContractDate { get; set; }
         public int ContractYears { get; set; }
-        /// <summary>Extra months beyond <see cref="ContractYears"/> (0-11); only a Custom Space Rental facility uses it.</summary>
-        public int ContractMonths { get; set; }
         public decimal MonthlyRate { get; set; }
         public decimal ActualMonthlyRental { get; set; }
         public string AreaLocation { get; set; } = string.Empty;

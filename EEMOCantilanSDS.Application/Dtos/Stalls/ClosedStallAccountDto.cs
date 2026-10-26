@@ -75,7 +75,5 @@ public sealed record ClosedStallAccountDto(
     /// The explicit market-month rule. Non-NPM facilities retain the RentGoal default because the value is only
     /// interpreted for NPM; it lets the client omit fixed-rent controls without guessing from <see cref="MonthlyRate"/>.
     /// </summary>
-    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal,
-    /// <summary>Extra months beyond <see cref="DurationYears"/> (Custom Space Rental only). Null = a yearly term.</summary>
-    int? DurationMonths = null
+    NpmMonthBasis MonthBasis = NpmMonthBasis.RentGoal
 );

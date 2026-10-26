@@ -34,9 +34,6 @@ namespace EEMOCantilanSDS.Domain.Entities.Facilities
         /// <summary>Immutable operational category for a custom monthly rental. Not a revenue classification.</summary>
         public CustomFacilityCategory CustomCategory { get; private set; } = CustomFacilityCategory.StallRent;
 
-        /// <summary>Only a Custom Space Rental facility records contract terms in months as well as years; every other facility is yearly.</summary>
-        public bool AllowsMonthTerms => FacilityCatalog.IsCustom(Code) && CustomCategory == CustomFacilityCategory.SpaceRental;
-
         // Per-LGU CUSTOM NPM section registry. NPM stalls may belong to one of these names (Stall.Section
         // null + Stall.CustomSectionName) instead of a canonical MarketSection. Managed by the Head; a name
         // may exist with zero stalls (so it can be pre-declared / removed while empty). Stored as a text[]

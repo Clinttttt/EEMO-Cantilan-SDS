@@ -1210,7 +1210,6 @@
         public DateTime? ContractDate { get; set; }
         public string ContractDuration { get; set; } = string.Empty;
         public int ContractYears { get; set; }
-        public int? ContractMonths { get; set; }
         public DateTime? ContractExpiry { get; set; }
         public decimal MonthlyRate { get; set; }
         public decimal? DailyRate { get; set; }
@@ -1398,13 +1397,12 @@
                     // this length, so the platform cannot represent a genuine 99-year term distinctly in any case.
                     ContractDuration = stallDto.ContractYears == DomainRules.OpenEndedTermYears
                         ? "Open-ended"
-                        : DomainRules.DescribeTerm(stallDto.ContractYears, stallDto.ContractMonths) ?? "—",
+                        : stallDto.ContractYears > 0 ? $"{stallDto.ContractYears} year{(stallDto.ContractYears > 1 ? "s" : "")}" : "—",
                     ContractYears = stallDto.ContractYears,
-                    ContractMonths = stallDto.ContractMonths,
-                    ContractExpiry = (stallDto.ContractYears > 0 || stallDto.ContractMonths > 0)
+                    ContractExpiry = stallDto.ContractYears > 0
                                      && stallDto.ContractYears != DomainRules.OpenEndedTermYears
                                      && stallDto.ContractDate is { } cd
-                        ? DomainRules.TermLastDay(cd, stallDto.ContractYears, stallDto.ContractMonths)
+                        ? DomainRules.TermLastDay(cd, stallDto.ContractYears)
                         : null,
                     MonthlyRate = stallDto.MonthlyRate,
                     DailyRate = stallDto.DailyRate,
@@ -1725,8 +1723,7 @@
             Stall.ContractName,
             Stall.Remarks,
             Stall.ContractDate,
-            Stall.ContractYears,
-            Stall.ContractMonths is > 0 ? Stall.ContractMonths : null
+            Stall.ContractYears
         );
         
         var result = await StallsApi.UpdateStallAsync(StallGuid, command);

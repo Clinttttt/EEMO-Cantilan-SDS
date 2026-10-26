@@ -5,7 +5,6 @@
 @using EEMOCantilanSDS.Application.Command.Stalls.AssignPastOccupantStall
 @using EEMOCantilanSDS.Client.Services
 @inject IStallsApiClient StallsApi
-@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @* The four operational actions on a permanent stall's inactive account — Resume, Renew, Assign new stall and Remove — as the confirmation dialog each
    one has always used. They moved here, unchanged, from the Closed Accounts report (a report is read-only, IA-006) so the stall's own profile hosts
@@ -117,7 +116,7 @@
                 {
                     <p class="confirm-text">
                         Start a new contract term for <strong>@_renewTarget.Occupant</strong> — beginning
-                        <strong>@_renewEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@RenewTermText</strong>,
+                        <strong>@_renewEffectivity.ToString("MMM d, yyyy")</strong> for <strong>@_renewDuration year(s)</strong>,
                         same details as before. The lapsed period is not back-billed.
                     </p>
                 }
@@ -188,14 +187,8 @@
                         @if (_renewArrangement == OccupancyArrangement.SignedContract)
                         {
                             <label>Duration (years)
-                                <input type="number" min="@(RenewMonthTerms ? 0 : 1)" max="50" @bind="_renewDuration" />
+                                <input type="number" min="1" max="50" @bind="_renewDuration" />
                             </label>
-                            @if (RenewMonthTerms)
-                            {
-                                <label>Plus months (optional)
-                                    <input type="number" min="0" max="11" @bind="_renewMonths" />
-                                </label>
-                            }
                         }
                         else
                         {
@@ -313,10 +306,6 @@
     private bool _renewEditing;
     private DateOnly _renewEffectivity;
     private int _renewDuration;
-    private int _renewMonths;
-    // Only a Custom Space Rental facility may renew for months; every other facility stays on whole years.
-    private bool RenewMonthTerms => _renewTarget is { } t && FacilityCatalog.CustomCategoryOf(t.FacilityCode) == CustomFacilityCategory.SpaceRental;
-    private string RenewTermText => EEMOCantilanSDS.Domain.Constants.DomainRules.DescribeTerm(_renewDuration, _renewMonths > 0 ? _renewMonths : null) ?? "the same term";
     private string _renewOccupant = "";
     private string? _renewName;
 
@@ -424,8 +413,7 @@
         _renewTarget = r;
         _renewEditing = false;
         _renewEffectivity = PhilippineTime.Today;     // Proceed default: fresh start today (no back-billing of the gap)
-        _renewDuration = r.DurationYears > 0 || r.DurationMonths > 0 ? r.DurationYears : 1;
-        _renewMonths = r.DurationMonths ?? 0;
+        _renewDuration = r.DurationYears > 0 ? r.DurationYears : 1;
         _renewOccupant = r.Occupant;
         _renewName = r.ContractName;
         // Always a signed contract to begin with, whatever the last row was renewed as: an extension is a deliberate act per
@@ -445,8 +433,7 @@
     {
         if (_renewTarget is null) return;
         if (string.IsNullOrWhiteSpace(_renewOccupant)) { _actionError = "Occupant is required."; return; }
-        var months = RenewMonthTerms && _renewMonths > 0 ? _renewMonths : (int?)null;
-        if (_renewDuration < 1 && months is null) { _actionError = RenewMonthTerms ? "Duration must be at least 1 month." : "Duration must be at least 1 year."; return; }
+        if (_renewDuration < 1) { _actionError = "Duration must be at least 1 year."; return; }
         if (_renewEditing && _renewMonthlyRate < 0) { _actionError = "Monthly rental cannot be negative."; return; }
         if (_renewEditing && _renewAreaSqm is < 0) { _actionError = "Area cannot be negative."; return; }
 
@@ -460,7 +447,7 @@
             ? (_renewAreaNote ?? string.Empty)
             : null;
         var req = new RenewStallContractRequest(_renewEffectivity, _renewDuration, _renewOccupant.Trim(), _renewName,
-                                                rate, area, note, _renewArrangement, months);
+                                                rate, area, note, _renewArrangement);
         var result = await StallsApi.RenewStallContractAsync(_renewTarget.StallId, req);
         _busy = false;
         if (result.IsSuccess) { await OnDone.InvokeAsync(); }

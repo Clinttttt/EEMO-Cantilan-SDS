@@ -119,8 +119,7 @@ public partial class StallRepository(
                     s.CustomSectionName,
                     s.Fees.HasFlag(ApplicableFees.Electricity),
                     s.Fees.HasFlag(ApplicableFees.Water),
-                    rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf),
-                    ContractMonths: activeContract?.DurationMonths
+                    rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf)
                 );
             }).ToList(),
             NextCursor = pagedResult.NextCursor,
@@ -166,8 +165,7 @@ public partial class StallRepository(
                 s.CustomSectionName,
                 s.Fees.HasFlag(ApplicableFees.Electricity),
                 s.Fees.HasFlag(ApplicableFees.Water),
-                rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf),
-                ContractMonths: activeContract?.DurationMonths
+                rateSnapshot is null ? null : NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf)
             );
         }).ToList();
     }
@@ -218,7 +216,6 @@ public partial class StallRepository(
     public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
     {        return await _context.Stalls
             .Include(s => s.Contracts)
-            .Include(s => s.Facility)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }
 

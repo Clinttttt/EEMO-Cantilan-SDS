@@ -35,7 +35,5 @@ public record StallDto(
     bool HasElectricity = false,
     bool HasWater = false,
     decimal? ResolvedDailyFee = null,
-    Guid? OccupancyId = null,
-    // Extra months beyond ContractYears (Custom Space Rental only). Null = a yearly term, as before.
-    int? ContractMonths = null
+    Guid? OccupancyId = null
 );

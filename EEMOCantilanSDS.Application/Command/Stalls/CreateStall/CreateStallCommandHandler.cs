@@ -27,10 +27,6 @@ public class CreateStallCommandHandler(
         if (facility is null)
             return Result<StallDto>.NotFound();
 
-        // A term in months belongs to a Custom Space Rental facility only; any other facility stays on whole years.
-        if (request.ContractMonths is > 0 && !facility.AllowsMonthTerms)
-            return Result<StallDto>.Failure("Contract duration in months is only available for a Custom Space Rental facility.", ResultStatus.Invalid);
-
         // A prospective NPM opening and its first rent source must commit together.
         // The office-link flow already owns a serializable transaction; do not nest another.
         await using var openingTransaction = facility.Code == FacilityCode.NPM
@@ -89,8 +85,7 @@ public class CreateStallCommandHandler(
             null,
             null,
             "Admin",
-            request.Arrangement,
-            request.ContractMonths);
+            request.Arrangement);
 
         await stallRepo.AddContractAsync(contract, cancellationToken);
 
@@ -121,8 +116,7 @@ public class CreateStallCommandHandler(
             request.AreaNote,
             null,
             CustomSectionName: stall.CustomSectionName,
-            OccupancyId: contract.Id,
-            ContractMonths: contract.DurationMonths
+            OccupancyId: contract.Id
             );
 
         return Result<StallDto>.Success(dto);
@@ -178,8 +172,7 @@ public class CreateStallCommandHandler(
             null,
             null,
             actor,
-            request.Arrangement,
-            request.ContractMonths);
+            request.Arrangement);
 
         await stallRepo.AddContractAsync(contract, ct);
 
