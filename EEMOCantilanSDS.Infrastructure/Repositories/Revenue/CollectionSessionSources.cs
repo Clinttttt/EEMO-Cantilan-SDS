@@ -418,6 +418,9 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
                     .OrderByDescending(x => x.EffectiveDate).FirstOrDefaultAsync(ct);
                 if (policy?.PermittedInstrumentType != RevenueInstrumentType.OfficialReceipt)
                     return Fail("SourceNotAvailable", "No approved Official Receipt policy is effective for this rental.");
+                if (!string.IsNullOrWhiteSpace(session.OfficialReceiptNumber)
+                    && (!CollectorOperationCodes.IsSpaceObligation(operationCode) || (await Composer.CheckMobileOfficialReceiptAsync(session.OfficialReceiptNumber, ct)) is { IsSuccess: false }))
+                    return Fail("ReceiptUnavailable", "The Official Receipt must be registered, unused and in your accountable-form custody.");
                 return (Q(operationCode, quote.KindLabel, $"{quote.SubjectLabel} · {o.Year}-{o.Month:00}",
                     RevenueInstrumentType.OfficialReceipt, item.ConfirmedAmount, new { quote.AccountId, quote.PeriodId,
                         quote.RateId, quote.AssessedAmount, quote.SettledAmount, quote.OutstandingAmount, Policy = policy.Id }), null);
@@ -439,6 +442,18 @@ public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUs
             }
             default: return Fail("NotSupportedYet", "This source has no itemized adapter yet.");
         }
+    }
+
+    public async Task<CollectionSessionCollection> PostObligationMonthsAsync(CollectionSessionIntent session,
+        IReadOnlyList<CollectionSessionItemIntent> items, Guid operation, CancellationToken ct)
+    {
+        var account = items[0].Obligation!.AccountId;
+        var posted = await Composer.PostMobileObligationMonthsAsync(new(operation, account,
+            items.Select(i => new MobileObligationMonthAmount(i.Obligation!.Year, i.Obligation.Month, i.ConfirmedAmount)).ToArray(),
+            session.BusinessDate, session.OfficialReceiptNumber ?? ""), ct);
+        if (!posted.IsSuccess) throw new CollectionSessionPostingException(items[0].ClientItemId, "The account or receipt changed during posting. Review the checkout.");
+        return new(posted.Value!.CollectionId, posted.Value.ReferenceCode, RevenueInstrumentType.OfficialReceipt, posted.Value.Amount,
+            items.Select(i => i.ClientItemId).ToArray(), "Posted");
     }
 
     public async Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item, Guid operation, CancellationToken ct)

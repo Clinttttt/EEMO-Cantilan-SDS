@@ -15,6 +15,9 @@ public interface ICollectionSessionSources
         CollectionSessionIntent session, CollectionSessionItemIntent item, CancellationToken ct);
     Task<CollectionSessionCollection> PostAsync(CollectionSessionIntent session, CollectionSessionItemIntent item,
         Guid childOperationId, CancellationToken ct);
+    /// <summary>Several months of one space account under ONE physical OR: one Collection, one line per month.</summary>
+    Task<CollectionSessionCollection> PostObligationMonthsAsync(CollectionSessionIntent session, IReadOnlyList<CollectionSessionItemIntent> items,
+        Guid operationId, CancellationToken ct) => throw new NotSupportedException();
 }
 public interface ICollectionSessionStore
 {

@@ -156,6 +156,126 @@ public sealed partial class CollectionComposerWorkflow
         }
     }
 
+    /// <summary>Review-time check that a typed OR is registered, unused and in this collector's custody. Read-only; the post re-checks.</summary>
+    public async Task<Result<bool>> CheckMobileOfficialReceiptAsync(string? number, CancellationToken ct = default)
+    {
+        var receipt = await NpmReceiptEvidence.ResolveAsync(db, currentUser, municipality.MunicipalityId, RevenueInstrumentType.OfficialReceipt, number, ct);
+        return !receipt.IsSuccess ? Result<bool>.Failure(receipt.Error!, receipt.Status)
+            : receipt.Value is null ? Result<bool>.Failure("Enter the Official Receipt number.", ResultStatus.Invalid) : Result<bool>.Success(true);
+    }
+
+    /// <summary>
+    /// ONE physical Official Receipt for several explicitly chosen months of ONE space account: a single Collection (one SRC) with one line per month,
+    /// each line its own verified allocation, amount and period; the OR is consumed once by that Collection. Nothing is spread across months here:
+    /// every month states its own amount. The no-OR path stays <see cref="PostMobileObligationAsync"/> (one Collection per month).
+    /// </summary>
+    public async Task<Result<EcfPostOutcomeDto>> PostMobileObligationMonthsAsync(MobileObligationMonthsPostRequest request, CancellationToken ct = default)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Role != "Collector" || currentUser.CollectorId is not { } collectorId
+            || collectorId == Guid.Empty)
+            return Result<EcfPostOutcomeDto>.Forbidden();
+        var tenantId = municipality.MunicipalityId;
+        if (tenantId == Guid.Empty || currentUser.MunicipalityId is { } claimed && claimed != tenantId)
+            return Result<EcfPostOutcomeDto>.Forbidden();
+        if (request.ClientOperationId == Guid.Empty)
+            return Result<EcfPostOutcomeDto>.Failure("A valid ClientOperationId is required.", ResultStatus.Invalid);
+        var collector = await db.CollectorUsers.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == collectorId && x.IsActive, ct);
+        var requestedAccount = await db.ObligationAccounts.AsNoTracking().SingleOrDefaultAsync(x => x.MunicipalityId == tenantId && x.Id == request.AccountId, ct);
+        if (collector is null || requestedAccount is null) return Result<EcfPostOutcomeDto>.Forbidden();
+        // Only the independently assigned space-rental sources: a vendor-fee account is never an OR-covered multi-month space checkout.
+        var operation = ObligationAccount.OperationCodeFor(requestedAccount.Kind);
+        if (operation is null || !CollectorOperationCodes.IsSpaceObligation(operation)
+            || !await db.CollectorOperationAssignments.AnyAsync(x => x.MunicipalityId == tenantId && x.CollectorId == collectorId && x.OperationCode == operation, ct))
+            return Result<EcfPostOutcomeDto>.Forbidden();
+
+        var actor = new Actor(collectorId, tenantId, collector.Username ?? collector.FullName ?? "Collector", "Collector");
+        var months = (request.Months ?? []).OrderBy(m => m.BillingYear).ThenBy(m => m.BillingMonth).ToList();
+        var normalized = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            SchemaVersion = 1,
+            OperationType = "MobileObligationMonthsCollection",
+            TenantId = tenantId,
+            ActorId = ActorIdentity(actor),
+            request.AccountId,
+            Months = months.Select(m => new { m.BillingYear, m.BillingMonth, ReceivedAmount = m.ReceivedAmount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) }),
+            BusinessDate = request.BusinessDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+            OfficialReceipt = AccountableSerial.Normalize(request.OfficialReceiptNumber ?? "")
+        }, JsonOptions);
+        var fingerprint = PostingOperation.ComputeIntentFingerprint(IntentVersion, normalized, MobileObligationOrigin, ActorIdentity(actor));
+
+        try
+        {
+            var prior = await FindPostingOperationAsync(tenantId, request.ClientOperationId, ct);
+            if (prior is not null) return await ResolveMobileObligationPriorAsync(prior, fingerprint, actor, ct);
+
+            Task<Result<EcfPostOutcomeDto>> Reject(string code, string message) =>
+                RecordMobileObligationRejectionAsync(actor, request.ClientOperationId, normalized, fingerprint, code, message, ct);
+
+            if (months.Count == 0 || months.Select(m => (m.BillingYear, m.BillingMonth)).Distinct().Count() != months.Count)
+                return await Reject("INVALID_INTENT", "Choose each month once.");
+            if (months.Any(m => m.ReceivedAmount <= 0m || decimal.Round(m.ReceivedAmount, 2, MidpointRounding.ToZero) != m.ReceivedAmount
+                    || m.BillingYear is < 2000 or > 2200 || m.BillingMonth is < 1 or > 12))
+                return await Reject("INVALID_INTENT", "Every month needs a valid period and a positive received amount with at most two decimals.");
+            if (request.BusinessDate > BusinessToday)
+                return await Reject("FUTURE_BUSINESS_DATE", "Collection BusinessDate cannot be later than the current Philippine business date.");
+
+            var account = requestedAccount;
+            var quotes = await new ObligationCollectionSource(db).GetQuotesAsync(tenantId, [account], request.BusinessDate, ct);
+            var lines = new List<CollectionLineDraft>();
+            var projections = new List<Action<DateTime>>();
+            string? payerName = null; Guid? policyId = null; RevenueInstrumentType? instrument = null;
+            foreach (var month in months)
+            {
+                var periodStart = account.Kind == ObligationKind.FiestaArawLotRental
+                    ? account.EventDate!.Value : new DateOnly(month.BillingYear, month.BillingMonth, 1);
+                if (periodStart.Year != month.BillingYear || periodStart.Month != month.BillingMonth)
+                    return await Reject("INVALID_PERIOD", "Choose this account's event period.");
+                var preview = quotes.SingleOrDefault(x => x.PeriodStart == periodStart);
+                if (preview is null || !preview.CanAddToDraft)
+                    return await Reject("SOURCE_NOT_COLLECTIBLE", $"{periodStart:MMMM yyyy} has no collectible remaining balance.");
+                if (month.ReceivedAmount > preview.OutstandingAmount)
+                    return await Reject("AMOUNT_EXCEEDS_OUTSTANDING", $"The received amount exceeds the remaining balance of {periodStart:MMMM yyyy}.");
+                ObligationSourceFacts? facts;
+                try
+                {
+                    facts = await new ObligationCollectionSource(db).LoadAsync(tenantId, account.Id, periodStart, request.BusinessDate,
+                        tracked: true, assess: true, actor: actor.Username, ct: ct);
+                }
+                catch (InvalidOperationException problem) { return await Reject("POLICY_NOT_EFFECTIVE", problem.Message); }
+                if (facts is null) return await Reject("SOURCE_NOT_BILLABLE", $"{periodStart:MMMM yyyy} is not billable: the account is not active for it or no approved amount is in force.");
+                if (!facts.Quote.CanAddToDraft) return await Reject("SOURCE_NOT_COLLECTIBLE", $"{periodStart:MMMM yyyy} has no remaining balance to collect.");
+                if (month.ReceivedAmount > facts.Quote.OutstandingAmount)
+                    return await Reject("AMOUNT_EXCEEDS_OUTSTANDING", $"The received amount exceeds the remaining balance of {periodStart:MMMM yyyy}.");
+                if (policyId is { } p && p != facts.Policy.Id)
+                    return await Reject("MIXED_POLICY", "These months are governed by different approved policies; collect them separately.");
+                policyId = facts.Policy.Id; instrument = facts.Policy.PermittedInstrumentType; payerName = facts.Quote.PayerName;
+                lines.Add(new CollectionLineDraft(facts.Classification, facts.Policy, month.ReceivedAmount, null, null, null,
+                    $"{{\"schemaVersion\":1,\"lineKind\":\"Obligation\",\"kind\":{(int)account.Kind},\"periodStart\":\"{periodStart:yyyy-MM-dd}\"}}",
+                    [new CollectionAllocationDraft(CollectionSourceKind.ObligationPeriod, facts.Period.Id, month.ReceivedAmount, null, facts.SnapshotJson)]));
+                var period = facts.Period;
+                projections.Add(_ => period.ApplyCanonicalSettlement());
+            }
+            var receipt = await NpmReceiptEvidence.ResolveAsync(db, currentUser, tenantId, instrument ?? RevenueInstrumentType.CashTicket, request.OfficialReceiptNumber, ct);
+            if (!receipt.IsSuccess) return await Reject("RECEIPT_UNAVAILABLE", receipt.Error!);
+            if (receipt.Value is null) return await Reject("RECEIPT_UNAVAILABLE", "Enter the Official Receipt number.");
+            var collection = await new CanonicalCollectionPostingCoordinator(db).PostAsync(
+                tenantId, request.ClientOperationId, IntentVersion, normalized, MobileObligationOrigin, ActorIdentity(actor),
+                actor.Username, actor.Role, request.BusinessDate, actor.Username, lines, receipt.Value,
+                collectorId: collectorId, payorId: account.PayorId, payerName: payerName,
+                sourceProjections: projections, ct: ct);
+            return Result<EcfPostOutcomeDto>.Success(new EcfPostOutcomeDto(
+                collection.Id, collection.ReferenceCode, "Posted", collection.TotalAmount, collection.Lines.Count, false));
+        }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            var winner = await FindPostingOperationAsync(tenantId, request.ClientOperationId, ct);
+            if (winner is not null) return await ResolveMobileObligationPriorAsync(winner, fingerprint, actor, ct);
+            return await RecordMobileObligationRejectionAsync(actor, request.ClientOperationId, normalized, fingerprint, "POST_CONFLICT",
+                "A month or the receipt conflicts with another saved transaction; nothing was posted.", ct);
+        }
+    }
+
     private async Task<Result<EcfPostOutcomeDto>> ResolveMobileObligationPriorAsync(
         PostingOperation prior, string fingerprint, Actor actor, CancellationToken ct)
     {
@@ -167,17 +287,21 @@ public sealed partial class CollectionComposerWorkflow
         return Result<EcfPostOutcomeDto>.Success(await BuildPostOutcomeAsync(actor.MunicipalityId, collectionId, true, ct));
     }
 
+    private Task<Result<EcfPostOutcomeDto>> RecordMobileObligationRejectionAsync(
+        Actor actor, MobileObligationPostRequest request, string normalized, string fingerprint, string code, string message, CancellationToken ct) =>
+        RecordMobileObligationRejectionAsync(actor, request.ClientOperationId, normalized, fingerprint, code, message, ct);
+
     private async Task<Result<EcfPostOutcomeDto>> RecordMobileObligationRejectionAsync(
-        Actor actor, MobileObligationPostRequest request, string normalized, string fingerprint, string code, string message, CancellationToken ct)
+        Actor actor, Guid clientOperationId, string normalized, string fingerprint, string code, string message, CancellationToken ct)
     {
         db.ChangeTracker.Clear();
-        db.PostingOperations.Add(PostingOperation.Record(actor.MunicipalityId, request.ClientOperationId, IntentVersion, normalized,
+        db.PostingOperations.Add(PostingOperation.Record(actor.MunicipalityId, clientOperationId, IntentVersion, normalized,
             MobileObligationOrigin, ActorIdentity(actor), PostingOperationStatus.Rejected, code, message, null, null, DateTime.UtcNow));
         try { await db.SaveChangesAsync(ct); }
         catch (DbUpdateException)
         {
             db.ChangeTracker.Clear();
-            var prior = await FindPostingOperationAsync(actor.MunicipalityId, request.ClientOperationId, ct);
+            var prior = await FindPostingOperationAsync(actor.MunicipalityId, clientOperationId, ct);
             if (prior is not null) return await ResolveMobileObligationPriorAsync(prior, fingerprint, actor, ct);
             throw;
         }

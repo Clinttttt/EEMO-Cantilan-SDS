@@ -194,6 +194,11 @@ public sealed record MobileRentPostRequest(
 public sealed record MobileObligationPostRequest(
     Guid ClientOperationId, Guid AccountId, int BillingYear, int BillingMonth, decimal ReceivedAmount, DateOnly BusinessDate);
 
+/// <summary>One physical OR covering several explicitly chosen months of ONE space account: one Collection, one line per month, each with its own amount.</summary>
+public sealed record MobileObligationMonthAmount(int BillingYear, int BillingMonth, decimal ReceivedAmount);
+public sealed record MobileObligationMonthsPostRequest(
+    Guid ClientOperationId, Guid AccountId, IReadOnlyList<MobileObligationMonthAmount> Months, DateOnly BusinessDate, string OfficialReceiptNumber);
+
 /// <summary>One collectible Fish / Meat vendor-fee period as the collector sees it. Amounts are the server's; nothing is typed.</summary>
 public sealed record MobileVendorFeeDueDto(
     Guid AccountId, string SubjectLabel, string? StallNo, string? PayorName, DateOnly PeriodStart,

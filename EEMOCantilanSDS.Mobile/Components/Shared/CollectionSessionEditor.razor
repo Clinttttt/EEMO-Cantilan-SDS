@@ -241,6 +241,11 @@ else
                     </div>
                 </div>
             }
+            @if (Correction is null && SpaceReceiptEntry.Applies(_items))
+            {
+                <label class="form-field"><span class="form-label">Official Receipt No. <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
+                <div class="sheet-note">@(_items.Count > 1 ? "One receipt for all of these months. Leave blank to record each month on its own." : "Leave blank if no receipt has been issued.")</div>
+            }
         </section>
         @if (_supersededSessionId.HasValue)
         {
@@ -595,7 +600,12 @@ else
     }
 
     private CollectionSessionIntent Intent => new(_sessionId, BusinessDate, null, _items.ToArray(),
-        SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null);
+        SourceIdentity: _source?.Identity, PayerSnapshot: _direct && !string.IsNullOrWhiteSpace(_snapshot) ? _snapshot.Trim() : null,
+        OfficialReceiptNumber: Correction is null ? SpaceReceiptEntry.Number(_items, _spaceReceipt) : null);
+
+    // One physical OR for several months of one space account. A change discards the reviewed quote, like any edit to the items.
+    private string _spaceReceipt = "";
+    private void OnSpaceReceiptChanged(ChangeEventArgs args) { _spaceReceipt = args.Value?.ToString() ?? ""; _quote = null; }
 
     // What kind of finder this page is: a registered vendor only, an occupant only, or any source.
     private bool VendorOnly => OnlyOperation is CollectorOperationCodes.WeightAndMeasure;
@@ -732,6 +742,7 @@ else
             _sessionId = id; BusinessDate = saved.BusinessDate; _items.AddRange(saved.Items);
             if (saved.SourceIdentity is { } identity) _source = new(identity, "Selected source", "", OnlyOperation ?? "");
             else { _direct = true; _snapshot = saved.PayerSnapshot ?? ""; }
+            _spaceReceipt = saved.OfficialReceiptNumber ?? "";
             _queued = true; await RefreshResultAsync();
         }
         else if (Correction is not null) await PrepareCorrectionAsync();
@@ -1288,7 +1299,7 @@ else
     private async Task StartAnotherAsync()
     {
         _linkedNpmContext = false;
-        _sessionId = Guid.NewGuid(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
+        _sessionId = Guid.NewGuid(); _spaceReceipt = ""; _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _showRecordedSheet = _recordedSheetWasShown = false;
         _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;

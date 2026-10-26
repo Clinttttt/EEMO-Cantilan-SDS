@@ -50,7 +50,9 @@ public sealed record CollectionSessionItemIntent(Guid ClientItemId, CollectionSe
 public sealed record CollectionSessionIntent(Guid ClientCollectionSessionId, DateOnly BusinessDate, Guid? PayorId,
     IReadOnlyList<CollectionSessionItemIntent> Items,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] CollectionSourceIdentity? SourceIdentity = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? PayerSnapshot = null,
+    // One physical OR for several months of ONE space account: those items post as one Collection with a line per month (absent = SRC only).
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? OfficialReceiptNumber = null);
 public sealed record RecordCollectionSessionRequest(CollectionSessionIntent Intent, string? QuoteFingerprint);
 public sealed record CollectionSessionProblem(Guid? ClientItemId, string Code, string Message);
 public sealed record CollectionSessionItemQuote(Guid ClientItemId, CollectionSessionItemKind Kind,

@@ -105,6 +105,14 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                 if (resolved.Quote is { } quote) quotes.Add(quote with { GroupId = ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId) });
             }
         }
+        // One physical OR covers months of ONE liable space account only: anything else would copy the OR across independent Collections.
+        if (errors.Count == 0 && !string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber))
+        {
+            var accounts = intent.Items!.Select(i => i.Kind == CollectionSessionItemKind.Obligation ? i.Obligation?.AccountId : null).Distinct().ToList();
+            if (intent.OfficialReceiptNumber.Length > 100 || accounts.Count != 1 || accounts[0] is null || quotes.Any(q => q.Instrument != EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType.OfficialReceipt
+                    || !EEMOCantilanSDS.Domain.Constants.CollectorOperationCodes.IsSpaceObligation(q.OperationCode)))
+                errors.Add(new(null, "ReceiptNeedsOneSpaceAccount", "One Official Receipt can cover months of one space account only."));
+        }
         var totals = quotes.GroupBy(q => q.Instrument).Select(g => new CollectionSessionInstrumentTotal(g.Key, g.Sum(q => q.Amount))).ToArray();
         var token = errors.Count == 0 ? Hash(JsonSerializer.Serialize(new
         {
@@ -139,6 +147,14 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
                     return;
                 }
                 var collections = new List<CollectionSessionCollection>();
+                if (!string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber))
+                {
+                    // Preflight proved one space account; the identity is the session's lowest item so a replay resolves to the same single Collection.
+                    var items = intent.Items.OrderBy(i => i.ClientItemId).ToList();
+                    collections.Add(await sources.PostObligationMonthsAsync(intent, items,
+                        ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, items[0].ClientItemId), ct));
+                }
+                else
                 foreach (var item in intent.Items.OrderBy(i => i.ClientItemId))
                     collections.Add(await sources.PostAsync(intent, item,
                         ChildOperationId(municipality.MunicipalityId, intent.ClientCollectionSessionId, item.ClientItemId), ct));
@@ -187,7 +203,11 @@ public sealed class CollectionSessionWorkflow(ICollectionSessionStore store, ICo
     private static CollectionSessionResult Review(CollectionSessionIntent intent, params CollectionSessionProblem[] problems) =>
         new(intent.ClientCollectionSessionId, CollectionSessionStatus.NeedsReview, intent.PayorId, 0m, [], problems);
 
-    public static string IntentFingerprint(CollectionSessionIntent intent)
+    // An OR number is part of the intent (same session + different OR = conflict); absent it, existing fingerprints are unchanged.
+    public static string IntentFingerprint(CollectionSessionIntent intent) => string.IsNullOrWhiteSpace(intent.OfficialReceiptNumber)
+        ? BaseFingerprint(intent) : Hash(BaseFingerprint(intent) + NpmReceiptEvidence.IntentSuffix(intent.OfficialReceiptNumber));
+
+    private static string BaseFingerprint(CollectionSessionIntent intent)
     {
         if (intent.SourceIdentity is not null || intent.PayerSnapshot is not null || intent.Items.Any(i => i.Native is not null || i.Fine is not null))
             return Hash(JsonSerializer.Serialize(new { Version = 3, intent.BusinessDate, intent.PayorId, intent.SourceIdentity,
