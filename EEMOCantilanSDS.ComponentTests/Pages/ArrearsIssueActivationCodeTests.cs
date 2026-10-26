@@ -78,11 +78,14 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         }, Timeout);
     }
 
+    // The page re-renders while its lists finish loading, so a handler found a moment ago can be gone: retry the ACTION (never an assertion) until it lands.
+    private static void Do(IRenderedComponent<Arrears> cut, Action action) => cut.WaitForAssertion(action, Timeout);
+
     private void Fill(IRenderedComponent<Arrears> cut, string phone = "09171234567", string? days = null)
     {
-        cut.Find("#hcd-phone").Input(phone);
+        Do(cut, () => cut.Find("#hcd-phone").Input(phone));
         if (days is not null) cut.Find("#hcd-days").Input(days);
-        cut.Find(".hcd-confirm input").Change(true);
+        Do(cut, () => cut.Find(".hcd-confirm input").Change(true));
     }
 
     private static HistoricalAccessCodeDto Issued(string mode) =>
@@ -115,7 +118,7 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         Assert.Contains("disabled", cut.Find("button[type=submit]").OuterHtml);   // payer confirmation required first
 
         Fill(cut, days: "45");
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("form").Submit());
 
         cut.WaitForAssertion(() => Assert.Contains("ABCD-1234", cut.Markup), Timeout);
         Assert.Equal(new IssueHistoricalAccessRequest(ArrearsAccountKind.StallRent, Contract, "09171234567", "Pedro Reyes", 45), sent);
@@ -143,7 +146,7 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         var cut = RenderPage();
         Open(cut, "Lisa Ilogans");
         Fill(cut);
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("form").Submit());
 
         cut.WaitForAssertion(() => Assert.Contains("Link code", cut.Markup), Timeout);
         Assert.Equal(new IssueHistoricalAccessRequest(ArrearsAccountKind.SpaceRental, SpaceAccount, "09171234567", "Lisa Ilogans", 30), sent);
@@ -162,7 +165,7 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         var cut = RenderPage();
         Open(cut, "Pedro Reyes");
         Fill(cut);
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("form").Submit());
 
         cut.WaitForAssertion(() => Assert.Contains(expected, cut.Find("[role=alert]").TextContent), Timeout);
         Assert.Empty(cut.FindAll(".hcd-code"));
@@ -176,7 +179,7 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         var cut = RenderPage();
         Open(cut, "Pedro Reyes");
         Fill(cut);
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("form").Submit());
 
         cut.WaitForAssertion(() => Assert.Contains("liable payer on this account has changed", cut.Find("[role=alert]").TextContent), Timeout);
         cut.FindAll("button").First(b => b.TextContent.Trim() == "Refresh the Arrears list").Click();
@@ -193,16 +196,16 @@ public sealed class ArrearsIssueActivationCodeTests : TestContext
         Open(cut, "Pedro Reyes");
 
         Fill(cut, phone: "  ", days: "30");
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("form").Submit());
         Assert.Contains("mobile number", cut.Find("[role=alert]").TextContent);
-        cut.Find("#hcd-phone").Input("09171234567");
-        cut.Find("#hcd-days").Input("91");
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("#hcd-phone").Input("09171234567"));
+        Do(cut, () => cut.Find("#hcd-days").Input("91"));
+        Do(cut, () => cut.Find("form").Submit());
         Assert.Contains("between 1 and 90", cut.Find("[role=alert]").TextContent);
         _codes.VerifyNoOtherCalls();
 
-        cut.Find("#hcd-days").Input("30");
-        cut.Find("form").Submit();
+        Do(cut, () => cut.Find("#hcd-days").Input("30"));
+        Do(cut, () => cut.Find("form").Submit());
         cut.WaitForAssertion(() => Assert.Contains("reach the server", cut.Find("[role=alert]").TextContent), Timeout);
     }
 
