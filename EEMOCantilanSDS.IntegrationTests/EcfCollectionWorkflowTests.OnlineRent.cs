@@ -107,7 +107,7 @@ public sealed partial class EcfCollectionWorkflowTests
 
         // Collection Activity: one event, the SRC; the converted row's legacy projection is not a second event.
         var events = await new CollectionActivityReader(ctx).GetAsync(seed.TenantId, PhilippineTime.Today, PhilippineTime.Today);
-        var only = Assert.Single(events);
+        var only = Assert.Single(events.Where(e => e.Source != "UtilityBill"));   // the seed's own legacy water bill is a different source
         Assert.Equal("Canonical", only.Authority); Assert.Equal(collection.ReferenceCode, only.ReferenceCode); Assert.Equal(1200m, only.Amount);
 
         // Official Monthly Income: canonical 1200, legacy 0 - not counted twice.
@@ -170,14 +170,15 @@ public sealed partial class EcfCollectionWorkflowTests
     }
 
     [SkippableFact]
-    public async Task Partial_remainder_posts_only_the_remainder()
+    public async Task A_legacy_partial_on_a_canonical_row_is_kept_for_reconciliation_and_posts_nothing()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? "Docker unavailable");
-        var (seed, _, txId) = await OnlineRentAsync(opening: 600m);                 // checkout = the 600 still outstanding
-        Assert.True((await SettleAsync(seed.TenantId, txId)).IsSuccess);
+        var (seed, _, txId) = await OnlineRentAsync(opening: 600m);                 // the row carries 600 of LEGACY partial evidence: same guard as the Mobile rent path
+        var result = await SettleAsync(seed.TenantId, txId);
+        Assert.Equal(ResultStatus.Conflict, result.Status); Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
         await using var verify = db.CreateContext(seed.TenantId);
-        Assert.Equal(600m, (await verify.Collections.SingleAsync()).TotalAmount);
-        Assert.Equal(PaymentStatus.Paid, (await verify.PaymentRecords.SingleAsync()).Status);
+        Assert.Empty(await verify.Collections.ToArrayAsync());
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, (await verify.OnlinePaymentTransactions.SingleAsync()).Status);   // the capture is preserved, not lost
     }
 
     [SkippableFact]
@@ -249,13 +250,20 @@ public sealed partial class EcfCollectionWorkflowTests
     }
 
     [SkippableFact]
-    public async Task Checkout_quote_for_a_canonical_row_is_its_rent_outstanding_and_a_transitioning_row_is_paused()
+    public async Task Checkout_quote_for_a_clean_canonical_row_is_its_rent_outstanding_and_one_with_legacy_components_is_paused()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? "Docker unavailable");
-        var (seed, rent, _) = await OnlineRentAsync(opening: 600m);
-        await using var ctx = db.CreateContext(seed.TenantId);
-        var record = await ctx.PaymentRecords.AsNoTracking().SingleAsync();
-        var quote = await new OnlineRentCanonicalPoster(ctx).QuoteAsync(record, default);
-        Assert.True(quote.Payable); Assert.Equal(600m, quote.Amount);
+        var (seed, _, _) = await OnlineRentAsync();
+        await using (var ctx = db.CreateContext(seed.TenantId))
+        {
+            var record = await ctx.PaymentRecords.AsNoTracking().SingleAsync();
+            var quote = await new OnlineRentCanonicalPoster(ctx).QuoteAsync(record, default);
+            Assert.True(quote.Payable, quote.Reason); Assert.Equal(1200m, quote.Amount);
+        }
+
+        var (partialSeed, _, _) = await OnlineRentAsync(opening: 600m);
+        await using var partialCtx = db.CreateContext(partialSeed.TenantId);
+        var mixed = await new OnlineRentCanonicalPoster(partialCtx).QuoteAsync(await partialCtx.PaymentRecords.AsNoTracking().SingleAsync(), default);
+        Assert.False(mixed.Payable); Assert.Contains("reconciliation", mixed.Reason, StringComparison.OrdinalIgnoreCase);
     }
 }
