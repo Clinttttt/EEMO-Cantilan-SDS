@@ -356,7 +356,7 @@
                     <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
                     <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
                     <div><dt>Recorded by</dt><dd>@r.RecordedBy</dd></div>
-                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Not issued (legacy payment)")</dd></div>
+                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Not issued (legacy record)")</dd></div>
                     <div><dt>Receipt</dt><dd>
                         @if (!string.IsNullOrWhiteSpace(r.DocumentNumber))
                         {
@@ -422,7 +422,7 @@
 
         @if (!isCanonical)
         {
-            <p class="txn-note" role="status">This payment was recorded through the legacy payment workflow. No SRC was issued; the original amount and receipt evidence are preserved.</p>
+            <p class="txn-note" role="status">This entry was recorded through a legacy financial workflow. No canonical Collection or SRC was issued; the recorded amount and any receipt evidence are preserved.</p>
         }
         else
         {
