@@ -93,7 +93,8 @@ public sealed class RemittanceWorkspaceTests : TestContext
     {
         ServePosition(Position(0m, 0m) with { Collectors = [] });
         var cut = RenderComponent<Remittances>();
-        cut.WaitForAssertion(() => Assert.Contains("No collections ready to remit.", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup), Timeout);
+        Assert.Contains("Legacy payment records require separate reconciliation", cut.Markup);
         Assert.Single(cut.FindAll(".rm-workspace"));
         Assert.Empty(cut.FindAll(".v3h .rm-ctl"));
         Assert.Equal("Print", cut.Find(".rm-nav .rm-ctl button").TextContent.Trim());
@@ -105,6 +106,29 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.NotNull(panel.QuerySelector(".v3-table-wrap table thead"));
             Assert.NotNull(panel.QuerySelector("tbody .v3-empty"));
         }
+    }
+
+    [Fact]
+    public void Office_and_identified_legacy_receipts_are_disclosed_without_becoming_remittable_cash()
+    {
+        ServePosition(Position(0m, 0m) with
+        {
+            Collectors = [],
+            LegacyCollectionsOutsideRemittance = 875m,
+            OfficeOriginCollected = 1250m,
+            OfficeOriginCount = 2
+        });
+        var cut = RenderComponent<Remittances>();
+        cut.WaitForAssertion(() =>
+        {
+            var note = cut.Find("[aria-label='Receipts outside collector remittance']").TextContent;
+            Assert.Contains("Identified legacy collector receipts", note);
+            Assert.Contains("₱875.00", note);
+            Assert.Contains("Office-origin canonical Collections", note);
+            Assert.Contains("₱1,250.00", note);
+            Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup);
+        }, Timeout);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
     }
 
     [Fact]

@@ -55,6 +55,22 @@
         }
     </div>
 
+    @if (_position is { } outsidePosition &&
+        (outsidePosition.LegacyCollectionsOutsideRemittance > 0m || outsidePosition.OfficeOriginCollected > 0m))
+    {
+        <div class="v3-notice rm-result" role="note" aria-label="Receipts outside collector remittance">
+            <p><strong>Recorded outside collector remittance.</strong> The cash-position totals above cover posted, collector-owned canonical Collections only.</p>
+            @if (outsidePosition.LegacyCollectionsOutsideRemittance > 0m)
+            {
+                <p>Identified legacy collector receipts: <strong>@Money(outsidePosition.LegacyCollectionsOutsideRemittance)</strong>. These are retained as historical evidence and are not automatically eligible for this remittance workflow.</p>
+            }
+            @if (outsidePosition.OfficeOriginCollected > 0m)
+            {
+                <p>Office-origin canonical Collections: <strong>@Money(outsidePosition.OfficeOriginCollected)</strong>. These are accounted for separately from collector remittances.</p>
+            }
+        </div>
+    }
+
     <div class="rm-print-head" aria-hidden="true">
         <ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel" />
     </div>
@@ -233,7 +249,7 @@
                         }
                         @if (!Eligible.Any())
                         {
-                            <tr><td class="v3-empty" colspan="@(Preparation ? 7 : 6)">@(_loading ? "Loading collections…" : "No collections ready to remit.")</td></tr>
+                            <tr><td class="v3-empty" colspan="@(Preparation ? 7 : 6)">@(_loading ? "Loading collections…" : "No SRC-backed collector Collections ready to remit. Legacy payment records require separate reconciliation and receipt verification; office-origin and online Collections are not collector remittances.")</td></tr>
                         }
                     </tbody>
                     @if (Preparation && SelectedCount > 0)

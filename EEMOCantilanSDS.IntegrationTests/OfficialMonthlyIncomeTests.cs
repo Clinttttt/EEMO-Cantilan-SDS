@@ -109,6 +109,34 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Equal(ResultStatus.Forbidden, (await foreign.HistoryAsync(Today.Year)).Status);
     }
 
+    [SkippableFact]
+    public async Task Tenant_facility_labels_do_not_leak_from_another_municipality()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var madrid = await SeedAsync();
+        var otherTenant = Municipality.Create($"other-{Guid.NewGuid():N}"[..12], "Other Municipality",
+            "Province", MunicipalityStatus.Active, tenantCode: $"other-{Guid.NewGuid():N}"[..28].ToLowerInvariant());
+        await using (var system = db.CreateContext(Guid.Empty))
+        {
+            system.Add(otherTenant);
+            await system.SaveChangesAsync();
+        }
+        await using (var otherDb = db.CreateContext(otherTenant.Id))
+        {
+            otherDb.Add(Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC",
+                municipalityId: otherTenant.Id));
+            await otherDb.SaveChangesAsync();
+        }
+
+        await using var current = db.CreateContext(madrid.Tenant.Id);
+        var report = Statement(madrid, current);
+        var rent = report.Groups.SelectMany(x => x.Rows).Single(x => x.Key == "RENT_TCC");
+        Assert.Equal("Madrid Commercial Center (TCC)", rent.Label);
+        Assert.DoesNotContain(report.Groups.SelectMany(x => x.Rows),
+            row => row.Label.Contains("Tampak Commercial", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void Approved_grouping_keeps_Bbq_under_rent_and_Slaughterhouse_standalone()
     {
@@ -177,7 +205,7 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
             }
             // A canonical ICE rent source (converted) and a legacy TCC rent source (still legacy).
             var iceFacility = Facility.Create(FacilityCode.ICE, "Ice Plant", "ICE", municipalityId: tenant.Id);
-            var tccFacility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC", municipalityId: tenant.Id);
+            var tccFacility = Facility.Create(FacilityCode.TCC, "Madrid Commercial Center", "TCC", municipalityId: tenant.Id);
             var payor = Payor.Create(tenant.Id, "Pedro Vendor", BusinessPayorKind.Person, "test");
             var iceStallEntity = Stall.Create(iceFacility.Id, "ICE-01", 1000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
             var contract = Contract.Create(iceStallEntity.Id, "Pedro Vendor", "Pedro Vendor", period, 5, 1000m, createdBy: "test");
@@ -252,6 +280,9 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
 
         // Legacy-authoritative rows are counted from their sources ...
         Assert.Equal(900m, Cell(before, "RENT_TCC", c => c.Legacy));
+        Assert.Equal("Madrid Commercial Center (TCC)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").Label);
+        Assert.DoesNotContain(before.Groups.SelectMany(g => g.Rows), r => r.Key is "RENT_NCC" or "RENT_NPM" or "RENT_BBQ");
+        Assert.DoesNotContain(before.Groups.SelectMany(g => g.Rows), r => r.Label.Contains("Tampak Commercial", StringComparison.Ordinal));
         Assert.Equal(100m, Cell(before, "ECF", c => c.Legacy));
         // ... canonical-authoritative rows from their Collections ...
         Assert.Equal(30m, Cell(before, "MARKET_FEES", c => c.Canonical));

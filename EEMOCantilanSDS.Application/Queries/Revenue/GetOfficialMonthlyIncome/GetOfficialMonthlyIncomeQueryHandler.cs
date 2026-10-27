@@ -47,6 +47,12 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
 
         var rowFacts = facts.GroupBy(x => OfficialMonthlyIncomeStructure.RowKeyFor(x.Code, x.Facility))
             .ToDictionary(g => g.Key, g => g.ToList());
+        // Official row keys are stable for reconciliation and approved report revisions; only the
+        // displayed facility labels are taken from this municipality's own registry.
+        var facilityNames = await db.Facilities.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenantId)
+            .Select(f => new { f.Code, f.Name })
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
         var defined = OfficialMonthlyIncomeStructure.Rows.ToDictionary(x => x.Key);
         var pendingExtras = rowFacts.Keys.Where(k => !defined.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal)
             .Select(k => new OfficialMonthlyIncomeStructure.Row(k, k.Replace("OTHER_", string.Empty), OfficialMonthlyIncomeStructure.Pending,
@@ -60,7 +66,16 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
             var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
-                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).ToList();
+                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key))
+                .Where(r => r.Facility is not { } facility || facilityNames.ContainsKey(facility)
+                    || rowFacts.ContainsKey(r.Key)
+                    || revisions.Any(revision => revision.RowKey == r.Key))
+                .Select(r => r.Facility is { } facility && facilityNames.TryGetValue(facility, out var tenantName)
+                    ? r with { Label = $"{tenantName} ({facility})" }
+                    : r.Facility is { } fallbackCode
+                        ? r with { Label = $"{fallbackCode} rental (historical)" }
+                        : r)
+                .ToList();
             var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
                 request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
             // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
