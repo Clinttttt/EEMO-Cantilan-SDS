@@ -132,6 +132,28 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void Legacy_only_collector_position_shows_old_amount_without_creating_remittable_cash()
+    {
+        var original = Position(0m, 0m);
+        ServePosition(original with
+        {
+            LegacyCollectionsOutsideRemittance = 2300m,
+            Collectors = [original.Collectors.Single() with { LegacyCollectionsOutsideRemittance = 2300m }]
+        });
+        var cut = RenderComponent<Remittances>();
+        OpenTab(cut, "Collector position");
+        cut.WaitForAssertion(() =>
+        {
+            var table = cut.Find("table.rm-position");
+            Assert.Contains("Legacy recorded (separate)", table.TextContent);
+            Assert.Contains("Ana Reyes", table.TextContent);
+            Assert.Contains("₱2,300.00", table.TextContent);
+            Assert.Contains("₱0.00", table.TextContent);
+        }, Timeout);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
+    }
+
+    [Fact]
     public void Route_IsOfficeOnly_AndTheWorkspaceShowsMoney_NeverPhysicalForms()
     {
         var routes = typeof(Remittances).GetCustomAttributes(typeof(RouteAttribute), true).Cast<RouteAttribute>().Select(x => x.Template).ToList();

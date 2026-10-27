@@ -25,7 +25,10 @@ public sealed record OfficialMonthlyIncomeRowDto(
     // Null unless an approved annual target exists for the row. No target is ever invented.
     decimal? AnnualTarget,
     // YTD actual divided by the annual target. Null without a target; it is never a collection-efficiency figure.
-    decimal? Attainment);
+    decimal? Attainment,
+    // Display-only: the official printable statement omits inactive, unconfigured zero rows for other LGUs.
+    // Source-performance/accounting readers still receive the full stable row-key catalog.
+    bool ShowOnOfficialReport = true);
 
 public sealed record OfficialMonthlyIncomeGroupDto(
     string Key,

@@ -351,6 +351,7 @@
                             <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Unremitted</th>
+                            <th scope="col" class="v3-num">Legacy recorded (separate)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -361,11 +362,12 @@
                                 <td class="v3-num">@Money(row.Collected)</td>
                                 <td class="v3-num">@Money(row.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(row.Unremitted)</td>
+                                <td class="v3-num">@Money(row.LegacyCollectionsOutsideRemittance)</td>
                             </tr>
                         }
                         @if (!VisibleCollectors(position).Any())
                         {
-                            <tr><td class="v3-empty" colspan="4">No collector has collections in this period.</td></tr>
+                            <tr><td class="v3-empty" colspan="5">No collector has recorded collections in this period.</td></tr>
                         }
                     </tbody>
                 </table>
