@@ -581,6 +581,27 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
+    public void Unconfigured_zero_only_rental_line_is_not_printed_but_report_totals_are_preserved()
+    {
+        var original = Statement(null) with { Year = 2025 };
+        var rows = original.Groups.Select(g => g with
+        {
+            Rows = g.Rows.Select(r => r.Key == "RENT_TCC"
+                ? r with { ShowOnOfficialReport = false } : r).ToArray()
+        }).ToArray();
+        var statement = original with { Groups = rows };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null))
+            .ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+        var cut = RenderOfficial(2025);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Market Fees", cut.Markup);
+            Assert.DoesNotContain("Tampak Commercial Center", cut.Find("[data-report-page='1']").TextContent);
+            Assert.Equal(1030m, statement.GrandTotal.Total);
+        }, Timeout);
+    }
+
+    [Fact]
     public void TheOfficialStatement_LettersTheOfficeLines_ShowsTheFullYear_AndNeverInventsATargetOrSubtotal()
     {
         var statement = Statement(null) with { Year = 2025 };

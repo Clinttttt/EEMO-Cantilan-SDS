@@ -252,6 +252,13 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
 
         // Legacy-authoritative rows are counted from their sources ...
         Assert.Equal(900m, Cell(before, "RENT_TCC", c => c.Legacy));
+        Assert.Equal("Madrid Commercial Center (TCC)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").Label);
+        Assert.True(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").ShowOnOfficialReport);
+        Assert.Equal("NCC rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").Label);
+        Assert.False(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").ShowOnOfficialReport);
+        Assert.Equal("NPM rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NPM").Label);
+        Assert.Equal("BBQ rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_BBQ").Label);
+        Assert.DoesNotContain(before.Groups.SelectMany(g => g.Rows), r => r.Label.Contains("Tampak Commercial", StringComparison.Ordinal));
         Assert.Equal(100m, Cell(before, "ECF", c => c.Legacy));
         // ... canonical-authoritative rows from their Collections ...
         Assert.Equal(30m, Cell(before, "MARKET_FEES", c => c.Canonical));

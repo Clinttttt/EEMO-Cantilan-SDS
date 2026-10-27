@@ -47,6 +47,17 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
 
         var rowFacts = facts.GroupBy(x => OfficialMonthlyIncomeStructure.RowKeyFor(x.Code, x.Facility))
             .ToDictionary(g => g.Key, g => g.ToList());
+        // Official row keys are stable for reconciliation and approved report revisions; only the
+        // displayed facility labels are taken from this municipality's own registry.
+        var facilityNames = await db.Facilities.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenantId)
+            .Select(f => new { f.Code, f.Name })
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
+        var isDefaultOffice = await db.Municipalities.AsNoTracking()
+            .Where(x => x.Id == tenantId).Select(x => x.IsDefault).SingleAsync(ct);
+        var activeSources = (await db.RevenueClassifications.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.IsActive)
+            .Select(x => x.SemanticCode).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         var defined = OfficialMonthlyIncomeStructure.Rows.ToDictionary(x => x.Key);
         var pendingExtras = rowFacts.Keys.Where(k => !defined.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal)
             .Select(k => new OfficialMonthlyIncomeStructure.Row(k, k.Replace("OTHER_", string.Empty), OfficialMonthlyIncomeStructure.Pending,
@@ -60,9 +71,23 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
             var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
-                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).ToList();
+                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key))
+                // Keep every official row key for the source-performance register, including zero rows.
+                // Unconfigured legacy facility labels must never borrow another municipality's name.
+                .Select(r => r.Facility is { } facility && facilityNames.TryGetValue(facility, out var tenantName)
+                    ? r with { Label = $"{tenantName} ({facility})" }
+                    : r.Facility is { } fallbackCode
+                        ? r with { Label = $"{fallbackCode} rental (historical)" }
+                        : r)
+                .ToList();
             var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
-                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
+                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0),
+                // Hide only zero-only, unapproved template entries on a nondefault office's PRINTED sheet.
+                // The DTO stays in the query response for downstream source-performance reconciliation.
+                isDefaultOffice || rowFacts.ContainsKey(row.Key)
+                    || currentRevisions.Keys.Any(k => k.RowKey == row.Key)
+                    || (row.Facility is { } facility && facilityNames.ContainsKey(facility))
+                    || (row.Facility is null && row.ClassificationCode is { } code && activeSources.Contains(code)))).ToList();
             // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
             if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(r =>
                 r.Total.Total != 0m || r.AnnualTarget.HasValue || r.Months.Any(m => m.IsAdjusted)).ToList();
@@ -113,7 +138,8 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
     }
 
     private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts,
-        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through)
+        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through,
+        bool showOnOfficialReport)
     {
         var months = Enumerable.Range(1, 12).Select(m => new MonthlyIncomeCellDto(
             facts.Where(f => f.Month == m && !f.Canonical).Sum(f => f.Amount),
@@ -126,7 +152,8 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             : total.Canonical != 0m ? "Canonical" : total.Legacy != 0m ? "Legacy" : "None";
         var target = revisions.GetValueOrDefault((OfficialReportRevisionKind.AnnualTarget, row.Key, 0))?.Amount;
         return new(row.Key, row.Label, row.ClassificationCode, months, total, authority, target,
-            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null);
+            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null,
+            showOnOfficialReport);
     }
 
     private static MonthlyIncomeCellDto SumCell(IEnumerable<MonthlyIncomeCellDto> cells)
