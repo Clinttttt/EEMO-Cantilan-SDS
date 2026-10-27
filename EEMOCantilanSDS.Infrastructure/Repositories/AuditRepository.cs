@@ -48,54 +48,9 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
             .Where(g => g.Count() == 1)
             .ToDictionary(g => g.Key, g => g.Single().FullName, StringComparer.OrdinalIgnoreCase);
         var idMap = ownStaff.ToDictionary(s => s.Id, s => s.FullName);
-        var ownIds = ownStaff.SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
-
-        // Actors that belong to ANOTHER municipality never appear in this LGU's trail. Audit rows are stamped
-        // with the tenant that was current when they were written, and some are written in flows where that is
-        // the default tenant — a platform operator creating another LGU's Head, or a token-less auth step. The
-        // office's own audit page must show its own people, so those rows are excluded here by the actor's
-        // municipality rather than by the row's stamp. Accounts we cannot attribute (deleted staff, payors,
-        // "system") are kept: an audit trail may never silently drop an event.
-        var foreignActors = currentMunicipality == Guid.Empty
-            ? new List<string>()
-            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
-                   // Lower-cased on both sides: usernames are matched case-insensitively everywhere else in the
-                   // system, and a differently-cased actor name must not slip past this exclusion.
-                   .Select(s => s.Username.ToLower()).Where(n => !ownStaff.Any(s => s.Username.Equals(n, StringComparison.OrdinalIgnoreCase)))
-                   .ToList();
-        var foreignIds = currentMunicipality == Guid.Empty ? new List<string>()
-            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
-                .SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
-
-        // Base scope = every filter EXCEPT action, so the summary cards always show the full
-        // Created/Updated/Deleted breakdown for the current search/date/actor/entity scope.
-        var baseQuery = context.AuditLogs.AsNoTracking();
-
-        if (foreignActors.Count > 0)
-            baseQuery = baseQuery.Where(a => ownIds.Contains(a.ActorId.ToLower()) || !foreignActors.Contains(a.ActorName.ToLower()));
-        if (foreignIds.Count > 0)
-            baseQuery = baseQuery.Where(a => !foreignIds.Contains(a.ActorId.ToLower()));
-
-        // Rows already written before audit entries were filed under the record's own municipality can still
-        // carry this office's stamp while describing ANOTHER LGU's record — e.g. "Updated the staff account of
-        // carrascal.head" sitting in Cantilan's trail. Every snapshot contains the record's own MunicipalityId,
-        // so a row that names a different municipality is excluded here. One clause per other municipality (a
-        // handful at most), and nothing is excluded when the tenant is unresolved.
-        if (currentMunicipality != Guid.Empty)
-        {
-            var foreignMunicipalities = await context.Municipalities.AsNoTracking().IgnoreQueryFilters()
-                .Where(m => m.Id != currentMunicipality)
-                .Select(m => m.Id)
-                .ToListAsync(ct);
-
-            foreach (var id in foreignMunicipalities)
-            {
-                var needle = id.ToString().ToLower();
-                baseQuery = baseQuery.Where(a =>
-                    (a.NewValues == null || !a.NewValues.ToLower().Contains(needle))
-                    && (a.OldValues == null || !a.OldValues.ToLower().Contains(needle)));
-            }
-        }
+        // The list and the event-details reader MUST share one tenancy/legacy-visibility policy.
+        // Details must never bypass the checks already applied to the list.
+        var baseQuery = await VisibleAuditQueryAsync(staff, ownStaff, ct);
 
         // Incoming bounds carry the correct UTC instant but may bind with Kind=Unspecified over the
         // query string; Npgsql requires Kind=Utc for the 'timestamp with time zone' column.
@@ -249,6 +204,79 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
             deletedCount,
             actorOptions,
             entityTypes);
+    }
+
+    // The same visibility restrictions govern both pagination and single-event details.
+    // The historical snapshot check protects records stamped to the wrong LGU before the
+    // interceptor began using the record's authoritative MunicipalityId.
+    private async Task<IQueryable<EEMOCantilanSDS.Domain.Entities.Audit.AuditLog>> VisibleAuditQueryAsync(
+        IReadOnlyList<StaffActor> staff, IReadOnlyList<StaffActor> ownStaff, CancellationToken ct)
+    {
+        var currentMunicipality = municipality?.MunicipalityId ?? Guid.Empty;
+        var ownIds = ownStaff.SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
+        var foreignActors = currentMunicipality == Guid.Empty
+            ? new List<string>()
+            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
+                .Select(s => s.Username.ToLower())
+                .Where(n => !ownStaff.Any(s => s.Username.Equals(n, StringComparison.OrdinalIgnoreCase)))
+                .ToList();
+        var foreignIds = currentMunicipality == Guid.Empty
+            ? new List<string>()
+            : staff.Where(s => s.MunicipalityId != Guid.Empty && s.MunicipalityId != currentMunicipality)
+                .SelectMany(s => new[] { s.Id.ToString(), s.Id.ToString("N") }).ToList();
+
+        var query = context.AuditLogs.AsNoTracking();
+        if (foreignActors.Count > 0)
+            query = query.Where(a => ownIds.Contains(a.ActorId.ToLower()) || !foreignActors.Contains(a.ActorName.ToLower()));
+        if (foreignIds.Count > 0)
+            query = query.Where(a => !foreignIds.Contains(a.ActorId.ToLower()));
+
+        if (currentMunicipality != Guid.Empty)
+        {
+            var otherMunicipalities = await context.Municipalities.AsNoTracking().IgnoreQueryFilters()
+                .Where(m => m.Id != currentMunicipality)
+                .Select(m => m.Id)
+                .ToListAsync(ct);
+            foreach (var id in otherMunicipalities)
+            {
+                var needle = id.ToString().ToLower();
+                query = query.Where(a =>
+                    (a.NewValues == null || !a.NewValues.ToLower().Contains(needle))
+                    && (a.OldValues == null || !a.OldValues.ToLower().Contains(needle)));
+            }
+        }
+        return query;
+    }
+
+    public async Task<AuditEventDetailsDto?> GetAuditEventAsync(Guid eventId, CancellationToken ct)
+    {
+        var staff = await BuildStaffDirectoryAsync(ct);
+        var tenantId = municipality?.MunicipalityId ?? Guid.Empty;
+        var ownStaff = staff.Where(s => tenantId == Guid.Empty || s.MunicipalityId == tenantId).ToList();
+        var query = await VisibleAuditQueryAsync(staff, ownStaff, ct);
+        var audit = await query.Where(a => a.Id == eventId).SingleOrDefaultAsync(ct);
+        if (audit is null) return null;
+
+        var names = ownStaff.GroupBy(s => s.Username, StringComparer.OrdinalIgnoreCase)
+            .Where(g => g.Count() == 1)
+            .ToDictionary(g => g.Key, g => g.Single().FullName, StringComparer.OrdinalIgnoreCase);
+        var identities = ownStaff.ToDictionary(s => s.Id, s => s.FullName);
+
+        var stalls = new HashSet<Guid>();
+        var people = new HashSet<Guid>();
+        AuditDetailComposer.CollectReferences(
+            audit.EntityType, audit.EntityId, audit.NewValues, audit.OldValues, stalls, people);
+        var lookup = await BuildLookupAsync(stalls, people, ct);
+
+        return new AuditEventDetailsDto(
+            audit.Id, audit.LoggedAt, audit.ActorName,
+            Display(audit.ActorId, audit.ActorName, names, identities), audit.ActorRole,
+            audit.Action, audit.EntityType, audit.EntityId,
+            string.IsNullOrWhiteSpace(audit.Notes)
+                ? AuditDetailComposer.Describe(audit.Action, audit.EntityType, audit.EntityId,
+                    audit.NewValues, audit.OldValues, lookup)
+                : audit.Notes!,
+            AuditDetailComposer.ChangesAll(audit.OldValues, audit.NewValues, lookup));
     }
 
     /// <summary>

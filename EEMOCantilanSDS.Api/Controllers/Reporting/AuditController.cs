@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using EEMOCantilanSDS.Application.Dtos.Audit;
+using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Queries.Audit.GetAuditTrail;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -9,8 +10,16 @@ using Microsoft.AspNetCore.Mvc;
 namespace EEMOCantilanSDS.Api.Controllers;
 
 [Authorize(Roles = "SuperAdmin")]
-public class AuditController(ISender sender) : ApiBaseController(sender)
+public class AuditController(ISender sender, IAuditRepository audits) : ApiBaseController(sender)
 {
+    /// <summary>Read one event using the same tenant visibility rules as the paginated trail.</summary>
+    [HttpGet("trail/{eventId:guid}")]
+    public async Task<ActionResult<AuditEventDetailsDto>> GetEvent(Guid eventId, CancellationToken ct)
+    {
+        var result = await audits.GetAuditEventAsync(eventId, ct);
+        return result is null ? NotFound() : Ok(result);
+    }
+
     /// <summary>
     /// Returns a filtered, paginated page of audit-trail entries plus action-summary counts and
     /// the distinct actor/entity filter options. SuperAdmin only.
