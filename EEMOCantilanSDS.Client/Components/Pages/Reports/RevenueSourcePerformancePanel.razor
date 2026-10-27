@@ -3,7 +3,9 @@
 @using EEMOCantilanSDS.Application.Dtos.Reports
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Client.Services
 @inject IOfficialReportsApiClient Api
+@inject IServiceProvider Services
 
 @* REVENUE SOURCE PERFORMANCE — every source the office collects, facility or not.
 
@@ -11,6 +13,7 @@
    Overview and Reports use the same static management table, with target editing available only in
    Reports; contribution uses the existing source-group amount, and recurring outstanding amounts appear only when the
    same-period facility register supplies them. *@
+<OperationNameWatcher OnChanged="@(() => StateHasChanged())" />
 <section class="rsp" aria-labelledby="rsp-title" aria-busy="@(_loading ? "true" : "false")">
     @if (_data is null && _error is null)
     {
@@ -131,7 +134,7 @@
                         {
                             var facility = FacilityOf(row);
                             <tr class="rsp-row">
-                                <th scope="row" class="rsp-source">@row.Label</th>
+                                <th scope="row" class="rsp-source">@ShownName(row)</th>
                                 <td class="rsp-num rsp-collected">@Money(row.Collected)
                                     @if (row.AdjustmentAmount != 0m) { <div class="rsp-quiet">Official @Money(row.OfficialAmount) · report adjustment @Money(row.AdjustmentAmount)</div> }
                                 </td>
@@ -207,6 +210,9 @@
     /// <summary>The facility register's rows for the same period: the only place balances and coverage are measured.</summary>
     [Parameter] public IReadOnlyList<FinancialFacilityRowDto>? Facilities { get; set; }
 
+    /// <summary>Optional known configured facilities from Dashboard's lighter overview.</summary>
+    [Parameter] public IReadOnlyCollection<FacilityCode>? ConfiguredFacilityCodes { get; set; }
+
     /// <summary>Tells the page how completely targets are configured, so the Summary can state attainment truthfully.</summary>
     [Parameter] public EventCallback<TargetCoverageDto?> OnCoverage { get; set; }
 
@@ -235,12 +241,23 @@
 
     private bool CrossGroupScope => _group is "facilities" or "operations";
 
-    private bool RowVisible(RevenueSourcePerformanceRowDto row) => _group switch
-    {
-        "facilities" => row.Facility is not null,
-        "operations" => row.Facility is null,
-        _ => true
-    };
+    private OperationNameService? Names =>
+        Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<OperationNameService>(Services);
+
+    private IReadOnlyCollection<FacilityCode>? FacilityCodes =>
+        ConfiguredFacilityCodes ?? Facilities?.Select(f => f.Code).ToArray();
+
+    private bool RowVisible(RevenueSourcePerformanceRowDto row) =>
+        TenantRevenueSourceVisibility.Show(row, Names, FacilityCodes) &&
+        (_group switch
+        {
+            "facilities" => row.Facility is not null,
+            "operations" => row.Facility is null,
+            _ => true
+        });
+
+    private string ShownName(RevenueSourcePerformanceRowDto row) =>
+        Names?.NameForSource(row.Key, null, row.Label) ?? row.Label;
 
     private IEnumerable<RevenueSourceGroupDto> VisibleGroups =>
         _data?.Groups.Where(g => (_group is "all" || CrossGroupScope || g.Key == _group)
