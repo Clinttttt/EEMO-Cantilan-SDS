@@ -177,7 +177,8 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
             }
             // A canonical ICE rent source (converted) and a legacy TCC rent source (still legacy).
             var iceFacility = Facility.Create(FacilityCode.ICE, "Ice Plant", "ICE", municipalityId: tenant.Id);
-            var tccFacility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC", municipalityId: tenant.Id);
+            // A nondefault office's own facility name must win over legacy Cantilan report labels.
+            var tccFacility = Facility.Create(FacilityCode.TCC, "Madrid Commercial Center", "TCC", municipalityId: tenant.Id);
             var payor = Payor.Create(tenant.Id, "Pedro Vendor", BusinessPayorKind.Person, "test");
             var iceStallEntity = Stall.Create(iceFacility.Id, "ICE-01", 1000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
             var contract = Contract.Create(iceStallEntity.Id, "Pedro Vendor", "Pedro Vendor", period, 5, 1000m, createdBy: "test");
