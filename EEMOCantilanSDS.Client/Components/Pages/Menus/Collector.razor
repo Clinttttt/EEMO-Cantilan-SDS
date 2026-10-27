@@ -1129,7 +1129,7 @@
             {
                 MessageInfo = result.Value > 0
                     ? $"Sent to {result.Value} device(s)."
-                    : "This collector has no registered device yet (they haven't signed in to the app).";
+                    : "No notification was delivered. Check the collector's device registration, notification settings, and Firebase push configuration.";
                 MessageTitle = string.Empty;
                 MessageBody = string.Empty;
             }

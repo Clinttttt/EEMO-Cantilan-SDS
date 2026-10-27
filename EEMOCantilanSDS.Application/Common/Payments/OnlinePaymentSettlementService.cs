@@ -42,12 +42,18 @@ public sealed class OnlinePaymentSettlementService(
         {
             await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
                 tenantContext.TenantCode, null, record.BillingYear, record.BillingMonth, ct);
+        }
+        catch { /* cache refresh is non-critical; the Collection is already posted */ }
+
+        // An unavailable cache must not prevent the collector push from being attempted.
+        try
+        {
             await notifier.NotifyPaymentReceivedAsync(
                 new OnlinePaymentNotification(transaction.Reference, transaction.Amount, record.PeriodKey, transaction.Method,
                     transaction.PaidAt ?? DateTime.UtcNow, record.StallId, record.BillingYear, record.BillingMonth,
                     tenantContext.TenantCode), ct);
         }
-        catch { /* cache refresh / alert are non-critical; the Collection is already posted */ }
+        catch { /* alert is non-critical; the Collection is already posted */ }
 
         return Result<bool>.Success(true);
     }
@@ -135,12 +141,14 @@ public sealed class OnlinePaymentSettlementService(
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
-        await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
-            tenantContext.TenantCode,
-            null,
-            record.BillingYear,
-            record.BillingMonth,
-            cancellationToken);
+        // The financial write has committed. Cache invalidation is independent of push delivery;
+        // failure here must neither misreport the settlement nor silence the collector alert.
+        try
+        {
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(
+                tenantContext.TenantCode, null, record.BillingYear, record.BillingMonth, cancellationToken);
+        }
+        catch { /* cache refresh is non-critical after settlement */ }
 
         // Best-effort realtime alert for staff — must never affect payment processing.
         try
