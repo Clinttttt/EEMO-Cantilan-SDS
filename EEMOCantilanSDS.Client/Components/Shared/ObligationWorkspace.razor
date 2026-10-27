@@ -17,15 +17,15 @@
 <OperationNameWatcher OnChanged="@(() => StateHasChanged())" />
 @if (SpaceExperience && !Management)
 {
-    <div role="region" aria-label="@($"{Name} totals: all registered accounts, including closed accounts, to date")">
+    <div role="region" aria-label="@($"{ShownName} totals: all registered accounts, including closed accounts, to date")">
     @if (Workspace is { } workspace)
     {
-        <RentalWorkspaceHero Workspace="workspace" Stats="SpaceStats" Scope="All accounts · to date"
+        <RentalWorkspaceHero Workspace="workspace" TitleOverride="@ShownName" Stats="SpaceStats" Scope="All accounts · to date"
                              Icon="SpaceIcon" ProgressPercentage="CollectionRate" />
     }
     else
     {
-    <FacilityHero Title="@Name" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : Kind == ObligationKind.VegetableFruitSpaceRental ? "OPERATION · VF" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
+    <FacilityHero Title="@ShownName" Eyebrow="@(Kind == ObligationKind.FiestaArawLotRental ? "OPERATION · EVENT LOT RENTAL" : Kind == ObligationKind.VegetableFruitSpaceRental ? "OPERATION · VF" : "OPERATION · SPACE RENTAL")" Stats="SpaceStats" ShowProgress="true" ProgressPercentage="@CollectionRate">
         <Icon><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M9 21V9" /></svg></Icon>
     </FacilityHero>
     }
@@ -839,6 +839,13 @@ else
     // refuses to record one until a duration policy is confirmed, so the form does not offer the choice (and never sends one).
     private EEMOCantilanSDS.Client.Services.OperationNameService? Names =>
         Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService<EEMOCantilanSDS.Client.Services.OperationNameService>(Services);
+    private string ShownName => Kind switch
+    {
+        ObligationKind.KanmanggaySpaceRental => Names?.NameFor(CollectorOperationCodes.KanmanggaySpaceRental, Name) ?? Name,
+        ObligationKind.VegetableFruitSpaceRental => Names?.NameFor(CollectorOperationCodes.VegetableFruitSpaceRental, Name) ?? Name,
+        ObligationKind.FiestaArawLotRental => Names?.NameFor(CollectorOperationCodes.FiestaArawLotRental, Name) ?? Name,
+        _ => Name
+    };
     private bool DurationUnconfirmed => Kind == ObligationKind.KanmanggaySpaceRental
         && Names?.PolicyNoticeFor(CollectorOperationCodes.KanmanggaySpaceRental) is not null;
     private DateTime? _contractDate = PhilippineTime.Now.Date;

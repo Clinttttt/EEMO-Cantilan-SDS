@@ -193,7 +193,7 @@ public sealed class OperationsTenantConfigurationTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll("li").Where(li => li.TextContent.Contains("Policy confirmation required")).ToList();
+            var rows = cut.FindAll("li").Where(li => li.TextContent.Contains("Signed-contract duration not configured")).ToList();
             var row = Assert.Single(rows);
             Assert.Contains("Municipal Space Rental", row.TextContent);
         }, Timeout);

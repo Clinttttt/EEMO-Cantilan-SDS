@@ -78,6 +78,27 @@ public sealed class RentalWorkspacePilotTests : TestContext
         Assert.Contains("₱1,234.56", cut.Markup);
     }
 
+    [Fact]
+    public void AdoptedMunicipalSpaceRentalName_AlsoAppearsOnWorkspaceHero()
+    {
+        var api = OperationsTenantConfigurationTests.SettingsApi(
+            adopted: true, listed: ["KANMANGGAY_SPACE_RENTAL"]);
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(new OperationNameService(api.Object));
+        _obligations.Setup(x => x.GetWorkspaceAsync(ObligationKind.KanmanggaySpaceRental))
+            .ReturnsAsync(Result<ObligationWorkspaceDto>.Success(new([], 0m, 0m, 0m)));
+
+        var cut = RenderComponent<Kanmanggay>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal("Municipal Space Rental", cut.Find(".facility-hero h1").TextContent.Trim());
+            Assert.Contains("Municipal Space Rental", cut.Find(".topbar-title").TextContent);
+            Assert.Contains("Municipal Space Rental totals",
+                cut.Find("[role='region'][aria-label*='totals']").GetAttribute("aria-label"));
+        }, TimeSpan.FromSeconds(5));
+    }
+
     [Theory]
     [InlineData(RentalWorkspaceKey.Ice, 3)]
     [InlineData(RentalWorkspaceKey.Kanmanggay, 3)]
