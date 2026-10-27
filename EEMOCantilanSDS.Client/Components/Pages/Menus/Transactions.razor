@@ -33,12 +33,12 @@
 <div class="content-area">
 
     <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Collections")" Title="Collection Activity"
-            Subtitle="Recorded collection activity across StallTrack.">
+            Subtitle="Posted collections and recorded legacy payments.">
         <Icon>
             <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
         </Icon>
         <Figures>
-            <V3HeroFigure Label="Collections" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
+            <V3HeroFigure Label="Records" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
             <V3HeroFigure Label="Collected" Value="@($"₱{Visible.Sum(e => e.Amount):N2}")" Note="@ScopeLabel" />
             @if (Visible.Any(e => e.Verification is not null))
             {
@@ -356,7 +356,7 @@
                     <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
                     <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
                     <div><dt>Recorded by</dt><dd>@r.RecordedBy</dd></div>
-                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Not issued (historical record)")</dd></div>
+                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Not issued (legacy record)")</dd></div>
                     <div><dt>Receipt</dt><dd>
                         @if (!string.IsNullOrWhiteSpace(r.DocumentNumber))
                         {
@@ -422,7 +422,7 @@
 
         @if (!isCanonical)
         {
-            <p class="txn-note" role="status">This is a legacy payment recorded before SRCs. Its history is shown as recorded; it has no SRC and no canonical correction.</p>
+            <p class="txn-note" role="status">This entry was recorded through a legacy financial workflow. No canonical Collection or SRC was issued; the recorded amount and any receipt evidence are preserved.</p>
         }
         else
         {
