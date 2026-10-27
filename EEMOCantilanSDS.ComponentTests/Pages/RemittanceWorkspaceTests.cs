@@ -93,7 +93,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
     {
         ServePosition(Position(0m, 0m) with { Collectors = [] });
         var cut = RenderComponent<Remittances>();
-        cut.WaitForAssertion(() => Assert.Contains("No collections ready to remit.", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup), Timeout);
         Assert.Single(cut.FindAll(".rm-workspace"));
         Assert.Empty(cut.FindAll(".v3h .rm-ctl"));
         Assert.Equal("Print", cut.Find(".rm-nav .rm-ctl button").TextContent.Trim());
