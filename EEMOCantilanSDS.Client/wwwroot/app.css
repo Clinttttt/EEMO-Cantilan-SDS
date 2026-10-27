@@ -3859,11 +3859,8 @@ h1[tabindex="-1"]:focus {
 :where(tbody tr, .v3-table tr, li) { transition: background-color var(--motion-fast) ease; }
 
 @media (prefers-reduced-motion: no-preference) {
-    /* A page eases in when the route changes (the new page's root is a new element). Opacity only: a transform would move any fixed child
-       with it for the length of the animation. Dialogs, drawers and their backdrops are excluded, they have their own entrance below. */
-    .admin-main > :not([class*="backdrop"], [class*="overlay"], [class*="scrim"], [class*="drawer"], [class*="modal"], [role="dialog"], [role="status"], [role="alert"]) {
-        animation: motion-fade-in var(--motion-slow) var(--motion-ease) backwards;
-    }
+    /* Do not animate route-level content: it makes each navigation look like a full reload.
+       Retain the scoped entrance effects below for overlays, dialogs and notices. */
 
     /* Backdrops fade; a centred dialog rises a little; a docked drawer slides in from its edge. */
     :where([class*="backdrop"], [class*="overlay"], [class*="scrim"]) {

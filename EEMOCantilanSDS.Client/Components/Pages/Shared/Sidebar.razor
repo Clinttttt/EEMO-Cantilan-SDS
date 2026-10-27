@@ -291,13 +291,16 @@
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
         => _ = InvokeAsync(async () =>
         {
-            // Navigation does not change the LGU seal. Reusing the verified/broken
-            // URL avoids another image fetch or fallback flash on every page.
-            await Branding.EnsureLoadedAsync();
-            if (!Branding.Resolved && !_officeProfileSealAttempted)
-                await TryLoadOwnOfficeSealAsync();
+            // A route change cannot change tenant branding. Resolve it only if the
+            // initial attempt has not succeeded, rather than checking on every page.
+            if (!Branding.Resolved)
+            {
+                await Branding.EnsureLoadedAsync();
+                if (!Branding.Resolved && !_officeProfileSealAttempted)
+                    await TryLoadOwnOfficeSealAsync();
+            }
             _pendingPath = null;
-            SetMobileOpen(false);   // navigating closes the mobile drawer
+            if (_mobileOpen) SetMobileOpen(false);
             StateHasChanged();
         });
 
