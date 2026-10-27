@@ -1476,7 +1476,7 @@ public sealed class ObligationWorkspaceTests : TestContext
         {
             var drawer = Assert.Single(cut.FindAll("[role='dialog']"));
             Assert.DoesNotContain("Contract Duration (No. of Years)", drawer.TextContent);   // no three-year choice is offered
-            Assert.Contains("Policy confirmation required", drawer.TextContent);
+            Assert.Contains("Contract duration is not configured", drawer.TextContent);
             Assert.Contains("Contract Effectivity Date", drawer.TextContent);                // the rest of the contract is recorded as usual
         }, Timeout);
     }
