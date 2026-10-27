@@ -149,6 +149,9 @@ public sealed class CollectionReviewDrawerTests : TestContext
 
         page.WaitForAssertion(() => Assert.Contains("legacy payment", page.Find(".txr").TextContent), Timeout);
         Assert.Contains("546564", page.Find(".txr").TextContent);
+        Assert.Contains("Not issued (legacy payment)", page.Find(".txr-meta").TextContent);
+        Assert.Contains("recorded through the legacy payment workflow", page.Find(".txn-note").TextContent);
+        Assert.DoesNotContain("recorded before SRCs", page.Find(".txr").TextContent);
         Assert.Empty(page.FindAll(".txn-reason"));
         _activity.Verify(c => c.GetReviewAsync(It.IsAny<Guid>()), Times.Never);
     }

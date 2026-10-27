@@ -123,7 +123,7 @@ public sealed class CollectionActivityPageTests : TestContext
         {
             Assert.Equal("Collection Activity", page.Find("h1.v3h-title").TextContent.Trim());
             Assert.Equal("Collection Activity", page.Find(".topbar-title").TextContent.Trim());
-            Assert.Equal("Recorded collection activity across StallTrack.", page.Find(".v3h-sub").TextContent.Trim());
+            Assert.Equal("Posted collections and recorded legacy payments.", page.Find(".v3h-sub").TextContent.Trim());
             var emptyState = page.Find(".txn-empty").TextContent;
             Assert.Contains("No collection activity", emptyState, StringComparison.Ordinal);
         }, TimeSpan.FromSeconds(5));
@@ -219,6 +219,10 @@ public sealed class CollectionActivityPageTests : TestContext
             Event("Collection:4", "Canonical", "MARKET_FEES", "Market Fees", 30m, instrument: RevenueInstrumentType.CashTicket, document: "CT-0003"));
 
         page.WaitForAssertion(() => Assert.Equal(4, page.FindAll(".txn-table tbody tr").Count), TimeSpan.FromSeconds(5));
+        var recordFigure = page.FindAll(".v3h-figure").First().TextContent;
+        Assert.Contains("Records", recordFigure); // the mixed feed includes legacy payments, not only posted Collections
+        Assert.Contains("4", recordFigure);
+        Assert.DoesNotContain("Collections", recordFigure);
         var markup = page.Markup;
         Assert.Contains("Landing / Berthing", markup);
         Assert.Contains("Water (WCF)", markup);
