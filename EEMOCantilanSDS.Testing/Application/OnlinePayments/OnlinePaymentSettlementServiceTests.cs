@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Caching;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Domain.Common;
@@ -39,6 +40,43 @@ public class OnlinePaymentSettlementServiceTests
 
     private static PaymentGatewayEvent PaidEvent(decimal amount = Amount) =>
         new(PaymentGatewayEventType.Paid, "cs_1", amount, "pay_1", "qrph", DateTime.UtcNow, "{}");
+
+    [Fact]
+    public async Task CommittedMonthlyPayment_PushStillRunsWhenCacheInvalidationFails_AndRetryDoesNotReNotify()
+    {
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
+        var txn = PendingTxn(record.Id);
+        var payments = new Mock<IPaymentRepository>();
+        payments.Setup(x => x.GetByIdAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(record);
+        var cache = new Mock<IEemoCacheInvalidator>();
+        cache.Setup(x => x.InvalidatePaymentAffectedViewsAsync(
+                It.IsAny<string>(), It.IsAny<FacilityCode?>(), 2026, 6, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Unavailable cache"));
+        var notifier = new Mock<IOnlinePaymentNotifier>();
+        var uow = new Mock<IUnitOfWork>();
+        var service = new OnlinePaymentSettlementService(
+            payments.Object,
+            new Mock<IStallRepository>().Object,
+            new Mock<INpmMonthSettlementService>().Object,
+            new Mock<IUtilityBillRepository>().Object,
+            notifier.Object, uow.Object, cache.Object, CacheTestDoubles.Tenant);
+
+        var result = await service.SettleAsync(txn, PaidEvent());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+        Assert.Null(record.ORNumber);
+        uow.Verify(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        notifier.Verify(x => x.NotifyPaymentReceivedAsync(
+            It.Is<OnlinePaymentNotification>(n =>
+                n.StallId == record.StallId && n.Amount == Amount && n.BillingYear == 2026 && n.BillingMonth == 6),
+            It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.True((await service.SettleAsync(txn, PaidEvent())).IsSuccess);
+        notifier.Verify(x => x.NotifyPaymentReceivedAsync(
+            It.IsAny<OnlinePaymentNotification>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 
     [Fact]
     public async Task OutstandingRecord_IsClearedOnline()
