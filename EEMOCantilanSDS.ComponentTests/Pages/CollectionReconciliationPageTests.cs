@@ -222,7 +222,7 @@ public sealed class CollectionReconciliationPageTests : TestContext
     }
 
     [Fact]
-    public void RevisionEvidence_DoesNotPresentPartialYear_WhenRemittanceReaderFails()
+    public void RevisionEvidence_KeepsAuthoritativeRevisionsReadable_WhenRemittanceReaderFails()
     {
         var official = new Mock<IOfficialReportsApiClient>();
         official.Setup(x => x.GetGovernanceAsync(It.IsAny<int>()))
@@ -232,9 +232,71 @@ public sealed class CollectionReconciliationPageTests : TestContext
         remittances.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
             .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Failure("Remittance evidence unavailable", 500));
         Services.AddSingleton(official.Object);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/reports/monthly-income/history?year=2026");
         var cut = RenderComponent<MonthlyIncomeHistory>();
-        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[role='alert']")), TimeSpan.FromSeconds(5));
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Remittance evidence is unavailable", cut.Find("[role='alert']").TextContent);
+            var revision = Assert.Single(cut.FindAll("tbody tr"));
+            Assert.Contains("Annual target", revision.TextContent);
+            Assert.Contains("Approved", revision.TextContent);
+            Assert.Contains("₱500.00", revision.TextContent);
+        }, TimeSpan.FromSeconds(5));
         Assert.Empty(cut.FindAll("a[download]"));
-        Assert.Empty(cut.FindAll("tbody tr"));
+        Assert.Empty(cut.FindAll("button[aria-label='Print']"));
+        Assert.DoesNotContain("No revision or remittance evidence", cut.Markup);
+    }
+
+    [Fact]
+    public void RevisionEvidence_YearParameterChangeReloadsBothSourcesWithoutStaleData()
+    {
+        var official = new Mock<IOfficialReportsApiClient>();
+        official.Setup(x => x.GetGovernanceAsync(It.IsAny<int>()))
+            .Returns((int year) => Task.FromResult(Result<IReadOnlyList<ReportRevisionDto>>.Success([
+                new(Guid.NewGuid(), OfficialReportRevisionKind.AnnualTarget, "RENT_NPM", year, 0, 1,
+                    null, 500m, null, $"Approved {year}", null, null, Guid.NewGuid(), "Head",
+                    new DateTime(year, 10, 2, 2, 0, 0, DateTimeKind.Utc))])));
+        Services.AddSingleton(official.Object);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/reports/monthly-income/history?year=2026");
+
+        var cut = RenderComponent<MonthlyIncomeHistory>();
+        cut.WaitForAssertion(() => Assert.Contains("Approved 2026", cut.Find("tbody").TextContent),
+            TimeSpan.FromSeconds(5));
+
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>()
+            .NavigateTo("/reports/monthly-income/history?year=2025");
+        cut.WaitForAssertion(() =>
+        {
+            var rows = cut.Find("tbody").TextContent;
+            Assert.Contains("Approved 2025", rows);
+            Assert.DoesNotContain("Approved 2026", rows);
+        }, TimeSpan.FromSeconds(5));
+        official.Verify(x => x.GetGovernanceAsync(2025), Times.Once);
+        remittances.Verify(x => x.GetRegisterAsync(new DateOnly(2025, 1, 1), new DateOnly(2025, 12, 31),
+            null, null, null), Times.Once);
+        Assert.Contains("2025", cut.Find(".revisions-sheet").TextContent);
+    }
+
+    [Fact]
+    public void RevisionEvidence_RetainsRevisions_WhenRemittanceReaderThrows()
+    {
+        var official = new Mock<IOfficialReportsApiClient>();
+        official.Setup(x => x.GetGovernanceAsync(2026))
+            .ReturnsAsync(Result<IReadOnlyList<ReportRevisionDto>>.Success([
+                new(Guid.NewGuid(), OfficialReportRevisionKind.MonthlyAdjustment, "RENT_NPM", 2026, 10, 1, null,
+                    25m, 100m, "Approved adjustment", null, null, Guid.NewGuid(), "Head", DateTime.UtcNow)]));
+        remittances.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
+            .ThrowsAsync(new InvalidOperationException("Simulated network outage"));
+        Services.AddSingleton(official.Object);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/reports/monthly-income/history?year=2026");
+        var cut = RenderComponent<MonthlyIncomeHistory>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll("tbody tr"));
+            Assert.Contains("Remittance evidence is unavailable", cut.Find("[role='alert']").TextContent);
+            Assert.Contains("Approved adjustment", cut.Find("tbody").TextContent);
+        }, TimeSpan.FromSeconds(5));
+        Assert.Empty(cut.FindAll("a[download]"));
     }
 }

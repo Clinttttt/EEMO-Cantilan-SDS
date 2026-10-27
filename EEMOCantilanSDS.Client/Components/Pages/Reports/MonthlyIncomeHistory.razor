@@ -1,6 +1,7 @@
 @page "/reports/monthly-income/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using System.Globalization
+@using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Common.Revenue
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Services
@@ -16,7 +17,7 @@
             <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg></Icon>
             <Actions>
                 <a class="rv-ic" href="@($"/reports/monthly-income/official?year={Year}")" title="Latest Monthly Income" aria-label="Latest Monthly Income"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg></a>
-                @if (Rows is not null && !Loading)
+                @if (Rows is not null && Remittances is not null && !Loading)
                 {
                     <a class="rv-ic" download="@($"monthly-income-and-remittance-evidence-{LoadedYear}.csv")" href="@CsvHref" title="Download CSV" aria-label="Download CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg></a>
                     <button type="button" class="rv-ic" @onclick="Print" title="Print or save as PDF" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg></button>
@@ -41,8 +42,8 @@
             var remittances = Remittances ?? [];
             var ordered = rows.Where(Matches).OrderBy(x => LineLabel(x.RowKey), StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Kind).ThenBy(x => x.Month).ThenBy(x => x.Revision).ToList();
             var visibleRemittances = remittances.Where(MatchesRemittance).OrderByDescending(x => x.RemittanceDate).ThenByDescending(x => x.RecordedAtUtc).ToList();
-            @if (Filtered) { <p class="rv-filter" role="status">Showing @(ordered.Count + visibleRemittances.Count) of @(rows.Count + remittances.Count) evidence record(s) for @FilterText.</p> }
-            <div class="revisions-scroll" tabindex="0" role="region" aria-label="Report revisions"><table>
+            @if (Filtered) { <p class="rv-filter" role="status">Showing @(ordered.Count + visibleRemittances.Count) of @(rows.Count + remittances.Count) loaded evidence record(s) for @FilterText.</p> }
+            <div class="revisions-scroll" tabindex="0" role="region" aria-label="Report revision and remittance evidence"><table>
                 <thead><tr>
                     <th scope="col">Revenue line / collector</th><th scope="col">Record type</th><th scope="col">Revision / status</th>
                     <th scope="col" class="rv-money">System / expected</th><th scope="col" class="rv-money">Recorded / remitted</th>
@@ -77,7 +78,8 @@
                     </tr>
                 }</tbody>
             </table></div>
-            @if (rows.Count + remittances.Count == 0) { <p>No revision or remittance evidence for this year. This is not proof that an original report was issued.</p> }
+            @if (Remittances is null && rows.Count == 0) { <p>No report revisions for this year. Remittance evidence has not been loaded.</p> }
+            else if (Remittances is not null && rows.Count + remittances.Count == 0) { <p>No revision or remittance evidence for this year. This is not proof that an original report was issued.</p> }
             else if (ordered.Count + visibleRemittances.Count == 0) { <p>No evidence record matches these filters.</p> }
             <details class="rv-limits" open="@_printing">
                 <summary>Limitations of this record</summary>
@@ -111,26 +113,39 @@
     private string? Error;
     private IReadOnlyList<ReportRevisionDto>? Rows;
     private IReadOnlyList<RemittanceRowDto>? Remittances;
-    protected override Task OnInitializedAsync() => Load();
+    private int _loadVersion;
+    // Blazor retains the routed component when only ?year= changes. Refresh its financial evidence.
+    protected override Task OnParametersSetAsync() => LoadedYear != Year ? Load() : Task.CompletedTask;
     private async Task Load()
     {
-        Loading = true; Error = null; Rows = null; Remittances = null; LoadedYear = Year; _kind = _line = string.Empty;
+        var version = ++_loadVersion;
+        var year = Year;
+        Loading = true; Error = null; Rows = null; Remittances = null; LoadedYear = year; _kind = _line = string.Empty;
         try
         {
-            var reportTask = Api.GetGovernanceAsync(Year);
-            var remittanceTask = RemittancesApi.GetRegisterAsync(new DateOnly(Year, 1, 1), new DateOnly(Year, 12, 31), null, null, null);
-            await Task.WhenAll(reportTask, remittanceTask);
+            // Each reader is independent: an outage in the additional remittance reader
+            // must not hide an otherwise valid history of Monthly Income adjustments.
+            var reportTask = Api.GetGovernanceAsync(year);
+            var remittanceTask = RemittancesApi.GetRegisterAsync(new DateOnly(year, 1, 1), new DateOnly(year, 12, 31), null, null, null);
             var reports = await reportTask;
-            var remittances = await remittanceTask;
-            if (reports.IsSuccess && reports.Value is not null && remittances.IsSuccess && remittances.Value is not null)
+            Result<IReadOnlyList<RemittanceRowDto>>? remittances = null;
+            try { remittances = await remittanceTask; }
+            catch { /* Display report-only evidence, with its incomplete-source warning. */ }
+            if (version != _loadVersion) return; // Older requests must never replace a newer selected year's evidence.
+            if (reports.IsSuccess && reports.Value is not null)
             {
+                // A separate cash-turnover reader must not block access to authoritative report revisions.
+                // Clearly mark this view incomplete and disable a combined export if the reader is unavailable.
                 Rows = reports.Value;
-                Remittances = remittances.Value;
+                if (remittances is { IsSuccess: true, Value: not null })
+                    Remittances = remittances.Value;
+                else
+                    Error = "Remittance evidence is unavailable. Monthly Income revisions remain visible, but the combined export and print are disabled until both sources can be read.";
             }
-            else Error = reports.Error ?? remittances.Error ?? "Evidence history could not be loaded.";
+            else Error = reports.Error ?? "Monthly Income revision evidence could not be loaded.";
         }
-        catch { Error = "Evidence history could not be loaded. No partial history is displayed."; }
-        finally { Loading = false; }
+        catch { if (version == _loadVersion) Error = "Evidence history could not be loaded. No partial history is displayed."; }
+        finally { if (version == _loadVersion) Loading = false; }
     }
 
     private IReadOnlyList<(string Value, string Label)> YearChoices =>
