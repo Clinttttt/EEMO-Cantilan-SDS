@@ -36,6 +36,7 @@
     /* Holder rosters span the paper; the screen shell otherwise reserves sidebar width even after hiding the
        sidebar. Keep the change local to these two document families. */
     .admin-main:has(.space-roster-sheet),
-    .admin-main:has(.lsh-doc-panel) { width: 100% !important; display: block !important; }
+    .admin-main:has(.lsh-doc-panel),
+    .admin-main:has(.slh-client-record) { width: 100% !important; display: block !important; }
     .rpt-content:not(.print-document-content) { padding: 12mm !important; }
 }

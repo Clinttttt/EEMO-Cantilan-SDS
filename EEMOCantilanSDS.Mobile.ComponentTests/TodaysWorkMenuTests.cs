@@ -16,6 +16,28 @@ namespace EEMOCantilanSDS.Mobile.ComponentTests;
 public sealed class TodaysWorkMenuTests : TestContext
 {
     [Fact]
+    public void ElectricityMenuRowUsesTheFullUtilityNameAndKeepsItsRoute()
+    {
+        var api = new Mock<IMobileApiClient>();
+        var session = new MobileSessionService();
+        api.Setup(x => x.GetOperationCapabilitiesAsync()).ReturnsAsync(Result<CollectorOperationCapabilitiesDto>.Success(
+            new(session.Menu.CollectorId, session.Menu.Today, [])));
+        api.Setup(x => x.GetCollectionSessionDiscoveryAsync(null)).ReturnsAsync(Result<CollectionSessionDiscovery>.Success(
+            new(null, session.Menu.Today, [new(CollectionSessionItemKind.Electricity, "ECF", "Electricity", true, true, null, null, false, [], StandaloneAvailable: true)])));
+        var store = new Mock<IPendingOperationStore>();
+        store.Setup(x => x.GetAllAsync()).ReturnsAsync(Array.Empty<PendingOperation>());
+        Services.AddSingleton(session);
+        Services.AddSingleton(api.Object);
+        Services.AddSingleton(new OfflineReadinessCoordinator(api.Object, Mock.Of<IConnectivityMonitor>()));
+        Services.AddSingleton(new MobileSyncService(store.Object, api.Object, Mock.Of<IConnectivityMonitor>(), Mock.Of<ICurrentCollectorProvider>()));
+
+        var cut = RenderComponent<Menu>();
+        cut.WaitForAssertion(() => Assert.Contains(cut.FindAll(".menu-row-name"), x => x.TextContent == "Electricity Consumption Fee"));
+        cut.FindAll("button.menu-row").Single(x => x.TextContent.Contains("Electricity Consumption Fee")).Click();
+        Assert.EndsWith("/ecf", Services.GetRequiredService<NavigationManager>().Uri);
+    }
+
+    [Fact]
     public void LoadingSkeletonMatchesTheSummaryAndRows_WithoutOfferingCollectionActions()
     {
         var api = new Mock<IMobileApiClient>();

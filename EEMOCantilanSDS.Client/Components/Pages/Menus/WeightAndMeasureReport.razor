@@ -87,7 +87,7 @@
                         }
                         @if (!FishRows.Any())
                         {
-                            <tr><td colspan="3" class="v3-report-note">@(_loading ? "Loading weighing records…" : _report is null ? "Weighing records are unavailable." : $"No fish weighing was recorded in {PeriodLabel}.")</td></tr>
+                            <tr><td colspan="3" class="v3-report-note">@(_loading ? "Loading weighing records…" : _report is null ? "Weighing records are unavailable." : $"No historical NPM fish weighing records for {PeriodLabel}.")</td></tr>
                         }
                     </tbody>
                     @if (FishRows.Any())

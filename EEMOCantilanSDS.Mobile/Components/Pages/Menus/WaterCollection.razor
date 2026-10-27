@@ -107,15 +107,15 @@
                     }
                     else
                     {
-                        <ul class="wcf-list" role="listbox" aria-label="Water sources">
+                        <ul class="utility-source-list" role="listbox" aria-label="Water sources">
                             @foreach (var option in Filtered)
                             {
                                 var queued = IsQueued(option);
                                 <li>
-                                    <button type="button" role="option" aria-selected="false" class="wcf-option" @onclick="() => Select(option)">
-                                        <span class="wcf-option-main">
-                                            <span class="wcf-option-name">@(option.PayerName ?? $"Stall {option.StallNo}")</span>
-                                            <span class="wcf-option-sub">@SourceLine(option)</span>
+                                    <button type="button" role="option" aria-selected="false" class="utility-source-option" @onclick="() => Select(option)">
+                                        <span class="utility-source-text">
+                                            <span class="utility-source-name">@(option.PayerName ?? $"Stall {option.StallNo}")</span>
+                                            <span class="utility-source-context">@SourceLine(option)</span>
                                         </span>
                                         <span class="wcf-option-state @StateClass(option, queued)">@StateLabel(option, queued)</span>
                                     </button>

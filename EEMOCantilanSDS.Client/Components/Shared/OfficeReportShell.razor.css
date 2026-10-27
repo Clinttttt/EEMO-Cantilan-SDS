@@ -1,6 +1,6 @@
 .office-report { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 24px; color: var(--text-primary); }
 .office-report-body { margin-top: 20px; }
-.office-signatures { margin-top: 28px; break-inside: avoid; }
+.office-signatures { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 28px; break-inside: avoid; }
 .office-report ::deep table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.4; }
 .office-report ::deep th { background: #eef3f8; color: var(--navy); font-size: 12px; font-weight: 700; letter-spacing: .02em; text-align: left; }
 .office-report ::deep th, .office-report ::deep td { padding: 11px 12px; border: 1px solid var(--border); vertical-align: top; }

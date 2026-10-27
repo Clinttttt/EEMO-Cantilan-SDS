@@ -37,8 +37,9 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 
 /* Suggestions: a bounded panel (about five rows), scrolling inside itself so the page never grows with the list. */
 .payer-panel { margin-top: 10px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); overflow: hidden; }
+.payer-panel.utility-source-panel { border: 0; overflow: visible; }
 .payer-list { max-height: min(60dvh, 680px); overflow-y: auto; overscroll-behavior: contain; }
-/* The Spaces roster must scroll with the main page, not trap touch scrolling inside a nested list.
+/* Space and utility rosters scroll with the main page, not inside a nested list.
    In MAUI WebView the nested scroller otherwise prevents reaching the final holder above BottomNav. */
 .payer-list-space { max-height: none; overflow: visible; overscroll-behavior: auto; }
 .collection-area-filters { display: flex; flex-wrap: nowrap; gap: 0; max-width: 100%;

@@ -694,8 +694,8 @@
         font-size: 11px;
     }
 
-    .txn-table th,
-    .txn-table td {
+    .txn-table > thead > tr > th,
+    .txn-table > tbody > tr > td {
         border: 1px solid #cfd6de;
         padding: 7px 8px;
         overflow-wrap: anywhere;
@@ -708,8 +708,8 @@
     }
 
     /* The date read "Sep / 11, / 2026" down three lines in a column the fixed layout had starved. */
-    .txn-table th:nth-child(2),
-    .txn-table td:nth-child(2) {
+    .txn-table > thead > tr > th:nth-child(2),
+    .txn-table > tbody > .txn-row > td:nth-child(2) {
         white-space: nowrap;
         width: 15%;
     }
@@ -833,3 +833,29 @@
 .txn-item-table .txn-num { text-align: right; }
 .txn-item-table th:first-child,
 .txn-item-table td:first-child { width: 46%; }
+
+@media print {
+    .summary-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .summary-item { padding: 12px; border-bottom: 0; border-right: 1px solid var(--border); }
+    .summary-item:last-child { border-right: 0; }
+    .txn-table > thead > tr > th,
+    .txn-table > thead > tr > th.txn-num {
+        white-space: normal;
+        letter-spacing: 0;
+        font-size: 10px;
+        padding: 7px 6px;
+    }
+    .txn-table > tbody > .txn-row > td { font-size: 11px; padding: 8px 6px; }
+    .txn-table > thead > tr > th:nth-child(1) { width: 5%; }
+    .txn-table > thead > tr > th:nth-child(2) { width: 15%; }
+    .txn-table > thead > tr > th:nth-child(3) { width: 12%; }
+    .txn-table > thead > tr > th:nth-child(4) { width: 8%; }
+    .txn-table > thead > tr > th:nth-child(5),
+    .txn-table > thead > tr > th:nth-child(6),
+    .txn-table > thead > tr > th:nth-child(8) { width: 14%; }
+    .txn-table > thead > tr > th:nth-child(7) { width: 18%; }
+    .txn-items > td { padding: 10px 8px; }
+    .txn-items-box { border-radius: 0; }
+    .txn-item-table th,
+    .txn-item-table td { padding: 7px 8px; font-size: 11px; }
+}
