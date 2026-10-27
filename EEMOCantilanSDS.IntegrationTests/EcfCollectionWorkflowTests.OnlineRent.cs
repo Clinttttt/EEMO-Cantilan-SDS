@@ -110,6 +110,13 @@ public sealed partial class EcfCollectionWorkflowTests
         var only = Assert.Single(events.Where(e => e.Source != "UtilityBill"));   // the seed's own legacy water bill is a different source
         Assert.Equal("Canonical", only.Authority); Assert.Equal(collection.ReferenceCode, only.ReferenceCode); Assert.Equal(1200m, only.Amount);
 
+        // Payor History shows the exact persisted Collection SRC, not a generated code or the physical OR.
+        var payorHistory = await new PaymentRepository(ctx).GetPaymentHistoryAsync(rent.StallId, default);
+        var paidMonth = Assert.Single(payorHistory.Where(h => h.Period == $"{seed.Period:yyyy-MM}"));
+        Assert.Equal(SettlementAuthority.Canonical, paidMonth.SettlementAuthority);
+        Assert.Equal(new[] { collection.ReferenceCode }, paidMonth.SrcReferences);
+        Assert.Null(paidMonth.ORNumber); // official receipt remains an independent staff action
+
         // Official Monthly Income: canonical 1200, legacy 0 - not counted twice.
         var actor = new TestActor(seed.UserId, seed.TenantId, "SuperAdmin");
         var statement = (await new GetOfficialMonthlyIncomeQueryHandler(ctx, new LegacyMonthlyIncomeReader(ctx), actor,
@@ -231,6 +238,9 @@ public sealed partial class EcfCollectionWorkflowTests
         Assert.Empty(await verify.Collections.ToArrayAsync()); Assert.Empty(await verify.PostingOperations.ToArrayAsync());
         var record = await verify.PaymentRecords.SingleAsync();
         Assert.Equal(PaymentStatus.Paid, record.Status); Assert.Equal(SettlementAuthority.Legacy, record.SettlementAuthorityState);
+        var legacyHistory = await new PaymentRepository(verify).GetPaymentHistoryAsync(record.StallId, default);
+        var legacyMonth = Assert.Single(legacyHistory.Where(h => h.Period == $"{record.BillingYear:0000}-{record.BillingMonth:00}"));
+        Assert.Empty(legacyMonth.SrcReferences ?? []); // Never invent SRCs for historical legacy money.
         Assert.Equal(OnlinePaymentStatus.Paid, (await verify.OnlinePaymentTransactions.SingleAsync()).Status);
     }
 

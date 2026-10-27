@@ -48,13 +48,42 @@ public partial class PaymentRepository
             var monthlyCollectorNames = await LoadCollectorNamesAsync(payments.Select(p => p.CollectorId), ct);
             var monthlyAdminNames = await LoadAdminNamesAsync(payments.Select(p => p.UpdatedBy ?? p.CreatedBy), ct);
 
+            // Only a posted canonical Collection owns an SRC. Recover its real code from the
+            // allocation -> line -> Collection chain, never from an OR, month or gateway ID.
+            // A single month can have multiple partial collections and thus multiple SRCs.
+            // All three queries retain their EF municipality filters, plus tenant-equal joins.
+            var canonicalRecordIds = payments
+                .Where(p => p.SettlementAuthorityState == SettlementAuthority.Canonical)
+                .Select(p => p.Id).ToArray();
+            var srcByRecord = canonicalRecordIds.Length == 0
+                ? new Dictionary<Guid, IReadOnlyList<string>>()
+                : (await (from allocation in _context.CollectionAllocations.AsNoTracking()
+                         join line in _context.CollectionLines.AsNoTracking()
+                             on new { allocation.MunicipalityId, Id = allocation.CollectionLineId }
+                             equals new { line.MunicipalityId, line.Id }
+                         join collection in _context.Collections.AsNoTracking()
+                             on new { line.MunicipalityId, Id = line.CollectionId }
+                             equals new { collection.MunicipalityId, collection.Id }
+                         where allocation.SourceKind == CollectionSourceKind.PaymentRecord
+                             && canonicalRecordIds.Contains(allocation.SourceId)
+                             && collection.ReferenceNumber > 0
+                         select new { allocation.SourceId, collection.ReferenceNumber, collection.ReferenceCode })
+                    .ToListAsync(ct))
+                  .Where(x => !string.IsNullOrWhiteSpace(x.ReferenceCode))
+                  .GroupBy(x => x.SourceId)
+                  .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g
+                      .OrderBy(x => x.ReferenceNumber)
+                      .Select(x => x.ReferenceCode).Distinct(StringComparer.Ordinal).ToArray());
+
             return payments
                 .OrderByDescending(p => p.BillingYear)
                 .ThenByDescending(p => p.BillingMonth)
                 .Select(p => new PaymentHistoryDto(
                     $"{p.BillingYear:0000}-{p.BillingMonth:00}",
                     p.Status, p.TotalBill, p.AmountPaid, p.BalanceDue, p.ORNumber, p.PaidAt, null,
-                    RecordedByName: ResolveRecorderName(p.CollectorId, p.UpdatedBy ?? p.CreatedBy, monthlyCollectorNames, monthlyAdminNames)))
+                    RecordedByName: ResolveRecorderName(p.CollectorId, p.UpdatedBy ?? p.CreatedBy, monthlyCollectorNames, monthlyAdminNames),
+                    SettlementAuthority: p.SettlementAuthorityState,
+                    SrcReferences: srcByRecord.GetValueOrDefault(p.Id) ?? []))
                 .ToList();
         }
 
