@@ -229,6 +229,10 @@ public sealed class RevenueSetupTests : TestContext
         cut.WaitForAssertion(() => cut.Find("button[aria-label='Review setup for Carrascal Market Fees']"), RenderTimeout);
         cut.Find("button[aria-label='Review setup for Carrascal Market Fees']").Click();
         Assert.Contains("What still needs attention", cut.Find("[role='dialog']").TextContent);
+        Assert.Single(cut.FindAll(".rev-receipt-fields #rev-receipt-choice"));
+        Assert.Single(cut.FindAll(".rev-receipt-fields #rev-receipt-effective"));
+        Assert.Single(cut.FindAll(".rev-receipt-attest input[type='checkbox']"));
+        Assert.Contains("This step does not set rates", cut.Find("[role='dialog']").TextContent);
         Assert.NotNull(cut.Find("button:disabled"));
         api.Verify(x => x.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
 
