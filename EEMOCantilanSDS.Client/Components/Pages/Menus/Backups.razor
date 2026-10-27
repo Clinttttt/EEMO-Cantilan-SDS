@@ -60,11 +60,11 @@
         <div class="bk-info-grid">
             <div class="bk-info">
                 <div class="bk-info-key">Data archive</div>
-                <div class="bk-info-val">A readable JSON copy of your records, for keeping or audit.</div>
+                <div class="bk-info-val">A readable JSON copy of supported municipality records for audit; retained legacy tables may be excluded.</div>
             </div>
             <div class="bk-info">
                 <div class="bk-info-key">Restore point (backup file)</div>
-                <div class="bk-info-val">A complete backup of your LGU's data — the file the restore below accepts.</div>
+                <div class="bk-info-val">Available only when all tenant tables are supported. Limited archives are readable but cannot restore.</div>
             </div>
             <div class="bk-info">
                 @* Was a "Scope" card reading "Everything here affects only your municipality - never another LGU". Two faults: the
@@ -72,7 +72,7 @@
                    reassurance rather than a fact the office can act on. The automated backup is real now and is worth stating - an
                    office that knows one is taken every day can judge whether it needs to take its own. *@
                 <div class="bk-info-key">Automated</div>
-                <div class="bk-info-val">The platform takes one a day when the portal is in use. Fifteen are kept, counted separately from the fifteen you take yourself.</div>
+                <div class="bk-info-val">Automatic daily captures save the supported tenant records; any excluded historical tables are clearly identified. Fifteen automatic and fifteen manual copies are kept separately.</div>
             </div>
         </div>
         <div class="bk-actions">
@@ -93,7 +93,7 @@
             <div class="bk-danger-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg></div>
             <div class="bk-danger-titles">
                 <div class="bk-danger-title">Restore your municipality</div>
-                <div class="bk-danger-sub">Replaces your LGU's records from a restore point — other municipalities are never affected</div>
+                <div class="bk-danger-sub">Only verified, complete restore points are eligible. Limited archives can never be used here.</div>
             </div>
             @if (!_showMineRestore)
             {
@@ -165,7 +165,7 @@
             <div class="set-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg></div>
             <div class="set-card-titles">
                 <div class="set-card-title">Recent backups</div>
-                <div class="set-card-sub">Saved backups of @Branding.Municipality's data — download or restore any of them. The most recent 15 are kept.</div>
+                <div class="set-card-sub">Saved municipality records. Restore is available only for verified, complete restore points; limited archives can be viewed and downloaded.</div>
             </div>
             <button class="bk-btn bk-btn-primary" @onclick="CreateBackupAsync" disabled="@_creatingBackup">
                 @if (_creatingBackup)
@@ -202,7 +202,7 @@
         {
             <div class="bk-empty">
                 <div class="bk-empty-title">No backups yet</div>
-                <div class="bk-empty-text">Click <strong>Create backup now</strong> to save your first restore point here.</div>
+                <div class="bk-empty-text">Click <strong>Create backup now</strong> to capture supported records. Restore readiness is checked automatically.</div>
             </div>
         }
         else
@@ -217,7 +217,7 @@
                         <tr>
                             <td>@PhilippineTime.ToPhilippineTime(b.CreatedAtUtc).ToString("MMM d, yyyy · h:mm tt")</td>
                             <td>@b.CreatedBy</td>
-                            <td>@b.RowCount.ToString("N0") record@(b.RowCount == 1 ? "" : "s") · @b.TableCount table@(b.TableCount == 1 ? "" : "s")</td>
+                            <td>@b.RowCount.ToString("N0") record@(b.RowCount == 1 ? "" : "s") · @b.TableCount table@(b.TableCount == 1 ? "" : "s")<div class="bk-muted">@(b.IsRestoreReady ? "Restore-ready snapshot" : "Limited archive · not restorable")</div></td>
                             <td class="set-td-r">@FormatSize(b.SizeBytes)</td>
                             <td class="set-td-r">
                                 <div class="bk-actions-row">
@@ -229,7 +229,7 @@
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                                         <span>Download</span>
                                     </button>
-                                    <button class="bk-action bk-action-danger" @onclick="() => OpenBackupRestore(b)" title="Restore your municipality from this backup">
+                                    <button class="bk-action bk-action-danger" @onclick="() => OpenBackupRestore(b)" disabled="@(!b.IsRestoreReady)" title="@(b.IsRestoreReady ? "Restore from this verified backup" : "Archive only: legacy financial tables are excluded; restore is unavailable")">
                                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6" /><path d="M3 13a9 9 0 1 0 3-7.7L3 8" /></svg>
                                         <span>Restore</span>
                                     </button>
@@ -387,6 +387,10 @@
                     }
                     else
                     {
+                        @if (!_contentsFor.IsRestoreReady)
+                        {
+                            <p class="v3-notice" role="status"><strong>Limited archive — not a restore point.</strong> Supported municipality records only; retained historical financial tables are excluded. Download and inspect are available, but Restore is disabled.</p>
+                        }
                         <div class="bk-contents-summary">
                             <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.RowCount.ToString("N0")</span><span class="bk-contents-lbl">Records</span></div>
                             <div class="bk-contents-stat"><span class="bk-contents-num">@_contentsFor.TableCount</span><span class="bk-contents-lbl">Tables with data</span></div>
@@ -646,7 +650,7 @@
     // Restore details modal (per-table breakdown of a past restore)
     private TenantRestoreEventDto? _restoreDetail;
 
-    private bool CanRestoreBackup => !_backupRestoring && _restoreBackup is not null
+    private bool CanRestoreBackup => !_backupRestoring && _restoreBackup is { IsRestoreReady: true }
         && string.Equals(_backupPhrase.Trim(), "RESTORE", StringComparison.Ordinal)
         && !string.IsNullOrWhiteSpace(_backupPassword);
 
@@ -903,6 +907,7 @@
 
     private void OpenBackupRestore(TenantBackupInfo backup)
     {
+        if (!backup.IsRestoreReady) return;
         _restoreBackup = backup;
         _backupPhrase = string.Empty;
         _backupPassword = string.Empty;

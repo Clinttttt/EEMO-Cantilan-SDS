@@ -430,7 +430,8 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Contains("Alex Buenavista", legacy);
             Assert.Contains("Cian Consigna", legacy);
             Assert.Contains("365.00", legacy);
-            Assert.Contains("no separately registered accountable OR/CT", legacy);
+            Assert.Contains("receipt custody not verified", legacy);
+            Assert.DoesNotContain("no separately registered accountable OR/CT", legacy);
             Assert.Equal(duplicate ? 2 : 1, cut.FindAll("[aria-label='Legacy payment reference results'] tbody tr").Count);
             Assert.Empty(cut.FindAll("dl[aria-label='Document trace']"));
             Assert.Empty(cut.FindAll("dl[aria-label='Collection reference trace']"));

@@ -22,6 +22,27 @@ public static class TenantRestoreValidation
     {
         FreezeAndValidateHeader(snapshot, municipalityId);
         schema.RequireRestorable();
+        if (snapshot.ExcludedLegacyTables is { Count: > 0 })
+            throw new InvalidOperationException("A limited archive cannot be restored.");
+        ValidateCapturedTables(snapshot, municipalityId, schema);
+    }
+
+    /// <summary>
+    /// Archive-only validation uses the full tenant/manifest/column/SRC checks, but does NOT
+    /// claim the omitted physical legacy tables are part of the archive or permit restoration.
+    /// </summary>
+    public static void ValidateArchive(TenantRestoreSnapshot snapshot, Guid municipalityId, TenantRestoreSchema schema)
+    {
+        if (snapshot.FormatVersion != TenantRestoreSnapshot.ArchiveOnlyFormatVersion ||
+            municipalityId == Guid.Empty || snapshot.MunicipalityId != municipalityId ||
+            schema.UnmanagedTables.Count == 0 || snapshot.ExcludedLegacyTables is null ||
+            !snapshot.ExcludedLegacyTables.ToHashSet(StringComparer.Ordinal).SetEquals(schema.UnmanagedTables))
+            throw new InvalidOperationException("The limited archive has an invalid identity or legacy exclusion manifest.");
+        ValidateCapturedTables(snapshot, municipalityId, schema);
+    }
+
+    private static void ValidateCapturedTables(TenantRestoreSnapshot snapshot, Guid municipalityId, TenantRestoreSchema schema)
+    {
         if (snapshot.TenantCode != schema.TenantCode) throw new InvalidOperationException("The backup tenant identity does not match the server.");
         if (snapshot.SchemaFingerprint != schema.Fingerprint) throw new InvalidOperationException("The backup schema fingerprint is incompatible with this database.");
         if (!snapshot.Tables.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(schema.Tables.Keys))
