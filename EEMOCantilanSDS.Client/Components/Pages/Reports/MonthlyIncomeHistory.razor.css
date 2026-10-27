@@ -21,6 +21,7 @@ tbody tr:hover td { background:var(--accent-soft); }
 .rv-strong { color:var(--navy); font-weight:700; }
 .rv-line { color:var(--navy); font-weight:700; }
 .rv-sub { color:var(--text-secondary); font-size:0.8125rem; font-weight:400; }
+.rv-sub.rv-difference { color:var(--danger, #b42318); font-weight:600; }
 .rv-money { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .rv-figure { color:var(--navy); font-weight:700; }
 .rv-limits { margin-top:14px; color:var(--text-secondary); font-size:0.8125rem; }

@@ -375,6 +375,7 @@
                         <th scope="col" class="v3-num">Collections</th>
                         <th scope="col" class="v3-num">Amount</th>
                         <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Difference</th>
                         <th scope="col">Reference</th>
                         <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
@@ -405,7 +406,8 @@
                             </td>
                             <td class="v3-num">@row.CollectionCount</td>
                             <td class="v3-num">@Money(row.RemittedAmount)</td>
-                            <td><span class="rm-pill @(row.StatusLabel == "Voided" ? "rm-pill-void" : "")">@row.StatusLabel</span>@if (row.DifferenceAmount != 0m) {<span class="v3-block rm-diff-flag">Difference @Money(row.DifferenceAmount)</span>}</td>
+                            <td><span class="rm-pill @(HistoryStatus(row) == "Voided" ? "rm-pill-void" : "")">@HistoryStatus(row)</span></td>
+                            <td class="v3-num @(row.DifferenceAmount != 0m ? "rm-diff-flag" : "")">@(row.DifferenceAmount == 0m ? "—" : Money(row.DifferenceAmount))</td>
                             <td>@(row.Reference ?? "—")</td>
                             <td class="rm-row-action">
                                 <a class="v3-btn v3-btn-sm" href="@viewHref" aria-label="@($"View remittance of {CollectorSummary(row)}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">View</a>
@@ -415,7 +417,7 @@
                     }
                     @if (_register.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="7">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
+                        <tr><td class="v3-empty" colspan="8">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
                     }
                 </tbody>
             </table>
@@ -442,6 +444,10 @@
     private AccountabilityPositionDto? _position;
     private List<RemittanceHistoryRowDto> _register = [];
     private Guid? _openMembers;
+    // Display the persisted lifecycle; a difference is tracked independently in the next column.
+    private static string HistoryStatus(RemittanceHistoryRowDto row) =>
+        row.Members.All(m => m.Status == RemittanceStatus.Voided) ? "Voided"
+        : row.Members.Any(m => m.Status == RemittanceStatus.Voided) ? "Partly voided" : "Recorded";
     private List<CollectorListDto> _collectors = [];
     private bool _loading = true;
     private bool _saving;

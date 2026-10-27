@@ -64,7 +64,13 @@ public sealed record RemittanceRowDto(
     string? Reference,
     RemittanceStatus Status,
     DateTime RecordedAtUtc,
-    Guid? SubmissionId = null);
+    Guid? SubmissionId = null,
+    // Recorded custody evidence for authorized history readers; amounts remain immutable.
+    string? RecordedBy = null,
+    string? Remarks = null,
+    string? VoidedBy = null,
+    DateTime? VoidedAtUtc = null,
+    string? VoidReason = null);
 
 /// <summary>One collector's independent remittance inside a History row.</summary>
 public sealed record RemittanceHistoryMemberDto(

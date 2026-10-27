@@ -196,8 +196,7 @@
         new("Collections", d.CollectionCount.ToString(CultureInfo.InvariantCulture)),
     ];
 
-    private static string StatusLabel(RemittanceDetailDto item) => item.Row.Status == RemittanceStatus.Voided ? "Voided"
-        : item.NeedsReview ? "Needs review" : "Recorded";
+    private static string StatusLabel(RemittanceDetailDto item) => item.Row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded";
 
     private static string PeriodLabel(RemittanceSubmissionDto d) =>
         $"{d.PeriodFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {d.PeriodTo.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";

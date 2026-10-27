@@ -668,12 +668,12 @@ public sealed class RemittanceWorkflow(
     private static RemittanceRowDto ToRow(CollectionRemittance x, Dictionary<Guid, string> names) => new(
         x.Id, x.RemittanceDate, x.CollectorId, names.GetValueOrDefault(x.CollectorId, "Collector"), x.Instrument,
         x.CollectionCount, x.ExpectedAmount, x.RemittedAmount, x.DifferenceAmount, x.Reference, x.Status, x.RecordedAtUtc,
-        x.SubmissionId);
+        x.SubmissionId, x.RecordedBy, x.Remarks, x.VoidedBy, x.VoidedAtUtc, x.VoidReason);
 
     private static string GroupStatus(IReadOnlyCollection<CollectionRemittance> members) =>
         members.All(x => x.Status == RemittanceStatus.Voided) ? "Voided"
         : members.Any(x => x.Status == RemittanceStatus.Voided) ? "Partly voided"
-        : members.Any(x => x.NeedsReview) ? "Needs review" : "Recorded";
+        : "Recorded";
 
     private static string? Validate(DateOnly from, DateOnly to) =>
         from > to || to.DayNumber - from.DayNumber > 366 ? "Choose a valid period of no more than 367 days." : null;

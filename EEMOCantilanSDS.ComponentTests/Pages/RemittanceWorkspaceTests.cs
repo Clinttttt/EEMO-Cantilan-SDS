@@ -364,7 +364,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
     {
         ServePosition(Position());
         var ana = Member("Ana Reyes", 110m, 100m);
-        ServeHistory(HistoryRow("Needs review", ana));
+        ServeHistory(HistoryRow("Needs review", ana)); // legacy API label cannot override persisted Recorded status
 
         var cut = RenderComponent<Remittances>();
         OpenTab(cut, "Remittance history");
@@ -373,7 +373,9 @@ public sealed class RemittanceWorkspaceTests : TestContext
         {
             var row = Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr"));
             Assert.Contains("₱10.00", row.TextContent);
-            Assert.Contains("Needs review", row.TextContent);
+            Assert.Equal("Recorded", row.QuerySelectorAll("td")[4].TextContent.Trim());
+            Assert.Contains("10.00", row.QuerySelectorAll("td")[5].TextContent);
+            Assert.DoesNotContain("Needs review", row.TextContent);
             Assert.Equal($"/remittances/{ana.RemittanceId}", row.QuerySelector("a")!.GetAttribute("href"));
             var actions = row.QuerySelectorAll(".rm-row-action a").Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).ToList();
             Assert.Equal(("View", $"/remittances/{ana.RemittanceId}"), actions[0]);

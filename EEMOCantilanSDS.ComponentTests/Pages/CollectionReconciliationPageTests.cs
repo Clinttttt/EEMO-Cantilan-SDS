@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Application.Dtos.Revenue;
 using EEMOCantilanSDS.Client.Components.Pages.Reports;
 using EEMOCantilanSDS.Client.Services;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Enums;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
@@ -14,11 +15,16 @@ namespace EEMOCantilanSDS.ComponentTests.Pages;
 public sealed class CollectionReconciliationPageTests : TestContext
 {
     private readonly Mock<ICollectionActivityApiClient> api = new();
+    private readonly Mock<IRemittancesApiClient> remittances = new();
     public CollectionReconciliationPageTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("Head");
         Services.AddSingleton(api.Object); Services.AddSingleton(Mock.Of<ISetupApiClient>());
+        remittances.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), It.IsAny<Guid?>(),
+            It.IsAny<RevenueInstrumentType?>(), It.IsAny<RemittanceStatus?>()))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success([]));
+        Services.AddSingleton(remittances.Object);
         Services.AddSingleton(Mock.Of<IStallsApiClient>()); Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(new BrandingState(Mock.Of<IMunicipalitiesApiClient>()));
     }
@@ -171,5 +177,64 @@ public sealed class CollectionReconciliationPageTests : TestContext
         var csv = Uri.UnescapeDataString(cut.Find("a[download]").GetAttribute("href")!.Split(',', 2)[1]);
         Assert.Contains(first.ToString(), csv); Assert.Contains("850.00", csv); Assert.Contains("875.00", csv);
         official.Verify(x => x.AdjustMonthlyIncomeAsync(It.IsAny<SetMonthlyIncomeAdjustmentRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void RevisionEvidence_ListsRecordedRemittanceWithDifferenceAndRealActor_WithoutChangingReportRevisions()
+    {
+        var official = new Mock<IOfficialReportsApiClient>();
+        var revisionId = Guid.NewGuid();
+        var remittanceId = Guid.NewGuid();
+        official.Setup(x => x.GetGovernanceAsync(2026)).ReturnsAsync(Result<IReadOnlyList<ReportRevisionDto>>.Success([
+            new(revisionId, OfficialReportRevisionKind.AnnualTarget, "RENT_NPM", 2026, 0, 1, null, 500m, null,
+                "Approved budget", null, null, Guid.NewGuid(), "Head", new(2026, 10, 2, 2, 0, 0, DateTimeKind.Utc))]));
+        remittances.Setup(x => x.GetRegisterAsync(new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), null, null, null))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Success([
+                new(remittanceId, new(2026, 10, 28), Guid.NewGuid(), "Ana Reyes", null, 2,
+                    67m, 65m, 2m, "Office 4", RemittanceStatus.Recorded,
+                    new(2026, 10, 28, 2, 0, 0, DateTimeKind.Utc), RecordedBy: "Head Bobby",
+                    Remarks: "Cash counted at turnover")]));
+        Services.AddSingleton(official.Object);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/reports/monthly-income/history?year=2026");
+
+        var cut = RenderComponent<MonthlyIncomeHistory>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("tbody tr").Count), TimeSpan.FromSeconds(5));
+        var remittance = cut.FindAll("tbody tr").Single(x => x.TextContent.Contains("Ana Reyes"));
+        Assert.Contains("Recorded", remittance.TextContent);
+        Assert.Contains("Difference ₱2.00", remittance.TextContent);
+        Assert.Contains("Head Bobby", remittance.TextContent);
+        Assert.Contains("Cash counted at turnover", remittance.TextContent);
+        Assert.Equal($"/remittances/{remittanceId}", remittance.QuerySelector("a")!.GetAttribute("href"));
+        Assert.DoesNotContain("Needs review", remittance.TextContent);
+        Assert.DoesNotMatch(@"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", cut.Find("table").TextContent);
+        var csv = Uri.UnescapeDataString(cut.Find("a[download]").GetAttribute("href")!.Split(',', 2)[1]);
+        Assert.Contains(remittanceId.ToString(), csv);
+        Assert.Contains(revisionId.ToString(), csv);
+        Assert.Contains("2.00", csv);
+
+        cut.Find("button[aria-label='Record type']").Click();
+        cut.FindAll("[role='option']").Single(x => x.TextContent.Trim() == "Remittance").Click();
+        Assert.Single(cut.FindAll("tbody tr"));
+        Assert.Contains("Showing 1 of 2", cut.Find(".rv-filter").TextContent);
+        cut.Find("input[aria-label='Search revisions']").Input("not a matching actor");
+        Assert.Empty(cut.FindAll("tbody tr"));
+        official.Verify(x => x.AdjustMonthlyIncomeAsync(It.IsAny<SetMonthlyIncomeAdjustmentRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void RevisionEvidence_DoesNotPresentPartialYear_WhenRemittanceReaderFails()
+    {
+        var official = new Mock<IOfficialReportsApiClient>();
+        official.Setup(x => x.GetGovernanceAsync(It.IsAny<int>()))
+            .ReturnsAsync(Result<IReadOnlyList<ReportRevisionDto>>.Success([
+                new(Guid.NewGuid(), OfficialReportRevisionKind.AnnualTarget, "RENT_NPM", 2026, 0, 1, null,
+                    500m, null, "Approved", null, null, Guid.NewGuid(), "Head", DateTime.UtcNow)]));
+        remittances.Setup(x => x.GetRegisterAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>(), null, null, null))
+            .ReturnsAsync(Result<IReadOnlyList<RemittanceRowDto>>.Failure("Remittance evidence unavailable", 500));
+        Services.AddSingleton(official.Object);
+        var cut = RenderComponent<MonthlyIncomeHistory>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("[role='alert']")), TimeSpan.FromSeconds(5));
+        Assert.Empty(cut.FindAll("a[download]"));
+        Assert.Empty(cut.FindAll("tbody tr"));
     }
 }
