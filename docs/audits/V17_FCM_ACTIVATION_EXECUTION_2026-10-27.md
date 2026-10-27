@@ -74,6 +74,38 @@ Post-activation observations:
 - Initial sanitized post-activation FCM log counts show zero disabled/init/send/collector-push errors. No successful send is inferred from lack of errors.
 - Temporary SSH rules removed with original CIDRs preserved; task temporary credential directories removed.
 
-Actual API send, Android receipt, background reception and device-side negative scenarios are pending. The user reports the handset signed in as `collector11` with notifications enabled. A clearly labelled Head Portal smoke message has been requested; user confirmation and portal count are still required. Browser automation failed to initialize in this tool session, so no authenticated portal action is claimed.
+## Demonstrated Android delivery
+
+The user performed the authorized Head Portal send to `collector11` and confirmed the notification arrived on Android: "its working now it notify". For the follow-up test the portal displayed **"Sent to 2 device(s)."** The user explained two mobile installations were signed in and confirmed receipt. When explicitly asked whether the message arrived after pressing Home, the user answered **"Yes, received in the background"**.
+
+This demonstrates production API FCM acceptance for two registered installations and user-observed Android reception, including background reception. The API count represents FCM acceptance, not an SDK delivery receipt; actual device evidence is the user's handset observation. Browser automation failed to initialize in this tool session, so the authenticated Head Portal action was performed by the user, not automation. No screenshot, ADB trace or independent device telemetry was collected.
+
+## Exact changed files and review
+
+Reused and deployed PR #65 (`a1d660ff`, merged as `12b68664`):
+
+- `EEMOCantilanSDS.Application/Common/Payments/OnlinePaymentSettlementService.cs`.
+- `EEMOCantilanSDS.Client/Components/Pages/Menus/Collector.razor`.
+- `EEMOCantilanSDS.Testing/Api/CollectorOnlinePaymentPushTests.cs`.
+- `EEMOCantilanSDS.Testing/Application/OnlinePayments/OnlinePaymentSettlementServiceTests.cs`.
+- `docs/audits/V17_FCM_ONLINE_STALL_RENT_PUSH_2026-10-27.md`.
+
+New in this task, draft [PR #66](https://github.com/Clinttttt/EEMO-Cantilan-SDS/pull/66), initial commit `71c6ad0e88667169a4ff76c71381034587084913`:
+
+- `EEMOCantilanSDS.IntegrationTests/CollectorPushRecipientIsolationTests.cs`.
+- `tools/diagnostics/configure-fcm-production.py`.
+- `tools/diagnostics/fcm-production-preflight.ps1`.
+- `tools/diagnostics/test_configure_fcm_production.py`.
+- `docs/audits/V17_FCM_ACTIVATION_EXECUTION_2026-10-27.md` (this report).
+
+Draft PR #66's GitHub CI run `40448477790` was still running at this report update. No merge or deployment of that operational/test/evidence PR is claimed. PR #65 is the deployed application change.
+
+Production-only changes are the secret directory/file, the two allowed API Compose settings plus root-private ownership, the protected original-base backup, existing release/audit state records, and the controlled API recreation. Original Compose sequence, protected gate executables/control settings, startup migration policy, database and Caddy were preserved. Temporary firewall access was removed.
+
+## Remaining unverified
+
+- No genuine PayMongo payment occurred during this activation, so live payment-triggered handset delivery is **not demonstrated**. Signed webhook merchant/tenant boundaries, post-commit behavior, duplicate no-op behavior and facility recipients were reviewed/tested; a future legitimate payment can supply live end-to-end evidence without altering history or replaying a settled payment.
+- Force-stopped/offline devices, denied Android permission, expired/revoked FCM tokens and external FCM failure were not induced on production. Live anonymous send/registration rejection and PostgreSQL tenant/facility negative cases were verified.
+- Push remains best effort; there is no durable outbox or guaranteed retry for a failed post-commit notification. A push fault must not roll back a payment.
 
 No fabricated production payment, webhook replay, financial-history edit, OR/SRC edit, source cutover, tenant assignment edit or Android release was performed.
