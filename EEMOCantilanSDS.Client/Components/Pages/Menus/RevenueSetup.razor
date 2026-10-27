@@ -5,6 +5,7 @@
 @using System.Globalization
 @using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Common.Revenue
+@using EEMOCantilanSDS.Application.Command.Revenue.CreateRevenueClassification
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Application.Dtos.Settings
 @using EEMOCantilanSDS.Client.Components.Shared
@@ -16,10 +17,9 @@
 
 <PageTitle>@Branding.OfficeAcronym — Revenue Sources</PageTitle>
 
-@* A directory of the municipality's revenue sources, grouped as the official Monthly Income statement groups its income
-   (OfficialMonthlyIncomeStructure), with Arrears and Fines under Others. Read-only: a source's identity, policy and history are
-   in its details drawer; nothing here creates, changes, retires or switches a source, and a source's status does not control
-   collection. Every source the tenant holds is listed, including one outside the official list. The layout owns <main>. *@
+@* The revenue-source directory remains a read-only register of existing entries and policy history.
+   A separate, explicit Head-only drawer can complete a selected operation's first source/policy
+   using the existing governed API. It never grants collector, rate, document, or posting authority. *@
 <div class="v3-page rev-page">
     <WorkspaceHeader Title="Revenue Sources" Parent="Settings" ParentHref="/settings" />
 
@@ -142,7 +142,13 @@
                             <span class="rev-source-name">@item.DisplayName@if (item.Gaps.Count > 0) {<small class="v3-block rev-gaps">@string.Join(" · ", item.Gaps)</small>}</span>
                             <span class="rev-row-instrument v3-muted">@GroupLabel(item.GroupKey)</span>
                             <span class="rev-row-status"><span class="rev-status @StateClass(item.State)">@StateLabel(item.State)</span></span>
-                            <span></span>
+                            @if (item.State != OperationSetupState.Ready)
+                            {
+                                <button class="v3-btn v3-btn-sm rev-details" type="button"
+                                        @onclick="() => OpenReceiptSetup(item)"
+                                        aria-label="@($"Review setup for {item.DisplayName}")">@(CanSetReceipt(item) ? "Set up" : "Review")</button>
+                            }
+                            else { <span></span> }
                         </li>
                     }
                 </ul>
@@ -193,6 +199,94 @@
             <footer class="v3-modal-footer">
                 <button class="v3-btn" type="button" @onclick="CloseAdd" disabled="@_addBusy">Cancel</button>
                 <button class="v3-btn v3-btn-primary" type="button" @onclick="AddAsync" disabled="@_addBusy">@(_addBusy ? "Adding…" : "Add operation")</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_receiptSetup is { } setupOperation)
+{
+    <div class="v3-modal-backdrop v3-drawer-backdrop" role="presentation" @onclick="CloseReceiptSetup">
+        <section class="v3-modal v3-drawer v3-drawer-wide rev-drawer" role="dialog" aria-modal="true"
+                 aria-labelledby="rev-receipt-setup-title" @onclick:stopPropagation="true"
+                 @onkeydown="OnReceiptSetupKey">
+            <header class="v3-modal-header rev-drawer-header">
+                <div class="rev-drawer-identity">
+                    <h2 id="rev-receipt-setup-title">Set up @setupOperation.DisplayName</h2>
+                    <p>Current status: @StateLabel(setupOperation.State)</p>
+                </div>
+                <button class="rev-modal-close" type="button" aria-label="Close setup"
+                        @onclick="CloseReceiptSetup" disabled="@_receiptBusy">×</button>
+            </header>
+            <div class="v3-modal-body">
+                @if (setupOperation.Gaps.Count > 0)
+                {
+                    <div class="v3-drawer-section">
+                        <h3>What still needs attention</h3>
+                        <ul>
+                            @foreach (var gap in setupOperation.Gaps) { <li>@gap</li> }
+                        </ul>
+                    </div>
+                }
+                @if (CanSetReceipt(setupOperation))
+                {
+                    <div class="v3-drawer-section">
+                        <h3>Confirm your LGU's receipt policy</h3>
+                        <p class="rev-note">This records the receipt instrument approved by your municipality.
+                            It does not invent a fee or rate, activate a collector, issue an SRC, or assign physical receipts.</p>
+                        <label class="v3-field" for="rev-receipt-choice">
+                            <span>Approved accountable instrument</span>
+                            <select id="rev-receipt-choice" @bind="_receiptInstrument" disabled="@_receiptBusy">
+                                <option value="">Choose the approved instrument</option>
+                                @if (RequiredInstrument(setupOperation) is not RevenueInstrumentType.CashTicket)
+                                { <option value="OR">Official Receipt (OR)</option> }
+                                @if (RequiredInstrument(setupOperation) is not RevenueInstrumentType.OfficialReceipt)
+                                { <option value="CT">Cash Ticket (CT)</option> }
+                            </select>
+                        </label>
+                        @if (RequiredInstrument(setupOperation) is not null)
+                        {
+                            <p class="rev-note">The existing collection workflow supports only the instrument shown above for this operation.</p>
+                        }
+                        <label class="v3-field" for="rev-receipt-effective">
+                            <span>Effective from</span>
+                            <input id="rev-receipt-effective" type="date" @bind="_receiptEffective"
+                                   min="@PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)"
+                                   disabled="@_receiptBusy" />
+                        </label>
+                        <label class="v3-field">
+                            <span><input type="checkbox" @bind="_receiptApproved" disabled="@_receiptBusy" />
+                                I confirm that this instrument and effective date follow our municipality's approved policy.</span>
+                        </label>
+                    </div>
+                }
+                else
+                {
+                    <div class="v3-drawer-section">
+                        <p class="rev-note">There is no safe one-click receipt change for this operation.
+                            Existing, future-dated or retired policies are preserved. For split OR/CT operations,
+                            configure the appropriate daily and monthly policies in their operational workspace.</p>
+                    </div>
+                }
+                <div class="v3-drawer-section">
+                    <h3>Remaining collection setup</h3>
+                    <p class="rev-note">After the receipt policy is confirmed, use <a href="/collectors">Collectors</a>
+                        to activate and assign collection staff. Complete any applicable rates or service settings in
+                        <a href="/operations">Operations</a> and assign accountable forms using the existing office controls.
+                        This page will show Ready to collect only after Mobile readiness is verified by the server.</p>
+                </div>
+                @if (!string.IsNullOrEmpty(_receiptError))
+                { <p class="v3-notice v3-notice-error" role="alert">@_receiptError</p> }
+            </div>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseReceiptSetup" disabled="@_receiptBusy">Close</button>
+                @if (CanSetReceipt(setupOperation))
+                {
+                    <button class="v3-btn v3-btn-primary" type="button" @onclick="SaveReceiptSetupAsync"
+                            disabled="@(_receiptBusy || !_receiptApproved || string.IsNullOrWhiteSpace(_receiptInstrument))">
+                        @(_receiptBusy ? "Saving…" : "Confirm receipt policy")
+                    </button>
+                }
             </footer>
         </section>
     </div>
@@ -287,6 +381,10 @@
     private OperationSetupDto? _adding;
     private string _addName = string.Empty, _addError = string.Empty, _notice = string.Empty;
     private bool _addBusy;
+    private OperationSetupDto? _receiptSetup;
+    private DateOnly _receiptEffective = PhilippineTime.Today;
+    private string _receiptInstrument = string.Empty, _receiptError = string.Empty;
+    private bool _receiptApproved, _receiptBusy;
     private IReadOnlyList<OperationSetupDto> AddedItems => _setup?.Items.Where(i => i.State != OperationSetupState.Available).ToList() ?? [];
     private IReadOnlyList<OperationSetupDto> AvailableItems => _setup?.Items.Where(i => i.State == OperationSetupState.Available).ToList() ?? [];
     private RevenueClassificationDto? _selected;
@@ -401,6 +499,125 @@
             _setup = setup is { IsSuccess: true, Value: not null } ? setup.Value : null;
         }
         catch { _setup = null; }
+    }
+
+    // Only the first default policy may be set here. Existing/scheduled policies and split-context
+    // operations need their own governed amendment workflow; do not overwrite historic authority.
+    private bool CanSetReceipt(OperationSetupDto item)
+    {
+        if (item.SourceRetired || item.PolicyEffective || item.State == OperationSetupState.Ready
+            || item.OperationCode == CollectorOperationCodes.VegetableFruitSpaceRental)
+            return false;
+        var code = TenantOperationCatalog.Find(item.OperationCode)?.ClassificationCode;
+        if (code is null) return false;
+        var source = _classifications.FirstOrDefault(x => x.SemanticCode == code);
+        return source is null || source.IsActive && !source.HasPolicyVersions;
+    }
+
+    private static RevenueInstrumentType? RequiredInstrument(OperationSetupDto item) => item.OperationCode switch
+    {
+        CollectorOperationCodes.FishMeatVendorFee or CollectorOperationCodes.WeightAndMeasure
+            or CollectorOperationCodes.KanmanggaySpaceRental or CollectorOperationCodes.FiestaArawLotRental
+            or "ECF" => RevenueInstrumentType.OfficialReceipt,
+        CollectorOperationCodes.Wcf or CollectorOperationCodes.Transportation => RevenueInstrumentType.CashTicket,
+        _ => null
+    };
+
+    private void OpenReceiptSetup(OperationSetupDto item)
+    {
+        _receiptSetup = item;
+        _receiptEffective = PhilippineTime.Today;
+        _receiptInstrument = RequiredInstrument(item) switch
+        {
+            RevenueInstrumentType.OfficialReceipt => "OR",
+            RevenueInstrumentType.CashTicket => "CT",
+            _ => string.Empty
+        };
+        _receiptApproved = false;
+        _receiptError = string.Empty;
+    }
+
+    private void CloseReceiptSetup() { if (!_receiptBusy) _receiptSetup = null; }
+    private void OnReceiptSetupKey(KeyboardEventArgs args) { if (args.Key == "Escape") CloseReceiptSetup(); }
+
+    private async Task SaveReceiptSetupAsync()
+    {
+        if (_receiptSetup is not { } item || _receiptBusy || !CanSetReceipt(item)) return;
+        if (!_receiptApproved || _receiptEffective < PhilippineTime.Today)
+        {
+            _receiptError = "Confirm the approved receipt policy and choose today or a future effective date.";
+            return;
+        }
+        var instrument = _receiptInstrument switch
+        {
+            "OR" => RevenueInstrumentType.OfficialReceipt,
+            "CT" => RevenueInstrumentType.CashTicket,
+            _ => (RevenueInstrumentType?)null
+        };
+        if (instrument is null || RequiredInstrument(item) is { } required && required != instrument)
+        {
+            _receiptError = "Choose the instrument supported by this operation and approved by your LGU.";
+            return;
+        }
+        var code = TenantOperationCatalog.Find(item.OperationCode)?.ClassificationCode;
+        if (code is null) { _receiptError = "Unsupported revenue operation."; return; }
+        _receiptBusy = true;
+        _receiptError = string.Empty;
+        var policySaved = false;
+        try
+        {
+            // Re-read authority before saving; another Head may have finished the policy in the meantime.
+            // The API and tenant-scoped unique indexes remain the final concurrency gate.
+            var latest = await RevenueApi.GetClassificationsAsync(PhilippineTime.Today);
+            if (!latest.IsSuccess || latest.Value is null)
+            {
+                _receiptError = ErrorMessage(latest, "Could not verify current revenue sources.");
+                return;
+            }
+            var source = latest.Value.FirstOrDefault(x => x.SemanticCode == code);
+            if (source is { IsActive: false } || source is { HasPolicyVersions: true })
+            {
+                _receiptError = "The revenue source was changed or already has a policy. Reload before making another policy decision.";
+                return;
+            }
+            if (source is null)
+            {
+                var created = await RevenueApi.CreateClassificationAsync(new CreateRevenueClassificationCommand(
+                    code, item.DisplayName, _receiptEffective, null, instrument));
+                if (!created.IsSuccess)
+                {
+                    _receiptError = ErrorMessage(created, "The receipt policy could not be saved.");
+                    return;
+                }
+            }
+            else
+            {
+                var updated = await RevenueApi.AppendPolicyAsync(source.Id,
+                    new AppendRevenueClassificationPolicyRequest(_receiptEffective, item.DisplayName, null, instrument));
+                if (!updated.IsSuccess)
+                {
+                    _receiptError = ErrorMessage(updated, "The receipt policy could not be saved.");
+                    return;
+                }
+            }
+            policySaved = true; // The API confirmed its financial configuration write; a later refresh cannot undo that save.
+            _receiptSetup = null;
+            _notice = $"{item.DisplayName}: receipt policy recorded. Check remaining collector, service and receipt-custody requirements before collecting.";
+            await LoadAsync();
+        }
+        catch
+        {
+            if (policySaved)
+            {
+                _receiptSetup = null;
+                _notice = $"{item.DisplayName}: receipt policy saved, but this page did not refresh. Reload to review the new status.";
+            }
+            else
+            {
+                _receiptError = "The receipt policy save was not confirmed. Reload and check for an existing policy before retrying.";
+            }
+        }
+        finally { _receiptBusy = false; }
     }
 
     private void OpenAdd(OperationSetupDto item) { _adding = item; _addName = string.Empty; _addError = string.Empty; _notice = string.Empty; }
