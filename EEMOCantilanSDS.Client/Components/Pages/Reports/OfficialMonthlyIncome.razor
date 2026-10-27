@@ -60,7 +60,7 @@ else
         </div>
     }
 
-    @foreach (var pageNumber in new[] { 1, 2 })
+    @foreach (var pageNumber in SectionList.Any(s => s.Key is "B" or "C") ? new[] { 1, 2 } : new[] { 1 })
     {
     <article class="omi-sheet @(pageNumber == 2 ? "omi-continuation" : "")" data-report-page="@pageNumber" aria-labelledby="@(pageNumber == 1 ? "omi-title" : "omi-continuation-title")">
         @* The office sheet's letterhead: the municipal seal, the three government lines and the national Bagong Pilipinas

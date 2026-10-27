@@ -109,6 +109,70 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Equal(ResultStatus.Forbidden, (await foreign.HistoryAsync(Today.Year)).Status);
     }
 
+    [SkippableFact]
+    public async Task Nondefault_office_shows_only_its_market_facility_and_never_borrows_another_tenants_Tampak_row()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var madrid = Municipality.Create($"mad-{Guid.NewGuid():N}"[..12], "Madrid", "Surigao del Sur",
+            MunicipalityStatus.Active, tenantCode: $"madrid-{Guid.NewGuid():N}"[..24]);
+        var cantilan = Municipality.Create($"can-{Guid.NewGuid():N}"[..12], "Cantilan", "Surigao del Sur",
+            MunicipalityStatus.Active, tenantCode: $"cantilan-{Guid.NewGuid():N}"[..24]);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.AddRange(madrid, cantilan);
+            await setup.SaveChangesAsync();
+        }
+        await using (var other = db.CreateContext(cantilan.Id))
+        {
+            other.Facilities.Add(Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC",
+                municipalityId: cantilan.Id));
+            await other.SaveChangesAsync();
+        }
+        await using (var setup = db.CreateContext(madrid.Id))
+        {
+            var market = Facility.Create(FacilityCode.NPM, "Madrid Municipal Market", "MKT", municipalityId: madrid.Id);
+            setup.Add(market);
+            setup.Add(Stall.Create(market.Id, "1", 100m, ApplicableFees.BaseRental, municipalityId: madrid.Id));
+            await setup.SaveChangesAsync();
+        }
+        await using var read = db.CreateContext(madrid.Id);
+        var result = await new GetOfficialMonthlyIncomeQueryHandler(read, new LegacyMonthlyIncomeReader(read),
+            new Caller(Guid.NewGuid(), madrid.Id, "SuperAdmin"), new FixedTenant(madrid.Id), new Clock())
+            .Handle(new GetOfficialMonthlyIncomeQuery(Today.Year, null), CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error);
+        var rows = result.Value!.Groups.SelectMany(g => g.Rows).ToArray();
+        Assert.Equal("Madrid Municipal Market", Assert.Single(rows, r => r.Key == "RENT_NPM").Label);
+        Assert.DoesNotContain(rows, r => r.Key == "RENT_TCC" || r.Label.Contains("Tampak", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(rows, r => r.Key == "RENT_NCC" || r.Key == "RENT_BBQ");
+        Assert.Equal(0m, result.Value.GrandTotal.Total);
+    }
+
+    [SkippableFact]
+    public async Task Default_Cantilan_office_retains_its_official_historical_template()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var office = Municipality.Create($"can-{Guid.NewGuid():N}"[..12], "Cantilan", "Surigao del Sur",
+            MunicipalityStatus.Active, tenantCode: $"cant-{Guid.NewGuid():N}"[..24], isDefault: true);
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Add(office);
+            await setup.SaveChangesAsync();
+        }
+        await using var ctx = db.CreateContext(office.Id);
+        var result = await new GetOfficialMonthlyIncomeQueryHandler(ctx, new LegacyMonthlyIncomeReader(ctx),
+            new Caller(Guid.NewGuid(), office.Id, "SuperAdmin"), new FixedTenant(office.Id), new Clock())
+            .Handle(new GetOfficialMonthlyIncomeQuery(Today.Year, null), CancellationToken.None);
+        Assert.True(result.IsSuccess, result.Error);
+        var rows = result.Value!.Groups.SelectMany(g => g.Rows).ToArray();
+        Assert.Equal("Tampak Commercial Center (TCC)", Assert.Single(rows, r => r.Key == "RENT_TCC").Label);
+        Assert.Contains(rows, r => r.Key == "RENT_NPM");
+        Assert.Contains(rows, r => r.Key == "RENT_NCC");
+        Assert.Equal(3, result.Value.Sections.Count);
+        Assert.Equal(0m, result.Value.GrandTotal.Total);
+    }
+
     [Fact]
     public void Approved_grouping_keeps_Bbq_under_rent_and_Slaughterhouse_standalone()
     {

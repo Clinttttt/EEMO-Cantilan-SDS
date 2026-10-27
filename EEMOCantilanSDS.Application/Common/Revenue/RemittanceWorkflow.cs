@@ -413,8 +413,16 @@ public sealed class RemittanceWorkflow(
 
             var forms = (await FormPositionsAsync(tenantId, ct))
                 .Where(k => onlyCollector is null || k.Key.CollectorId == onlyCollector).ToDictionary(k => k.Key, k => k.Value);
+            // A municipality can still have cash recorded solely in pre-SRC legacy ledgers.
+            // Look up its actual collectors even when none has a posted canonical Collection; otherwise
+            // the Head sees a zero remittance dashboard while collected legacy money is silently omitted.
+            // Such money remains informational only: it is NEVER eligible for canonical remittance.
+            var legacyCollectorIds = legacyQueries is null ? Array.Empty<Guid>()
+                : onlyCollector is { } one ? [one]
+                : await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == tenantId)
+                    .Select(x => x.Id).ToArrayAsync(ct);
             var collectorIds = facts.Select(x => x.CollectorId!.Value).Concat(forms.Keys.Select(k => k.CollectorId))
-                .Concat(remittances.Select(x => x.CollectorId)).Distinct().ToArray();
+                .Concat(remittances.Select(x => x.CollectorId)).Concat(legacyCollectorIds).Distinct().ToArray();
             var names = await CollectorNamesAsync(tenantId, collectorIds, ct);
 
             var rows = new List<CollectorPositionDto>();
@@ -435,7 +443,8 @@ public sealed class RemittanceWorkflow(
                     collected, remitted, collected - remitted, review, legacy,
                     forms.Where(k => k.Key.CollectorId == collectorId).Select(k => k.Value).OrderBy(x => x.Instrument).ToList()));
             }
-            rows = rows.Where(x => x.Collected != 0m || x.Forms.Any(f => f.Assigned > 0) || x.NeedsReviewCount > 0)
+            rows = rows.Where(x => x.Collected != 0m || x.LegacyCollectionsOutsideRemittance != 0m
+                || x.Forms.Any(f => f.Assigned > 0) || x.NeedsReviewCount > 0)
                 .OrderBy(x => x.CollectorName, StringComparer.OrdinalIgnoreCase).ToList();
             // Office-origin cash: the same canonical Collections, read apart (no collector), never added to a collector or marked remitted.
             var officeTotal = 0m; var officeCount = 0;

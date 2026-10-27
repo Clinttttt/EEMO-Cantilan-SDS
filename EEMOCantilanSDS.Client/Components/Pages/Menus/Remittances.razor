@@ -59,6 +59,27 @@
         <ReportLetterhead Title="Remittance / Liquidation Summary" Period="@PeriodLabel" />
     </div>
 
+    @if (!Preparation && _position is { } cashPosition
+        && (cashPosition.LegacyCollectionsOutsideRemittance != 0m || cashPosition.OfficeOriginCollected != 0m))
+    {
+        <div class="v3-notice rm-accounting-scope" role="note">
+            <strong>Additional recorded financial activity in this period</strong>
+            @if (cashPosition.LegacyCollectionsOutsideRemittance != 0m)
+            {
+                <p>Legacy collections: <strong>@Money(cashPosition.LegacyCollectionsOutsideRemittance)</strong>.
+                    These are recorded outside the canonical SRC remittance ledger and need independent physical-receipt
+                    custody and treasury reconciliation. They cannot be selected as a new canonical remittance.</p>
+            }
+            @if (cashPosition.OfficeOriginCollected != 0m)
+            {
+                <p>Office-origin canonical Collections: <strong>@Money(cashPosition.OfficeOriginCollected)</strong>
+                    (@cashPosition.OfficeOriginCount records). These were not collected under a named collector, so
+                    collector remittance totals do not include them.</p>
+            }
+            <p>The figures above are separate evidence, not additional income or automatically remitted cash.</p>
+        </div>
+    }
+
     <form class="rm-filters" aria-label="Filters" @onsubmit="ReloadAsync" @onsubmit:preventDefault="true">
         <label class="v3-field"><span>From</span><input type="date" @bind="_from" /></label>
         <label class="v3-field"><span>To</span><input type="date" @bind="_to" /></label>
@@ -335,6 +356,7 @@
                             <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Unremitted</th>
+                            <th scope="col" class="v3-num">Legacy records (separate)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -345,11 +367,12 @@
                                 <td class="v3-num">@Money(row.Collected)</td>
                                 <td class="v3-num">@Money(row.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(row.Unremitted)</td>
+                                <td class="v3-num">@Money(row.LegacyCollectionsOutsideRemittance)</td>
                             </tr>
                         }
                         @if (!VisibleCollectors(position).Any())
                         {
-                            <tr><td class="v3-empty" colspan="4">No collector has collections in this period.</td></tr>
+                            <tr><td class="v3-empty" colspan="5">No collector has recorded collections in this period.</td></tr>
                         }
                     </tbody>
                 </table>

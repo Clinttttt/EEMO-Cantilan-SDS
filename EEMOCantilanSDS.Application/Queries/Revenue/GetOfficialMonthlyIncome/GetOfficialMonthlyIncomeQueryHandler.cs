@@ -57,10 +57,52 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             x.MunicipalityId == tenantId && x.Year == request.Year).ToListAsync(ct);
         var currentRevisions = revisions.GroupBy(x => (x.Kind, x.RowKey, x.Month))
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Revision).First());
+
+        // IA-051's historic Cantilan template is never an authority for another LGU's facilities.
+        // Preserve all money and audited report revisions, even if the source/facility was retired.
+        var isDefaultOffice = await db.Municipalities.AsNoTracking()
+            .Where(x => x.Id == tenantId).Select(x => x.IsDefault).SingleAsync(ct);
+        var facilities = await db.Facilities.AsNoTracking().Where(x => x.MunicipalityId == tenantId)
+            .Select(x => new { x.Code, x.Name, x.IsActive }).ToListAsync(ct);
+        var facilityNames = facilities.GroupBy(x => x.Code).ToDictionary(g => g.Key, g => g.First().Name);
+        var activeFacilities = facilities.Where(x => x.IsActive).Select(x => x.Code).ToHashSet();
+        var activeSources = (await db.RevenueClassifications.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.IsActive)
+            .Select(x => x.SemanticCode).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        var listedSettings = await db.TenantOperationSettings.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId)
+            .Select(x => new { x.OperationCode, x.IsListed, x.LocalDisplayName }).ToListAsync(ct);
+        var adopted = listedSettings.Count > 0;
+        var listedSources = listedSettings.Where(x => x.IsListed)
+            .Select(x => TenantOperationCatalog.Find(x.OperationCode)?.ClassificationCode)
+            .Where(x => x is not null).ToHashSet(StringComparer.Ordinal);
+        var selectedLabels = listedSettings.Where(x => x.IsListed && !string.IsNullOrWhiteSpace(x.LocalDisplayName))
+            .Select(x => new { Entry = TenantOperationCatalog.Find(x.OperationCode), x.LocalDisplayName })
+            .Where(x => x.Entry is not null)
+            .ToDictionary(x => x.Entry!.ClassificationCode, x => x.LocalDisplayName!, StringComparer.Ordinal);
+        var rentFacilityCodesWithStalls = (await (
+            from stall in db.Stalls.AsNoTracking()
+            join facility in db.Facilities.AsNoTracking()
+                on new { stall.MunicipalityId, Id = stall.FacilityId } equals new { facility.MunicipalityId, facility.Id }
+            where stall.MunicipalityId == tenantId && facility.IsActive
+            select facility.Code).Distinct().ToListAsync(ct)).ToHashSet();
+        var revisionKeys = currentRevisions.Keys.Select(x => x.RowKey).ToHashSet(StringComparer.Ordinal);
+        bool ShouldInclude(OfficialMonthlyIncomeStructure.Row row) =>
+            isDefaultOffice || rowFacts.ContainsKey(row.Key) || revisionKeys.Contains(row.Key)
+            || row.Facility is { } facility && activeFacilities.Contains(facility) && rentFacilityCodesWithStalls.Contains(facility)
+            || row.Facility is null && row.ClassificationCode is { } code && activeSources.Contains(code)
+                && (!adopted || TenantOperationCatalog.FindBySourceKey(code) is null || listedSources.Contains(code));
+        OfficialMonthlyIncomeStructure.Row DisplayRow(OfficialMonthlyIncomeStructure.Row row) =>
+            isDefaultOffice ? row
+            : row.Facility is { } facility
+                ? row with { Label = facilityNames.TryGetValue(facility, out var label) && !string.IsNullOrWhiteSpace(label)
+                    ? label : $"{facility} rent (facility not configured)" }
+                : row.ClassificationCode is { } code && selectedLabels.TryGetValue(code, out var local)
+                    ? row with { Label = local } : row;
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
-            var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
-                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).ToList();
+            var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key && ShouldInclude(r))
+                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).Select(DisplayRow).ToList();
             var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
                 request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
             // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
@@ -90,6 +132,8 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             ("C", "Income from Slaughterhouse", new[] { OfficialMonthlyIncomeStructure.Slaughterhouse }) })
         {
             var members = groups.Where(g => keys.Contains(g.Key)).ToArray();
+            // Other LGUs do not print empty Cantilan-only official sections on a second page.
+            if (!isDefaultOffice && members.Length == 0) continue;
             sections.Add(new(key, label, keys, SumMonths(members.Select(g => g.MonthTotals)), SumCell(members.Select(g => g.Total))));
         }
         var configured = await db.Municipalities.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.ReportSignatories).SingleOrDefaultAsync(ct);

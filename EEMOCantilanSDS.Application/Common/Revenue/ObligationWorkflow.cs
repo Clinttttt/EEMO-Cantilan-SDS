@@ -459,8 +459,8 @@ public sealed class ObligationWorkflow(
             .Where(m => m.Id == tenantId).Select(m => m.IsDefault).FirstOrDefaultAsync(ct);
         return isDefaultMunicipality
             ? null // Cantilan permits the actual signed term within the existing 1–50 year bounds.
-            : "A signed Kanmanggay contract duration cannot be recorded yet: the confirmed duration policy is Cantilan's, and no duration policy " +
-              "has been confirmed for this municipality. Save the contract without a duration; the rest of the record is unaffected.";
+            : "This municipality has not confirmed its signed-contract duration policy. " +
+              "Save the actual contract without a duration until the office's own approved term rule is recorded; other contract details are unaffected.";
     }
 
     /// <summary>Audited correction of monthly space-holder evidence; never reprices or changes an assessed period.</summary>

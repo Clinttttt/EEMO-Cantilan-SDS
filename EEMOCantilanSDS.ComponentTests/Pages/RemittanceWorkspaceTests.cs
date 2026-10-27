@@ -89,6 +89,33 @@ public sealed class RemittanceWorkspaceTests : TestContext
         cut.FindAll("button.rm-tab").Single(b => b.TextContent.Trim() == name).Click();
 
     [Fact]
+    public void Legacy_and_office_origin_cash_are_visible_but_never_counted_as_remittable()
+    {
+        var legacy = new CollectorPositionDto(CollectorId, "Madrid Collector", 0m, 0m, 0m, 0, 2300m, []);
+        var data = Position(0m, 0m) with
+        {
+            Collectors = [legacy],
+            LegacyCollectionsOutsideRemittance = 2300m,
+            OfficeOriginCollected = 450m,
+            OfficeOriginCount = 1
+        };
+        ServePosition(data);
+        var page = RenderComponent<Remittances>();
+        page.WaitForAssertion(() => Assert.Contains("Legacy collections:", page.Markup), Timeout);
+        var note = page.Find(".rm-accounting-scope").TextContent;
+        Assert.Contains("2,300.00", note);
+        Assert.Contains("450.00", note);
+        Assert.Contains("cannot be selected as a new canonical remittance", note);
+        Assert.Contains("0.00", page.Find("dl[aria-label='Cash position']").TextContent);
+        OpenTab(page, "Collector position");
+        var row = Assert.Single(page.FindAll("table.rm-position tbody tr"));
+        Assert.Contains("Madrid Collector", row.TextContent);
+        Assert.Contains("2,300.00", row.TextContent);
+        Assert.Contains("0.00", row.TextContent);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
+    }
+
+    [Fact]
     public void EmptyRegistersKeepTheirPanelAcrossAllTabs_AndPrintIsInTheToolbar()
     {
         ServePosition(Position(0m, 0m) with { Collectors = [] });
