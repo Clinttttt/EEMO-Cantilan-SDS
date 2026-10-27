@@ -458,6 +458,10 @@ public sealed class RemittanceWorkspaceTests : TestContext
     public void TheSubmissionReport_ListsEveryCollector_WithTheirOwnCollections_AndTheCombinedTotal()
     {
         var bobby = Detail(80m, 80m);
+        var slaughter = bobby.Collections[0] with { Lines =
+            [new RemittanceBreakdownDto(Guid.NewGuid(), "Slaughterhouse", 10m),
+             new RemittanceBreakdownDto(Guid.NewGuid(), "Slaughterhouse", 20m)] };
+        bobby = bobby with { Collections = [slaughter, bobby.Collections[1]] };
         var cian = Detail(40m, 35m) with { Row = Detail(40m, 35m).Row with { CollectorName = "Cian Consigna", Id = Guid.NewGuid() } };
         var submission = Guid.NewGuid();
         var report = new RemittanceSubmissionDto(submission, new DateOnly(2026, 10, 2), new DateOnly(2026, 9, 1), new DateOnly(2026, 9, 30),
@@ -477,6 +481,9 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.Contains("₱5.00", rows[1].TextContent);
             Assert.Contains("₱115.00", summary.QuerySelector("tfoot")!.TextContent);
             Assert.Equal(2, cut.FindAll("section[aria-label^='Collections covered for']").Count);
+            var firstSource = cut.Find("[aria-label='Collections of Ana Reyes'] tbody tr td:nth-child(2)").TextContent.Trim();
+            Assert.Equal("Slaughterhouse", firstSource); // Two posted charge lines; one source label, never repeated.
+            Assert.Contains("SRC-2026-000101", cut.Find("[aria-label='Collections of Ana Reyes']").TextContent);
             Assert.DoesNotContain(submission.ToString(), cut.Markup);
         }, Timeout);
     }
@@ -589,6 +596,36 @@ public sealed class RemittanceWorkspaceTests : TestContext
         Assert.Equal(new[] { CollectionA }, requests[1].CollectionIds);
         Assert.Equal(30m, requests[1].AmountRemitted);
         _api.Verify(x => x.RecordBatchAsync(It.IsAny<RecordRemittanceBatchRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Detail_CollapsesRepeatedChargeClassifications_WithoutChangingMoneyOrSrc()
+    {
+        var detail = Detail(80m, 80m);
+        var original = detail.Collections[0];
+        var collection = original with
+        {
+            Lines =
+            [
+                new RemittanceBreakdownDto(Guid.NewGuid(), "Slaughterhouse", 10m),
+                new RemittanceBreakdownDto(Guid.NewGuid(), "Slaughterhouse", 20m)
+            ]
+        };
+        detail = detail with { Collections = [collection, detail.Collections[1]] };
+        _api.Setup(x => x.GetDetailAsync(detail.Row.Id))
+            .ReturnsAsync(Result<RemittanceDetailDto>.Success(detail));
+
+        var cut = RenderComponent<RemittanceDetail>(p => p.Add(x => x.Id, detail.Row.Id));
+
+        cut.WaitForAssertion(() =>
+        {
+            var covered = cut.FindAll("[aria-label='Collections covered'] tbody tr");
+            Assert.Equal(2, covered.Count);
+            Assert.Equal("Slaughterhouse", covered[0].QuerySelectorAll("td")[1].TextContent.Trim());
+            Assert.Contains("SRC-2026-000101", covered[0].TextContent);
+            Assert.Contains("SRC-2026-000102", covered[1].TextContent);
+            Assert.Contains("₱80.00", cut.Find("[aria-label='Collections covered'] tfoot").TextContent);
+        }, Timeout);
     }
 
     [Fact]
