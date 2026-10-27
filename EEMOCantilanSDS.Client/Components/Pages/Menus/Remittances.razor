@@ -133,6 +133,22 @@
         <p class="v3-notice v3-notice-error" role="alert">@_error</p>
     }
 
+    @if (_position is { } outsidePosition &&
+        (outsidePosition.LegacyCollectionsOutsideRemittance > 0m || outsidePosition.OfficeOriginCollected > 0m))
+    {
+        <div class="v3-notice rm-result" role="note" aria-label="Receipts outside collector remittance">
+            <p><strong>Recorded outside collector remittance.</strong> The cash-position totals cover posted collector-owned canonical Collections only.</p>
+            @if (outsidePosition.LegacyCollectionsOutsideRemittance > 0m)
+            {
+                <p>Identified legacy collector receipts: <strong>@Money(outsidePosition.LegacyCollectionsOutsideRemittance)</strong>. These remain historical evidence, not automatically remittable Collections.</p>
+            }
+            @if (outsidePosition.OfficeOriginCollected > 0m)
+            {
+                <p>Office-origin canonical Collections: <strong>@Money(outsidePosition.OfficeOriginCollected)</strong>. These are accounted for separately from collector remittances.</p>
+            }
+        </div>
+    }
+
     @if (_position is { } position)
     {
         @if (ShowDue)
@@ -233,7 +249,7 @@
                         }
                         @if (!Eligible.Any())
                         {
-                            <tr><td class="v3-empty" colspan="@(Preparation ? 7 : 6)">@(_loading ? "Loading collections…" : "No collections ready to remit.")</td></tr>
+                            <tr><td class="v3-empty" colspan="@(Preparation ? 7 : 6)">@(_loading ? "Loading collections…" : "No SRC-backed collector Collections ready to remit. Legacy payment records remain separate from canonical remittance, and office-origin or online Collections are not collector remittances.")</td></tr>
                         }
                     </tbody>
                     @if (Preparation && SelectedCount > 0)
@@ -335,6 +351,7 @@
                             <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Unremitted</th>
+                            <th scope="col" class="v3-num">Legacy recorded (separate)</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -345,11 +362,12 @@
                                 <td class="v3-num">@Money(row.Collected)</td>
                                 <td class="v3-num">@Money(row.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(row.Unremitted)</td>
+                                <td class="v3-num">@Money(row.LegacyCollectionsOutsideRemittance)</td>
                             </tr>
                         }
                         @if (!VisibleCollectors(position).Any())
                         {
-                            <tr><td class="v3-empty" colspan="4">No collector has collections in this period.</td></tr>
+                            <tr><td class="v3-empty" colspan="5">No collector has recorded collections in this period.</td></tr>
                         }
                     </tbody>
                 </table>
@@ -375,6 +393,7 @@
                         <th scope="col" class="v3-num">Collections</th>
                         <th scope="col" class="v3-num">Amount</th>
                         <th scope="col">Status</th>
+                        <th scope="col" class="v3-num">Difference</th>
                         <th scope="col">Reference</th>
                         <th scope="col"><span class="v3-sr-only">Actions</span></th>
                     </tr>
@@ -405,7 +424,8 @@
                             </td>
                             <td class="v3-num">@row.CollectionCount</td>
                             <td class="v3-num">@Money(row.RemittedAmount)</td>
-                            <td><span class="rm-pill @(row.StatusLabel == "Voided" ? "rm-pill-void" : "")">@row.StatusLabel</span>@if (row.DifferenceAmount != 0m) {<span class="v3-block rm-diff-flag">Difference @Money(row.DifferenceAmount)</span>}</td>
+                            <td><span class="rm-pill @(HistoryStatus(row) == "Voided" ? "rm-pill-void" : "")">@HistoryStatus(row)</span></td>
+                            <td class="v3-num @(row.DifferenceAmount != 0m ? "rm-diff-flag" : "")">@(row.DifferenceAmount == 0m ? "—" : Money(row.DifferenceAmount))</td>
                             <td>@(row.Reference ?? "—")</td>
                             <td class="rm-row-action">
                                 <a class="v3-btn v3-btn-sm" href="@viewHref" aria-label="@($"View remittance of {CollectorSummary(row)}, {row.RemittanceDate.ToString("MMM d", CultureInfo.InvariantCulture)}")">View</a>
@@ -415,7 +435,7 @@
                     }
                     @if (_register.Count == 0)
                     {
-                        <tr><td class="v3-empty" colspan="7">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
+                        <tr><td class="v3-empty" colspan="8">@(_loading ? "Loading remittances…" : "No remittance was recorded in this period.")</td></tr>
                     }
                 </tbody>
             </table>
@@ -442,6 +462,10 @@
     private AccountabilityPositionDto? _position;
     private List<RemittanceHistoryRowDto> _register = [];
     private Guid? _openMembers;
+    // Display the persisted lifecycle; a difference is tracked independently in the next column.
+    private static string HistoryStatus(RemittanceHistoryRowDto row) =>
+        row.Members.All(m => m.Status == RemittanceStatus.Voided) ? "Voided"
+        : row.Members.Any(m => m.Status == RemittanceStatus.Voided) ? "Partly voided" : "Recorded";
     private List<CollectorListDto> _collectors = [];
     private bool _loading = true;
     private bool _saving;

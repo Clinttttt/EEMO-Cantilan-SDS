@@ -1,3 +1,38 @@
+/* Water and Electricity use the same source register; collection state stays with each workflow. */
+.utility-source-list {
+    margin: 0 0 12px;
+    padding: 0;
+    list-style: none;
+    overflow: hidden;
+    border: 1px solid var(--mobile-border);
+    border-radius: 12px;
+    background: var(--mobile-surface);
+}
+.utility-source-list > li + li,
+.utility-source-list > button + button { border-top: 1px solid var(--mobile-border); }
+.utility-source-list > button.utility-source-option,
+.utility-source-list > li > button.utility-source-option {
+    display: flex;
+    width: 100%;
+    min-height: 56px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    color: var(--mobile-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.utility-source-list > button.utility-source-option + button.utility-source-option { border-top: 1px solid var(--mobile-border); }
+.utility-source-option.selected { background: var(--mobile-blue-subtle); box-shadow: inset 3px 0 0 var(--mobile-blue); }
+.utility-source-list .utility-source-option:focus-visible { outline: 2px solid var(--mobile-focus); outline-offset: -2px; }
+.utility-source-list .utility-source-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; }
+.utility-source-list .utility-source-text .utility-source-name { font-size: 14px; font-weight: 600; color: var(--mobile-navy); }
+.utility-source-list .utility-source-text .utility-source-context { margin: 0; font-size: 12px; font-weight: 400; color: var(--mobile-text-secondary); }
+
 html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }

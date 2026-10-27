@@ -253,6 +253,5 @@
 
     private static string Money(decimal amount) => $"₱{amount:N2}";
 
-    private static string StatusLabel(RemittanceDetailDto d) => d.Row.Status == RemittanceStatus.Voided ? "Voided"
-        : d.NeedsReview ? "Needs review" : "Recorded";
+    private static string StatusLabel(RemittanceDetailDto d) => d.Row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded";
 }

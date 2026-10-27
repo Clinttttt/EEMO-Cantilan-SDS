@@ -191,6 +191,9 @@ public sealed class CollectionSessionEditorTests : TestContext
         var cut = Open("ECF");
         cut.Find("input[type=search]").Focus();
         cut.WaitForAssertion(() => Assert.Equal(5, cut.FindAll(".collection-area-chip").Count));
+        Assert.Equal(4, cut.FindAll(".utility-source-list .utility-source-option").Count);
+        Assert.Contains("payer-list-space", cut.Find(".utility-source-list").ClassList);
+        VegetableFruitModeTests.SaveVisual("electricity-source-list", cut.Markup);
         Assert.Equal(["All", "Extension", "Fish Area", "Meat Area", "TCC"],
             cut.FindAll(".collection-area-chip").Select(x => x.TextContent.Trim()).ToArray());
         Assert.DoesNotContain("Vendor registration", cut.Find(".payer-list").TextContent);
@@ -200,6 +203,19 @@ public sealed class CollectionSessionEditorTests : TestContext
         cut.FindAll(".collection-area-chip").Single(x => x.TextContent.Trim() == "TCC").Click();
         Assert.Contains("TCC holder", cut.Find(".payer-list").TextContent);
         Assert.DoesNotContain("Extension holder", cut.Find(".payer-list").TextContent);
+    }
+
+    [Fact]
+    public void ElectricityRouteUsesTheFullUtilityNameAndKeepsItsOperationScope()
+    {
+        Services.AddSingleton(new MobileSessionService());
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/ecf");
+        var cut = RenderComponent<EEMOCantilanSDS.Mobile.Components.Pages.Menus.NewCollection>();
+        Assert.Equal("Electricity Consumption Fee", cut.Find(".header-title").TextContent);
+        Assert.Equal("ECF", cut.FindComponent<CollectionSessionEditor>().Instance.OnlyOperation);
+        cut.Find("input[type=search]").Focus();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".utility-source-option")));
+        VegetableFruitModeTests.SaveVisual("electricity-utility-page", cut.Markup);
     }
 
     [Fact]

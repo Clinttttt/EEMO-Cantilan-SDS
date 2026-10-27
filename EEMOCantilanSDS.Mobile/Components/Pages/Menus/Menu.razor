@@ -123,9 +123,9 @@
                                 @if (item.CanOpen)
                                 {
                                     <button class="menu-row" type="button" @onclick="() => Open(item)">
-                                        <span class="menu-tile ready" aria-hidden="true">@Initials(item.Name)</span>
+                                        <span class="menu-tile ready" aria-hidden="true">@Initials(MenuName(item))</span>
                                         <span class="menu-row-main">
-                                            <span class="menu-row-name">@item.Name</span>
+                                            <span class="menu-row-name">@MenuName(item)</span>
                                             <span class="menu-chip ready">@item.Status</span>
                                         </span>
                                         <span class="menu-row-chevron" aria-hidden="true">›</span>
@@ -135,9 +135,9 @@
                                 {
                                     @* Ready, but collected from inside another screen (for example WCF from a market stall). *@
                                     <div class="menu-row plain">
-                                        <span class="menu-tile ready" aria-hidden="true">@Initials(item.Name)</span>
+                                        <span class="menu-tile ready" aria-hidden="true">@Initials(MenuName(item))</span>
                                         <span class="menu-row-main">
-                                            <span class="menu-row-name">@item.Name</span>
+                                            <span class="menu-row-name">@MenuName(item)</span>
                                             <span class="menu-chip ready">@item.Status</span>
                                             <span class="menu-row-status">Open New Collection to find eligible charges</span>
                                         </span>
@@ -174,9 +174,9 @@
                         {
                             <li>
                                 <div class="menu-row plain">
-                                    <span class="menu-tile idle" aria-hidden="true">@Initials(item.Name)</span>
+                                    <span class="menu-tile idle" aria-hidden="true">@Initials(MenuName(item))</span>
                                     <span class="menu-row-main">
-                                        <span class="menu-row-name">@item.Name</span>
+                                        <span class="menu-row-name">@MenuName(item)</span>
                                         <span class="menu-chip idle">@item.Status</span>
                                     </span>
                                 </div>
@@ -296,6 +296,8 @@
     }
 
     // Two-letter mark for the row tile, from the operation's own name.
+    static string MenuName(WorkItem item) => item.OperationCode == "ECF" ? "Electricity Consumption Fee" : item.Name;
+
     static string Initials(string name) => string.Concat(name
         .Split(new[] { ' ', '/', '-', '|' }, StringSplitOptions.RemoveEmptyEntries)
         .Where(w => char.IsLetter(w[0]))

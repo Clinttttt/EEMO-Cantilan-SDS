@@ -6,6 +6,9 @@ namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
 public class AuditApiClient(HttpClient http) : HandleResponse(http), IAuditApiClient
 {
+    public Task<Result<AuditEventDetailsDto>> GetAuditEventAsync(Guid eventId) =>
+        GetAsync<AuditEventDetailsDto>($"api/Audit/trail/{eventId:D}");
+
     public async Task<Result<AuditTrailDto>> GetAuditTrailAsync(
         string? search = null,
         string? action = null,

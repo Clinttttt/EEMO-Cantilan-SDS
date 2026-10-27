@@ -1,23 +1,25 @@
 @page "/reports/monthly-income/history"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using System.Globalization
+@using EEMOCantilanSDS.Application.Common
 @using EEMOCantilanSDS.Application.Common.Revenue
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IOfficialReportsApiClient Api
+@inject IRemittancesApiClient RemittancesApi
 @inject IJSRuntime JS
 
 <PageTitle>Monthly Income revision evidence</PageTitle>
 <div class="content-area revisions">
     <div class="no-print">
-        <V3Hero Compact="true" Title="Monthly Income revision evidence" Subtitle="@HeroSubtitle" Figures="HeroFigures" FiguresLabel="Revision summary">
+        <V3Hero Compact="true" Title="Monthly Income revision evidence" Subtitle="@HeroSubtitle" Figures="HeroFigures" FiguresLabel="Evidence summary">
             <Icon><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg></Icon>
             <Actions>
                 <a class="rv-ic" href="@($"/reports/monthly-income/official?year={Year}")" title="Latest Monthly Income" aria-label="Latest Monthly Income"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg></a>
-                @if (Rows is not null && !Loading)
+                @if (Rows is not null && Remittances is not null && !Loading)
                 {
-                    <a class="rv-ic" download="@($"monthly-income-revisions-{LoadedYear}.csv")" href="@CsvHref" title="Download CSV" aria-label="Download CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg></a>
+                    <a class="rv-ic" download="@($"monthly-income-and-remittance-evidence-{LoadedYear}.csv")" href="@CsvHref" title="Download CSV" aria-label="Download CSV"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg></a>
                     <button type="button" class="rv-ic" @onclick="Print" title="Print or save as PDF" aria-label="Print"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg></button>
                 }
             </Actions>
@@ -27,7 +29,7 @@
             <FhSelect Caption="Record type" Value="@_kind" Options="@KindChoices" ValueChanged="@(v => _kind = v)" />
             <FhSelect Caption="Revenue line" Value="@_line" Options="@LineChoices" ValueChanged="@(v => _line = v)" />
             <label class="rv-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input type="search" aria-label="Search revisions" placeholder="Search line, reason or recorded by" value="@_search" @oninput="e => _search = (e.Value?.ToString() ?? string.Empty).Trim()" /></label>
+                <input type="search" aria-label="Search revisions" placeholder="Search line, collector, reason or actor" value="@_search" @oninput="e => _search = (e.Value?.ToString() ?? string.Empty).Trim()" /></label>
             <button type="button" class="rv-review" disabled="@Loading" @onclick="Load" title="Review history" aria-label="Review history"><svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" /></svg><span>Review</span></button>
         </div>
     </div>
@@ -37,12 +39,14 @@
         @if (Error is not null) { <p role="alert">@Error</p> }
         @if (Rows is { } rows)
         {
+            var remittances = Remittances ?? [];
             var ordered = rows.Where(Matches).OrderBy(x => LineLabel(x.RowKey), StringComparer.OrdinalIgnoreCase).ThenBy(x => x.Kind).ThenBy(x => x.Month).ThenBy(x => x.Revision).ToList();
-            @if (Filtered) { <p class="rv-filter" role="status">Showing @ordered.Count of @rows.Count recorded revision(s) for @FilterText.</p> }
-            <div class="revisions-scroll" tabindex="0" role="region" aria-label="Report revisions"><table>
+            var visibleRemittances = remittances.Where(MatchesRemittance).OrderByDescending(x => x.RemittanceDate).ThenByDescending(x => x.RecordedAtUtc).ToList();
+            @if (Filtered) { <p class="rv-filter" role="status">Showing @(ordered.Count + visibleRemittances.Count) of @(rows.Count + remittances.Count) loaded evidence record(s) for @FilterText.</p> }
+            <div class="revisions-scroll" tabindex="0" role="region" aria-label="Report revision and remittance evidence"><table>
                 <thead><tr>
-                    <th scope="col">Revenue line</th><th scope="col">Record</th><th scope="col">Revision</th>
-                    <th scope="col" class="rv-money">System at revision</th><th scope="col" class="rv-money">Recorded figure</th>
+                    <th scope="col">Revenue line / collector</th><th scope="col">Record type</th><th scope="col">Revision / status</th>
+                    <th scope="col" class="rv-money">System / expected</th><th scope="col" class="rv-money">Recorded / remitted</th>
                     <th scope="col">Recorded by</th><th scope="col">Reason / reference</th>
                 </tr></thead>
                 <tbody>@foreach (var r in ordered)
@@ -57,13 +61,29 @@
                         <td><strong class="rv-strong">@r.ActorName</strong><div class="rv-sub">@PhDate(r.RecordedAtUtc) · @PhTime(r.RecordedAtUtc)</div></td>
                         <td>@r.SourceOrReason@if (!string.IsNullOrWhiteSpace(r.Reference)) {<div class="rv-sub">Ref. @r.Reference</div>}@if (!string.IsNullOrWhiteSpace(r.Note)) {<div class="rv-sub">@r.Note</div>}</td>
                     </tr>
+                }
+                @foreach (var remittance in visibleRemittances)
+                {
+                    <tr @key="remittance.Id">
+                        <td class="rv-line">@remittance.CollectorName<div class="rv-sub">Remittance · @remittance.RemittanceDate.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)</div></td>
+                        <td><strong class="rv-strong">Remittance</strong><div class="rv-sub">Cash turnover, not revenue</div></td>
+                        <td><strong class="rv-strong">@remittance.Status</strong><div class="rv-sub"><a href="@($"/remittances/{remittance.Id}")">View remittance</a></div></td>
+                        <td class="rv-money">@Peso(remittance.ExpectedAmount)</td>
+                        <td class="rv-money rv-figure">@Peso(remittance.RemittedAmount)<div class="rv-sub @(remittance.DifferenceAmount != 0m ? "rv-difference" : "")">Difference @(remittance.DifferenceAmount == 0m ? "—" : Peso(remittance.DifferenceAmount))</div></td>
+                        <td><strong class="rv-strong">@(string.IsNullOrWhiteSpace(remittance.RecordedBy) ? "Actor unavailable" : remittance.RecordedBy)</strong><div class="rv-sub">@PhDate(remittance.RecordedAtUtc) · @PhTime(remittance.RecordedAtUtc)</div></td>
+                        <td>@(string.IsNullOrWhiteSpace(remittance.Remarks) ? "—" : remittance.Remarks)
+                            @if (!string.IsNullOrWhiteSpace(remittance.Reference)) { <div class="rv-sub">Ref. @remittance.Reference</div> }
+                            @if (remittance.Status == RemittanceStatus.Voided) { <div class="rv-sub">Voided by @(remittance.VoidedBy ?? "Actor unavailable") · @(remittance.VoidedAtUtc is { } voidedAt ? PhDate(voidedAt) + " · " + PhTime(voidedAt) : "Date unavailable")</div><div class="rv-sub">Reason: @(remittance.VoidReason ?? "Not recorded")</div> }
+                        </td>
+                    </tr>
                 }</tbody>
             </table></div>
-            @if (rows.Count == 0) { <p>No recorded revisions for this year. This is not proof that an original report was issued.</p> }
-            else if (ordered.Count == 0) { <p>No revision matches these filters.</p> }
+            @if (Remittances is null && rows.Count == 0) { <p>No report revisions for this year. Remittance evidence has not been loaded.</p> }
+            else if (Remittances is not null && rows.Count + remittances.Count == 0) { <p>No revision or remittance evidence for this year. This is not proof that an original report was issued.</p> }
+            else if (ordered.Count + visibleRemittances.Count == 0) { <p>No evidence record matches these filters.</p> }
             <details class="rv-limits" open="@_printing">
                 <summary>Limitations of this record</summary>
-                <p>These are append-only revision records, not persisted copies of an issued report. Historical generated or issued report snapshots are not available in the current storage model. A regenerated statement is not the originally submitted document. Collection, SRC, balance, remittance and collector accountability are unchanged by these report-only revisions.</p>
+                <p>Annual targets and Monthly Income adjustments are append-only report revisions, not persisted copies of issued-report snapshots. Remittance rows are separate cash-turnover evidence linked to their original records, selected by remittance date, not new report revisions. A difference remains outstanding evidence, not an adjustment to cash or a completed reconciliation. Remittances are recorded or voided, never edited in place. Neither this view nor report-only revisions change Collections, SRCs, remittances or collector accountability.</p>
             </details>
         }
     </section>
@@ -80,33 +100,65 @@
     private bool Matches(ReportRevisionDto r) =>
         (_kind.Length == 0 || ((int)r.Kind).ToString() == _kind) && (_line.Length == 0 || r.RowKey == _line)
         && (_search.Length == 0 || new[] { LineLabel(r.RowKey), r.SourceOrReason, r.Reference, r.Note, r.ActorName }.Any(x => x?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true));
+    private bool MatchesRemittance(RemittanceRowDto r) =>
+        (_kind.Length == 0 || _kind == "remittance") && _line.Length == 0
+        && (_search.Length == 0 || new[] { r.CollectorName, r.RecordedBy, r.Remarks, r.Reference, r.VoidedBy, r.VoidReason, r.Status.ToString() }
+            .Any(x => x?.Contains(_search, StringComparison.OrdinalIgnoreCase) == true));
     private static readonly IReadOnlyList<(string Value, string Label)> KindChoices =
-        [("", "All record types"), (((int)OfficialReportRevisionKind.AnnualTarget).ToString(), "Annual target"), (((int)OfficialReportRevisionKind.MonthlyAdjustment).ToString(), "Monthly adjustment")];
+        [("", "All record types"), (((int)OfficialReportRevisionKind.AnnualTarget).ToString(), "Annual target"), (((int)OfficialReportRevisionKind.MonthlyAdjustment).ToString(), "Monthly adjustment"), ("remittance", "Remittance")];
     private IReadOnlyList<(string Value, string Label)> LineChoices =>
         [("", "All revenue lines"), .. (Rows ?? []).Select(r => r.RowKey).Distinct().Select(k => (Value: k, Label: LineLabel(k))).OrderBy(x => x.Label, StringComparer.OrdinalIgnoreCase)];
     private bool Loading;
     private bool _printing;
     private string? Error;
     private IReadOnlyList<ReportRevisionDto>? Rows;
-    protected override Task OnInitializedAsync() => Load();
-    private async Task Load() {
-        Loading = true; Error = null; Rows = null; LoadedYear = Year; _kind = _line = string.Empty;
-        try { var result = await Api.GetGovernanceAsync(Year); if (result.IsSuccess) Rows = result.Value; else Error = result.Error ?? "History could not be loaded."; }
-        catch { Error = "History could not be loaded. No partial history is displayed."; }
-        finally { Loading = false; }
+    private IReadOnlyList<RemittanceRowDto>? Remittances;
+    private int _loadVersion;
+    // Blazor retains the routed component when only ?year= changes. Refresh its financial evidence.
+    protected override Task OnParametersSetAsync() => LoadedYear != Year ? Load() : Task.CompletedTask;
+    private async Task Load()
+    {
+        var version = ++_loadVersion;
+        var year = Year;
+        Loading = true; Error = null; Rows = null; Remittances = null; LoadedYear = year; _kind = _line = string.Empty;
+        try
+        {
+            // Each reader is independent: an outage in the additional remittance reader
+            // must not hide an otherwise valid history of Monthly Income adjustments.
+            var reportTask = Api.GetGovernanceAsync(year);
+            var remittanceTask = RemittancesApi.GetRegisterAsync(new DateOnly(year, 1, 1), new DateOnly(year, 12, 31), null, null, null);
+            var reports = await reportTask;
+            Result<IReadOnlyList<RemittanceRowDto>>? remittances = null;
+            try { remittances = await remittanceTask; }
+            catch { /* Display report-only evidence, with its incomplete-source warning. */ }
+            if (version != _loadVersion) return; // Older requests must never replace a newer selected year's evidence.
+            if (reports.IsSuccess && reports.Value is not null)
+            {
+                // A separate cash-turnover reader must not block access to authoritative report revisions.
+                // Clearly mark this view incomplete and disable a combined export if the reader is unavailable.
+                Rows = reports.Value;
+                if (remittances is { IsSuccess: true, Value: not null })
+                    Remittances = remittances.Value;
+                else
+                    Error = "Remittance evidence is unavailable. Monthly Income revisions remain visible, but the combined export and print are disabled until both sources can be read.";
+            }
+            else Error = reports.Error ?? "Monthly Income revision evidence could not be loaded.";
+        }
+        catch { if (version == _loadVersion) Error = "Evidence history could not be loaded. No partial history is displayed."; }
+        finally { if (version == _loadVersion) Loading = false; }
     }
 
     private IReadOnlyList<(string Value, string Label)> YearChoices =>
         Enumerable.Range(PhilippineTime.Today.Year - 5, 7).Concat([Year]).Distinct().OrderByDescending(y => y)
             .Select(y => (y.ToString(CultureInfo.InvariantCulture), y.ToString(CultureInfo.InvariantCulture))).ToList();
 
-    private string HeroSubtitle => $"{LoadedYear} · recorded adjustments and annual targets";
+    private string HeroSubtitle => $"{LoadedYear} · report revisions and separate remittance records";
 
-    private RenderFragment? HeroFigures => Rows is not { } rows ? null : __builder =>
+    private RenderFragment? HeroFigures => Rows is not { } rows || Remittances is not { } remittances ? null : __builder =>
     {
-        <V3HeroFigure Label="Revisions" Value="@rows.Count.ToString(CultureInfo.InvariantCulture)" />
-        <V3HeroFigure Label="Annual targets" Value="@rows.Count(x => x.Kind == OfficialReportRevisionKind.AnnualTarget).ToString(CultureInfo.InvariantCulture)" />
-        <V3HeroFigure Label="Monthly adjustments" Value="@rows.Count(x => x.Kind == OfficialReportRevisionKind.MonthlyAdjustment).ToString(CultureInfo.InvariantCulture)" />
+        <V3HeroFigure Label="Evidence records" Value="@((rows.Count + remittances.Count).ToString(CultureInfo.InvariantCulture))" />
+        <V3HeroFigure Label="Report revisions" Value="@rows.Count.ToString(CultureInfo.InvariantCulture)" />
+        <V3HeroFigure Label="Remittances" Value="@remittances.Count.ToString(CultureInfo.InvariantCulture)" />
     };
 
     private static decimal? RecordedFigure(ReportRevisionDto r) => r.Kind == OfficialReportRevisionKind.MonthlyAdjustment ? r.SystemAmountAtRevision + r.Amount : r.Amount;
@@ -135,8 +187,10 @@
         try { await JS.InvokeVoidAsync("stalltrackPrint.landscape"); } finally { _printing = false; }
     }
 
-    // The export keeps the internal identifiers and stored row keys as audit evidence.
+    // Unfiltered full-year evidence. Distinct record kinds and source identifiers are never represented as one revision type.
     private string CsvHref => "data:text/csv;charset=utf-8," + Uri.EscapeDataString(string.Join("\r\n",
-        new[] { CsvCell.Row("Evidence", "Recorded revisions only; not an issued report snapshot"), CsvCell.Row("Year", "Line", "Row key", "Month", "Kind", "Revision", "System at revision", "Recorded figure", "Reason", "Reference", "Actor", "Recorded UTC", "Revision ID", "Supersedes") }
-        .Concat((Rows ?? []).Select(r => CsvCell.Row(r.Year.ToString(), LineLabel(r.RowKey), r.RowKey, r.Month.ToString(), r.Kind.ToString(), r.Revision.ToString(), r.SystemAmountAtRevision?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? "", RecordedFigure(r)?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) ?? "", r.SourceOrReason, r.Reference ?? "", r.ActorName, r.RecordedAtUtc.ToString("O"), r.Id.ToString(), r.SupersedesId?.ToString() ?? "")))));
+        new[] { CsvCell.Row("Evidence", "Report revisions and remittance register records; not issued-report snapshots or edits to collections"),
+            CsvCell.Row("Year", "Revenue line / collector", "Row key", "Month / remittance date", "Record type", "Revision / status", "System / expected", "Recorded / remitted", "Difference", "Reason / remarks", "Reference", "Recorded by", "Recorded UTC", "Evidence ID", "Supersedes", "Voided by", "Voided UTC", "Void reason") }
+        .Concat((Rows ?? []).Select(r => CsvCell.Row(r.Year.ToString(), LineLabel(r.RowKey), r.RowKey, r.Month.ToString(), KindLabel(r), r.Revision.ToString(), r.SystemAmountAtRevision?.ToString("0.00", CultureInfo.InvariantCulture) ?? "", RecordedFigure(r)?.ToString("0.00", CultureInfo.InvariantCulture) ?? "", "", r.SourceOrReason, r.Reference ?? "", r.ActorName, r.RecordedAtUtc.ToString("O"), r.Id.ToString(), r.SupersedesId?.ToString() ?? "", "", "", "")))
+        .Concat((Remittances ?? []).Select(r => CsvCell.Row(r.RemittanceDate.Year.ToString(), r.CollectorName, "", r.RemittanceDate.ToString("yyyy-MM-dd"), "Remittance", r.Status.ToString(), r.ExpectedAmount.ToString("0.00", CultureInfo.InvariantCulture), r.RemittedAmount.ToString("0.00", CultureInfo.InvariantCulture), r.DifferenceAmount.ToString("0.00", CultureInfo.InvariantCulture), r.Remarks ?? "", r.Reference ?? "", r.RecordedBy ?? "", r.RecordedAtUtc.ToString("O"), r.Id.ToString(), "", r.VoidedBy ?? "", r.VoidedAtUtc?.ToString("O") ?? "", r.VoidReason ?? "")))));
 }

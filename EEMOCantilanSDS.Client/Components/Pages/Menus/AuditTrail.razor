@@ -31,7 +31,7 @@
 
     @* Share the Occupancy Registry's civic-blue hero. Counts stay interactive audit-action filters. *@
     <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · System Record")" Title="Audit Trail"
-            Subtitle="Every create, update and deletion, attributed to the person who made it">
+            Subtitle="Recorded account and collection activity, with evidence and attributable actors where available">
         <Icon>
             <svg viewBox="0 0 24 24">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -88,6 +88,14 @@
         </Figures>
     </V3Hero>
 
+    @if (_data is { } summary && summary.TotalEvents > summary.CreatedCount + summary.UpdatedCount + summary.DeletedCount)
+    {
+        <p class="audit-other-actions">
+            @(summary.TotalEvents - summary.CreatedCount - summary.UpdatedCount - summary.DeletedCount)
+            additional named action(s) are included in Total Events, beyond Created, Updated and Deleted.
+        </p>
+    }
+
     <!-- ── Filter bar ── -->
     <div class="audit-filters">
         <div class="af-field af-search">
@@ -133,9 +141,9 @@
             {
                 <button type="button" class="af-clear" @onclick="ClearFilters" title="Clear all filters">Clear</button>
             }
-            <a class="af-export @(CanExport ? "" : "is-disabled")" download="audit-trail.csv" href="@_csvHref" title="Export current results to CSV">
+            <a class="af-export @(CanExport ? "" : "is-disabled")" download="audit-trail-page.csv" href="@_csvHref" title="Export this page only to CSV">
                 <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-                Export
+                Export page
             </a>
         </div>
     </div>
@@ -218,18 +226,11 @@
                             <div class="ac-entity-code">@ShortId(log.EntityId)</div>
                         </div>
                         <div class="ac-details">
-                            <div class="ac-details-main">@DetailsText(log)</div>
-                            @if (log.Changes is { Count: > 0 })
-                            {
-                                @* The named field changes behind an update, so a reader does not have to guess
-                                   what "updated" meant. *@
-                                <div class="ac-details-changes">
-                                    @foreach (var change in log.Changes)
-                                    {
-                                        <span class="ac-change">@change</span>
-                                    }
-                                </div>
-                            }
+                            <div class="ac-details-main audit-summary-two-lines">@DetailsText(log)</div>
+                            <button type="button" class="audit-view-details" @onclick="() => OpenDetailsAsync(log.Id)"
+                                    aria-label="View full details of @EntityLabel(log.EntityType) audit event">
+                                View full details
+                            </button>
                         </div>
                     </div>
                 }
@@ -261,7 +262,126 @@
     </div>
 </div>
 
+@if (_selectedAuditId is not null)
+{
+    <div class="audit-detail-backdrop" @onclick="CloseDetails"></div>
+    <section class="audit-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="audit-detail-heading"
+             @onkeydown="HandleDetailKeyDown">
+        <header class="audit-detail-header">
+            <div>
+                <div class="audit-detail-eyebrow">Accountable activity</div>
+                <h2 id="audit-detail-heading">Audit event details</h2>
+            </div>
+            <button type="button" class="audit-detail-close" @onclick="CloseDetails"
+                    @ref="_detailCloseButton" aria-label="Close audit details">Close</button>
+        </header>
+        <div class="audit-detail-body">
+            @if (_detailLoading)
+            {
+                <p role="status">Loading permitted event details…</p>
+            }
+            else if (_detailError is not null)
+            {
+                <p role="alert" class="audit-detail-error">@_detailError</p>
+            }
+            else if (_detail is { } record)
+            {
+                <div class="audit-detail-lead">
+                    <span class="ac-badge ac-badge-@record.Action.ToLowerInvariant()">@EEMOCantilanSDS.Client.Services.AuditActionLabel.For(record.Action)</span>
+                    <h3>@EntityLabel(record.EntityType)</h3>
+                    <p>@record.Details</p>
+                </div>
+                <dl class="audit-detail-metadata">
+                    <div><dt>Performed by</dt><dd>@record.ActorDisplayName</dd></div>
+                    <div><dt>Recorded role</dt><dd>@(record.ActorName.Equals("system", StringComparison.OrdinalIgnoreCase) ? "Unattributed / automated — identity not verified" : record.ActorRole)</dd></div>
+                    <div><dt>Recorded at (PH)</dt><dd>@ToPh(record.LoggedAtUtc).ToString("MMM d, yyyy · hh:mm tt")</dd></div>
+                    <div><dt>Record type</dt><dd>@EntityLabel(record.EntityType)</dd></div>
+                    <div><dt>Record identifier</dt><dd>@(record.EntityId?.ToString("D") ?? "Not recorded")</dd></div>
+                    <div><dt>Audit event ID</dt><dd>@record.Id.ToString("D")</dd></div>
+                </dl>
+                <section class="audit-detail-changes">
+                    <h3>Recorded changes</h3>
+                    @if (record.Changes.Count > 0)
+                    {
+                        <ul>
+                            @foreach (var change in record.Changes)
+                            {
+                                <li>@change</li>
+                            }
+                        </ul>
+                    }
+                    else
+                    {
+                        <p>No additional approved field changes were recorded for this event.</p>
+                    }
+                    <p class="audit-detail-footnote">Only verified, non-sensitive fields are displayed. Missing historical evidence is not reconstructed.</p>
+                </section>
+            }
+        </div>
+    </section>
+}
+
 @code {
+    private Guid? _selectedAuditId;
+    private AuditEventDetailsDto? _detail;
+    private bool _detailLoading;
+    private string? _detailError;
+    private bool _focusDetailClose;
+    private Microsoft.AspNetCore.Components.ElementReference _detailCloseButton;
+
+    private async Task OpenDetailsAsync(Guid eventId)
+    {
+        _selectedAuditId = eventId;
+        _detail = null;
+        _detailError = null;
+        _detailLoading = true;
+        _focusDetailClose = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var result = await AuditApi.GetAuditEventAsync(eventId);
+            if (_selectedAuditId != eventId) return; // Ignore stale responses after closing or switching events.
+            if (result.IsSuccess && result.Value is not null)
+                _detail = result.Value;
+            else
+                _detailError = "Details are unavailable or you are not authorized to view this event.";
+        }
+        catch
+        {
+            if (_selectedAuditId == eventId)
+                _detailError = "Couldn't load event details. Please try again.";
+        }
+        finally
+        {
+            if (_selectedAuditId == eventId)
+            {
+                _detailLoading = false;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private void CloseDetails()
+    {
+        _selectedAuditId = null;
+        _detail = null;
+        _detailError = null;
+        _detailLoading = false;
+    }
+
+    private void HandleDetailKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseDetails();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDetailClose || _selectedAuditId is null) return;
+        _focusDetailClose = false;
+        try { await _detailCloseButton.FocusAsync(); }
+        catch { /* Focus is best-effort; the Close button remains keyboard-accessible. */ }
+    }
+
     private AuditTrailDto? _data;
     private bool _loading = true;
     private string? _error;

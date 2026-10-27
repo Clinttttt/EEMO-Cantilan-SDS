@@ -173,7 +173,8 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             //       A row is stored for EVERY catalog operation: a selected one is listed (under the LGU's own name, if it gave
             //       one) and an unselected one is explicitly NOT listed. That keeps "chose not to use it" distinct from "was
             //       never asked" (no declarations at all, an older onboarding), which stays on the legacy fallback. Nothing here
-            //       enables posting, assigns a Collector, files a rate or registers a source.
+            //       enables posting, assigns a Collector, files a rate or approves a receipt policy. Selected operations
+            //       receive only a dormant classification identity; Head confirmation remains required for an instrument.
             if (request.OperationDeclarations is { } declared)
             {
                 var chosen = declared.ToDictionary(d => d.OperationCode, StringComparer.Ordinal);
@@ -184,14 +185,12 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
                     context.TenantOperationSettings.Add(TenantOperationSetting.Create(
                         entry.Code, selected, selected ? d!.LocalDisplayName : null, "Onboarding", municipality.Id, "Activation"));
 
-                    // ECF and WCF cannot be collected until the office has a revenue classification AND an approved accountable
-                    // instrument for them, and an office has neither at activation (the platform seeds classifications for no
-                    // tenant but the one whose rulings they are). For an operation the LGU SELECTED, create the classification
-                    // itself and nothing else: no policy version, so no instrument is chosen for the office, nothing is
-                    // authorized, and the utility workflows keep refusing until the Head approves an instrument in Revenue Setup.
-                    // It exists so Revenue Setup lists the source (with its Setup-required state) instead of the Head having to
-                    // know and type an internal code. An unselected operation gets nothing.
-                    if (selected && entry.Code is "ECF" or "WCF" or "WEIGHT_AND_MEASURE")
+                    // Prepare the selected operation's source identity during activation (for every supported operation),
+                    // not only utilities. The Head can then confirm its LGU-approved OR/CT instrument in Revenue Sources
+                    // without entering internal revenue codes. NO policy, rates, custody, assignment, or posting authority
+                    // are created here; the existing Collector Mobile readiness checks remain authoritative.
+                    // Operations not selected at onboarding receive no classification.
+                    if (selected)
                         context.RevenueClassifications.Add(RevenueClassification.Create(entry.ClassificationCode, municipality.Id, "Activation"));
                 }
             }

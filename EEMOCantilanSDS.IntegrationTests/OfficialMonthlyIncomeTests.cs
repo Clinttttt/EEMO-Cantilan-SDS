@@ -177,7 +177,8 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
             }
             // A canonical ICE rent source (converted) and a legacy TCC rent source (still legacy).
             var iceFacility = Facility.Create(FacilityCode.ICE, "Ice Plant", "ICE", municipalityId: tenant.Id);
-            var tccFacility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC", municipalityId: tenant.Id);
+            // A nondefault office's own facility name must win over legacy Cantilan report labels.
+            var tccFacility = Facility.Create(FacilityCode.TCC, "Madrid Commercial Center", "TCC", municipalityId: tenant.Id);
             var payor = Payor.Create(tenant.Id, "Pedro Vendor", BusinessPayorKind.Person, "test");
             var iceStallEntity = Stall.Create(iceFacility.Id, "ICE-01", 1000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
             var contract = Contract.Create(iceStallEntity.Id, "Pedro Vendor", "Pedro Vendor", period, 5, 1000m, createdBy: "test");
@@ -252,6 +253,13 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
 
         // Legacy-authoritative rows are counted from their sources ...
         Assert.Equal(900m, Cell(before, "RENT_TCC", c => c.Legacy));
+        Assert.Equal("Madrid Commercial Center (TCC)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").Label);
+        Assert.True(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").ShowOnOfficialReport);
+        Assert.Equal("NCC rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").Label);
+        Assert.False(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").ShowOnOfficialReport);
+        Assert.Equal("NPM rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NPM").Label);
+        Assert.Equal("BBQ rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_BBQ").Label);
+        Assert.DoesNotContain(before.Groups.SelectMany(g => g.Rows), r => r.Label.Contains("Tampak Commercial", StringComparison.Ordinal));
         Assert.Equal(100m, Cell(before, "ECF", c => c.Legacy));
         // ... canonical-authoritative rows from their Collections ...
         Assert.Equal(30m, Cell(before, "MARKET_FEES", c => c.Canonical));
