@@ -391,7 +391,7 @@ else
                             {
                                 <div class="avm-group">
                                     <span class="avm-label">Contract Duration</span>
-                                    <p class="avm-hint">Not recorded. Policy confirmation required: Cantilan's duration policy has not been confirmed for this municipality.</p>
+                                    <p class="avm-hint">Contract duration is not configured for this municipality. Save the signed contract without a duration; rent collection is checked separately.</p>
                                 </div>
                             }
                             else if (_signedContract && SupportsContractBasis)
@@ -602,7 +602,7 @@ else
                         {
                             <div class="avm-group">
                                 <span class="avm-label">Contract Duration</span>
-                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{DomainRules.DescribeTerm(kept, _editFor?.ContractMonths) ?? kept + " years"}, as already recorded. " : "Not recorded. ")Policy confirmation required before a duration can be recorded or changed.</p>
+                                <p class="avm-hint">@(_editFor?.ContractYears is { } kept ? $"{DomainRules.DescribeTerm(kept, _editFor?.ContractMonths) ?? kept + " years"}, as already recorded. " : "Not recorded. ")Contract duration is not configured for this municipality. You can save other changes without changing its duration.</p>
                             </div>
                         }
                         else if (_signedContract && Kind == ObligationKind.KanmanggaySpaceRental)
