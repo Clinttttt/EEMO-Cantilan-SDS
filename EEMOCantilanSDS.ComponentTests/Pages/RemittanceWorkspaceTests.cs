@@ -108,7 +108,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
     }
 
     [Fact]
-    public void Office_and_identified_legacy_receipts_are_disclosed_without_becoming_remittable_cash()
+    public void Office_and_legacy_receipts_do_not_create_a_banner_or_remittable_cash()
     {
         ServePosition(Position(0m, 0m) with
         {
@@ -120,12 +120,12 @@ public sealed class RemittanceWorkspaceTests : TestContext
         var cut = RenderComponent<Remittances>();
         cut.WaitForAssertion(() =>
         {
-            var note = cut.Find("[aria-label='Receipts outside collector remittance']").TextContent;
-            Assert.Contains("Identified legacy collector receipts", note);
-            Assert.Contains("₱875.00", note);
-            Assert.Contains("Office-origin canonical Collections", note);
-            Assert.Contains("₱1,250.00", note);
+            Assert.Empty(cut.FindAll("[aria-label='Receipts outside collector remittance']"));
+            Assert.DoesNotContain("Recorded outside collector remittance", cut.Markup);
+            Assert.DoesNotContain("Identified legacy collector receipts", cut.Markup);
+            Assert.DoesNotContain("Office-origin canonical Collections", cut.Markup);
             Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup);
+            Assert.Contains("0 ready", cut.Markup);
         }, Timeout);
         _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
     }

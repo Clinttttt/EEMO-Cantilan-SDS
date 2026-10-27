@@ -133,22 +133,6 @@
         <p class="v3-notice v3-notice-error" role="alert">@_error</p>
     }
 
-    @if (_position is { } outsidePosition &&
-        (outsidePosition.LegacyCollectionsOutsideRemittance > 0m || outsidePosition.OfficeOriginCollected > 0m))
-    {
-        <div class="v3-notice rm-result" role="note" aria-label="Receipts outside collector remittance">
-            <p><strong>Recorded outside collector remittance.</strong> The cash-position totals cover posted collector-owned canonical Collections only.</p>
-            @if (outsidePosition.LegacyCollectionsOutsideRemittance > 0m)
-            {
-                <p>Identified legacy collector receipts: <strong>@Money(outsidePosition.LegacyCollectionsOutsideRemittance)</strong>. These remain historical evidence, not automatically remittable Collections.</p>
-            }
-            @if (outsidePosition.OfficeOriginCollected > 0m)
-            {
-                <p>Office-origin canonical Collections: <strong>@Money(outsidePosition.OfficeOriginCollected)</strong>. These are accounted for separately from collector remittances.</p>
-            }
-        </div>
-    }
-
     @if (_position is { } position)
     {
         @if (ShowDue)

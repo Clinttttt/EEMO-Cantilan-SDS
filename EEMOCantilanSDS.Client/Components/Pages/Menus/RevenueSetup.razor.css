@@ -175,3 +175,74 @@
 .rev-notice { margin: 0 0 12px; }
 .rev-status.is-neutral { color: var(--text-secondary); border-color: var(--border); background: var(--surface-muted); }
 .rev-add-dialog { width: min(100%, 30rem); }
+
+/* Guided first receipt-policy setup: compact, accessible, and scoped to its own drawer. */
+.rev-receipt-setup .rev-drawer-header {
+    align-items: center;
+    padding-block: 14px;
+}
+.rev-receipt-setup .rev-drawer-identity {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+}
+.rev-receipt-setup .rev-drawer-identity h2 { margin: 0; }
+.rev-receipt-setup .v3-modal-body {
+    gap: 14px;
+    padding: 18px 22px;
+}
+.rev-receipt-setup .v3-drawer-section { gap: 8px; min-width: 0; }
+.rev-receipt-setup .v3-drawer-section + .v3-drawer-section { padding-top: 14px; }
+.rev-receipt-setup .rev-setup-gaps ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.rev-receipt-setup .rev-setup-gaps li + li { margin-top: 3px; }
+.rev-receipt-setup .rev-setup-hint {
+    margin: 0;
+    padding: 0;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+.rev-receipt-setup .rev-receipt-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 12px;
+    align-items: end;
+}
+.rev-receipt-setup .rev-receipt-fields > .v3-field { min-width: 0; margin: 0; }
+.rev-receipt-setup .rev-receipt-attest {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 2px 0 0;
+    line-height: 1.45;
+    cursor: pointer;
+    color: var(--text);
+    font-size: 0.8125rem;
+}
+.rev-receipt-setup .rev-receipt-attest input[type="checkbox"] {
+    appearance: auto;
+    flex: 0 0 17px;
+    width: 17px;
+    height: 17px;
+    min-height: 17px;
+    padding: 0;
+    margin: 1px 0 0;
+    border: 0;
+    border-radius: 3px;
+    accent-color: var(--accent);
+    cursor: pointer;
+}
+.rev-receipt-setup .rev-receipt-attest input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.rev-receipt-setup .rev-receipt-attest input:disabled { cursor: not-allowed; }
+@media (max-width: 620px) {
+    .rev-receipt-setup .v3-modal-body { padding: 16px; }
+    .rev-receipt-setup .v3-modal-header,
+    .rev-receipt-setup .v3-modal-footer { padding-inline: 16px; }
+    .rev-receipt-setup .rev-receipt-fields { grid-template-columns: minmax(0, 1fr); }
+}
