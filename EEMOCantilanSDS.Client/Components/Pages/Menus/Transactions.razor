@@ -356,7 +356,7 @@
                     <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
                     <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
                     <div><dt>Recorded by</dt><dd>@r.RecordedBy</dd></div>
-                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Legacy payment")</dd></div>
+                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Not issued (historical record)")</dd></div>
                     <div><dt>Receipt</dt><dd>
                         @if (!string.IsNullOrWhiteSpace(r.DocumentNumber))
                         {
