@@ -1,0 +1,287 @@
+@page "/settings/monthly-rent-src"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using Microsoft.AspNetCore.Authorization
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Queries.Mobile.GetMobileMonthlyCollection
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
+@inject IFacilitiesApiClient FacilitiesApi
+@inject IRentActivationsApiClient RentApi
+@inject ICollectorsApiClient CollectorsApi
+
+<PageTitle>StallTrack - Monthly Rent SRC</PageTitle>
+<div class="v3-page srca-page">
+    <WorkspaceHeader Title="Monthly rent SRC activation" Parent="Settings" ParentHref="/settings" />
+    <section class="v3-panel srca-intro">
+        <h2>Make new monthly collections SRC-backed</h2>
+        <p>Review one facility and billing month before switching its fresh unpaid rental rows to canonical collection. The first actual posted Collection then receives a genuine SRC automatically.</p>
+        <p class="srca-caution"><strong>Existing payments are never converted.</strong> Paid, partially paid, OR-bearing and mixed legacy rows stay unchanged. A recorded physical receipt number is not an SRC.</p>
+    </section>
+
+    @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error</p> }
+    @if (_success is not null) { <p class="v3-notice" role="status">@_success</p> }
+
+    <section class="v3-panel srca-section">
+        <h2>1. Select the billing scope</h2>
+        @if (_loading)
+        {
+            <p>Loading this municipality's facilities…</p>
+        }
+        else if (_facilities.Count == 0)
+        {
+            <p>No active monthly-rental facilities were found. Public Market uses a separate monthly-activation process.</p>
+        }
+        else
+        {
+            <div class="srca-fields">
+                <label>Facility
+                    <select class="srca-input" aria-label="Monthly rent facility" value="@_facility" @onchange="FacilityChanged" disabled="@_busy">
+                        @foreach (var f in _facilities) { <option value="@f.Code">@f.Name</option> }
+                    </select>
+                </label>
+                <label>Year
+                    <input class="srca-input" aria-label="Billing year" type="number" min="2000" max="2200" value="@_year" @onchange="YearChanged" disabled="@_busy" />
+                </label>
+                <label>Month
+                    <select class="srca-input" aria-label="Billing month" value="@_month" @onchange="MonthChanged" disabled="@_busy">
+                        @for (var m = 1; m <= 12; m++)
+                        {
+                            var month = m;
+                            <option value="@month">@(new DateTime(2000, month, 1).ToString("MMMM"))</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <button class="v3-btn" type="button" @onclick="ReviewAsync" disabled="@_busy">Review existing and unpaid records</button>
+        }
+    </section>
+
+    @if (_plan is { } plan)
+    {
+        <section class="v3-panel srca-section">
+            <h2>2. Review the exact records</h2>
+            <p><strong>@plan.EligibleCount eligible</strong> unpaid row(s) · @plan.ExcludedCount excluded or already canonical row(s). Only eligible rows are considered for activation.</p>
+            @foreach (var warning in plan.FacilityBlockers)
+            {
+                <p class="srca-note">@warning</p>
+            }
+            <div class="v3-table-wrap">
+                <table class="v3-table">
+                    <thead><tr><th>Stall</th><th>Occupant</th><th>Authority</th><th>Eligibility / blockers</th></tr></thead>
+                    <tbody>
+                        @foreach (var row in plan.Rows)
+                        {
+                            <tr>
+                                <td>@row.StallNo</td>
+                                <td>@row.Occupant</td>
+                                <td>@(row.Authority?.ToString() ?? "Not recorded")</td>
+                                <td>@(row.Eligible ? "Fresh unpaid" : row.Reason ?? "Not eligible")
+                                    @foreach (var reason in row.Blockers) { <p class="srca-reason">@reason</p> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            @if (plan.EligibleCount == 0)
+            {
+                <p class="srca-caution">No fresh unpaid rows can be activated. Already-paid legacy history will not be changed.</p>
+            }
+        </section>
+
+        @if (plan.EligibleCount > 0)
+        {
+            <section class="v3-panel srca-section">
+                <h2>3. Reconciliation and collector attestation</h2>
+                <p>Verify these statements against the actual office records, registered devices, offline queues and recovery drill. Checking a box is an accountable Head attestation, not an automated backup or device inspection.</p>
+                <div class="srca-checks">
+                    <label><input type="checkbox" @bind="_writers" disabled="@(_busy || _reviewedEvidence is not null)" /> Legacy writers for this facility-month are stopped during cutover</label>
+                    <label><input type="checkbox" @bind="_queues" disabled="@(_busy || _reviewedEvidence is not null)" /> All collector offline queues have synced and drained</label>
+                    <label><input type="checkbox" @bind="_devices" disabled="@(_busy || _reviewedEvidence is not null)" /> Every assigned collector and field device has been accounted for</label>
+                    <label><input type="checkbox" @bind="_online" disabled="@(_busy || _reviewedEvidence is not null)" /> No pending or captured-but-unreconciled online rent payment remains</label>
+                    <label><input type="checkbox" @bind="_receipts" disabled="@(_busy || _reviewedEvidence is not null)" /> Physical OR/CT evidence and custody have been independently reviewed</label>
+                    <label><input type="checkbox" @bind="_reports" disabled="@(_busy || _reviewedEvidence is not null)" /> Collection Activity, income and balance reports have been reconciled</label>
+                    <label><input type="checkbox" @bind="_recovery" disabled="@(_busy || _reviewedEvidence is not null)" /> An independently restorable full database backup and restore drill have been verified</label>
+                </div>
+                <label class="srca-wide">Evidence reference / approved cutover record
+                    <input class="srca-input" maxlength="200" @bind="_reference" disabled="@(_busy || _reviewedEvidence is not null)" placeholder="Enter actual signed checklist or drill reference" />
+                </label>
+                @if (plan.AffectedCollectorIds is { Count: > 0 } ids)
+                {
+                    <h3>Assigned collectors (@ids.Count)</h3>
+                    <p>For every listed collector, inspect the actual app version and confirm there are no outstanding offline rent payloads. Do not guess these values.</p>
+                    <div class="srca-collectors">
+                    @foreach (var id in ids)
+                    {
+                        var collectorId = id;
+                        <div class="srca-collector">
+                            <strong>@CollectorLabel(collectorId)</strong>
+                            <label>Installed app version
+                                <input class="srca-input" maxlength="64" value="@_versions.GetValueOrDefault(collectorId)" disabled="@(_busy || _reviewedEvidence is not null)" @onchange="e => SetVersion(collectorId, e.Value?.ToString())" />
+                            </label>
+                            <label><input type="checkbox" checked="@_drained.Contains(collectorId)" disabled="@(_busy || _reviewedEvidence is not null)" @onchange="e => SetDrained(collectorId, e.Value is true)" /> Queue drained, inspected on this device</label>
+                        </div>
+                    }
+                    </div>
+                }
+                <button class="v3-btn" type="button" @onclick="VerifyAsync" disabled="@(_busy || !EvidenceComplete)">Verify readiness against server</button>
+                @if (_reviewedEvidence is not null)
+                {
+                    <p class="srca-note">Changing any evidence requires a new readiness review. The server rejects altered or stale plan fingerprints.</p>
+                }
+            </section>
+            <section class="v3-panel srca-section">
+                <h2>4. Activate verified unpaid records</h2>
+                <p class="srca-caution">This is a financial workflow cutover, not a demonstration button. The action is not a payment and creates no SRC or revenue. A new actual Collection will issue the SRC after successful activation.</p>
+                <p>Current readiness: <strong>@(plan.Ready && _reviewedEvidence is not null ? "Ready for reviewed activation" : "Not approved for activation")</strong></p>
+                @if (plan.Ready && _reviewedEvidence is not null)
+                {
+                    <label class="srca-wide">Type ACTIVATE after verifying the scope and records
+                        <input class="srca-input" aria-label="Activation confirmation" @bind="_confirmation" autocomplete="off" />
+                    </label>
+                }
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="ActivateAsync"
+                        disabled="@(_busy || _reviewedEvidence is null || !plan.Ready || _confirmation != "ACTIVATE")">Activate reviewed unpaid rows</button>
+                @if (_outcome is { } outcome)
+                {
+                    <p role="status"><strong>@outcome.Activated activated · @outcome.Failed stopped.</strong> @outcome.Message</p>
+                }
+            </section>
+        }
+    }
+</div>
+
+@code {
+    private readonly List<(FacilityCode Code, string Name)> _facilities = [];
+    private readonly Dictionary<Guid, string> _versions = [];
+    private readonly HashSet<Guid> _drained = [];
+    private Dictionary<Guid, string> _collectorNames = [];
+    private FacilityCode _facility;
+    private int _year = PhilippineTime.Today.Year;
+    private int _month = PhilippineTime.Today.Month;
+    private bool _loading = true, _busy;
+    private bool _writers, _queues, _devices, _online, _receipts, _reports, _recovery;
+    private string _reference = string.Empty, _confirmation = string.Empty;
+    private string? _error, _success;
+    private RentActivationPlanDto? _plan;
+    private RentActivationResultDto? _outcome;
+    private SettlementCutoverReconciliationEvidence? _reviewedEvidence;
+    private bool EvidenceComplete => _writers && _queues && _devices && _online && _receipts && _reports && _recovery
+        && !string.IsNullOrWhiteSpace(_reference)
+        && (_plan?.AffectedCollectorIds ?? []).All(id => _drained.Contains(id) && !string.IsNullOrWhiteSpace(_versions.GetValueOrDefault(id)));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var configured = await FacilitiesApi.GetFacilityConfigurationAsync();
+            if (configured.IsSuccess && configured.Value is { } data)
+            {
+                _facilities.AddRange(data.Configured.Where(f => f.IsActive
+                    && Enum.TryParse<FacilityCode>(f.Code, true, out var code)
+                    && MonthlyRentalFacilities.Codes.Contains(code))
+                    .Select(f => (Enum.Parse<FacilityCode>(f.Code, true), f.Name)));
+                if (_facilities.Count > 0) _facility = _facilities[0].Code;
+            }
+            else _error = configured.Error ?? "Could not load facilities.";
+            var collectors = await CollectorsApi.GetAllCollectorsAsync();
+            if (collectors.IsSuccess && collectors.Value is not null)
+                _collectorNames = collectors.Value.ToDictionary(x => x.Id, x => x.FullName);
+        }
+        catch { _error = "Could not load the facility and collector configuration."; }
+        finally { _loading = false; }
+    }
+
+    private void InvalidatePlan()
+    {
+        _plan = null; _reviewedEvidence = null; _outcome = null; _confirmation = string.Empty;
+        _error = null; _success = null;
+        // Collector queue and backup attestations are scope-specific: never carry them to another month/facility.
+        _writers = _queues = _devices = _online = _receipts = _reports = _recovery = false;
+        _reference = string.Empty;
+        _versions.Clear();
+        _drained.Clear();
+    }
+    private void FacilityChanged(ChangeEventArgs e)
+    {
+        if (Enum.TryParse<FacilityCode>(e.Value?.ToString(), out var value)) _facility = value;
+        InvalidatePlan();
+    }
+    private void MonthChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value)) _month = value;
+        InvalidatePlan();
+    }
+    private void YearChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var value)) _year = value;
+        InvalidatePlan();
+    }
+    private string CollectorLabel(Guid id) => _collectorNames.GetValueOrDefault(id) ?? $"Collector {id:N}";
+    private void SetVersion(Guid id, string? value) { _versions[id] = value?.Trim() ?? ""; InvalidateEvidence(); }
+    private void SetDrained(Guid id, bool drained) { if (drained) _drained.Add(id); else _drained.Remove(id); InvalidateEvidence(); }
+    private void InvalidateEvidence()
+    {
+        _reviewedEvidence = null; _confirmation = string.Empty; _outcome = null; _success = null;
+        // This does not mark a previously attested plan ready; the server must re-evaluate it.
+    }
+    private SettlementCutoverReconciliationEvidence Evidence() => new(
+        _writers, _queues, _devices, _online, _receipts, _reports, _reference.Trim(),
+        (_plan?.AffectedCollectorIds ?? []).Select(id => new CutoverCollectorEvidence(id,
+            _versions.GetValueOrDefault(id)?.Trim() ?? "", 0, _drained.Contains(id),
+            DateTime.UtcNow, _reference.Trim())).ToArray());
+
+    private async Task ReviewAsync()
+    {
+        InvalidatePlan();
+        await LoadPlanAsync(null);
+    }
+    private async Task LoadPlanAsync(SettlementCutoverReconciliationEvidence? evidence)
+    {
+        _busy = true;
+        try
+        {
+            var result = await RentApi.PlanAsync(new RentActivationPlanRequest(_facility, _year, _month, evidence));
+            if (!result.IsSuccess || result.Value is null) { _error = result.Error ?? "Readiness could not be loaded."; return; }
+            _plan = result.Value;
+            _error = null;
+        }
+        catch { _error = "Could not load the monthly-rent readiness plan."; }
+        finally { _busy = false; }
+    }
+    private async Task VerifyAsync()
+    {
+        _reviewedEvidence = null; _outcome = null; _confirmation = string.Empty; _success = null;
+        if (!EvidenceComplete) { _error = "Complete the real recovery, reconciliation and collector evidence first."; return; }
+        var evidence = Evidence();
+        await LoadPlanAsync(evidence);
+        if (_plan?.Ready == true) _reviewedEvidence = evidence;
+        else _error ??= "The server has not approved this facility-month for activation. Review the individual blockers.";
+    }
+    private async Task ActivateAsync()
+    {
+        if (_plan?.Ready != true || _reviewedEvidence is null || _confirmation != "ACTIVATE" || _busy || !EvidenceComplete
+            || _reviewedEvidence.EvidenceReference != _reference.Trim()
+            || !_writers || !_queues || !_devices || !_online || !_receipts || !_reports || !_recovery) return;
+        _busy = true; _error = null; _success = null;
+        try
+        {
+            var request = new RentActivationRequest(_facility, _year, _month, _plan.PlanFingerprint, _reviewedEvidence);
+            var response = await RentApi.ActivateAsync(request);
+            _reviewedEvidence = null; _confirmation = string.Empty;
+            if (!response.IsSuccess || response.Value is null)
+            {
+                _error = response.Error ?? "Activation was rejected; no new payment should be posted until reviewed.";
+                return;
+            }
+            _outcome = response.Value;
+            _success = $"Server result: {response.Value.Activated} activated, {response.Value.Failed} stopped. Review the remaining scope before collecting.";
+            _plan = null; // never continue acting on a stale fingerprint after any write
+        }
+        catch { _error = "Activation status could not be confirmed. Reopen the plan; do not blindly retry."; }
+        finally { _busy = false; }
+    }
+}

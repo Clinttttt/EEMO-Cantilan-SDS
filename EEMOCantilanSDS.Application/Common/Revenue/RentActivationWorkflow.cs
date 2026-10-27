@@ -203,6 +203,13 @@ public sealed class RentActivationWorkflow(
             facilityBlockers.Add("Rows that do not exist yet are created Unpaid and proven ready inside the activation itself; a blocker found there rolls everything back.");
         if (evidence is null) facilityBlockers.Add("The attested reconciliation checklist is required to activate.");
 
+        // Show Head the exact device owners whose drained queues must be attested before activation.
+        // The cutover workflow independently resolves and verifies the same assignments per source.
+        var facilityIds = stalls.Select(s => s.FacilityId).Distinct().ToArray();
+        var affectedCollectors = await db.CollectorFacilityAssignments.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && facilityIds.Contains(x.FacilityId))
+            .Select(x => x.CollectorId).Distinct().OrderBy(x => x).ToArrayAsync(ct);
+
         var eligibleRows = rows.Count(r => r.Eligible);
         var ready = eligibleRows > 0 && evidence is not null && rows.All(r => !r.Eligible || r.Blockers.Count == 0);
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new
@@ -216,7 +223,7 @@ public sealed class RentActivationWorkflow(
                 Collectors = (evidence.CollectorEvidence ?? []).OrderBy(x => x.CollectorId).ToArray()
             }
         }, Json))));
-        return (new RentActivationPlanDto(facilityCode, year, month, rows, eligibleRows, rows.Count - eligibleRows, facilityBlockers, ready, fingerprint), candidates);
+        return (new RentActivationPlanDto(facilityCode, year, month, rows, eligibleRows, rows.Count - eligibleRows, facilityBlockers, ready, fingerprint, affectedCollectors), candidates);
     }
 
     private static RentActivationRowDto Row(Candidate c, Guid? recordId, SettlementAuthority? authority, bool eligible, string? reason, IReadOnlyList<string> blockers) =>
