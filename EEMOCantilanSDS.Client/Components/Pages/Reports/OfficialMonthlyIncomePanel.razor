@@ -71,7 +71,7 @@
                         <th scope="col" class="mi-num">%</th>
                     </tr>
                 </thead>
-                @foreach (var group in _data.Groups)
+                @foreach (var group in DisplayGroups)
                 {
                     var official = group.Key != OfficialMonthlyIncomeStructure.Pending;
                     <tbody class="@(official ? "" : "mi-pending")">
@@ -205,6 +205,14 @@
     private int _loadedYear;
     private int? _loadedMonth;
     private int _letter;
+
+    // The server marks non-adopted, zero-only catalog rows as not belonging on this LGU's
+    // official statement. Match the standalone printable statement; retain all financial
+    // totals and row revisions in the authoritative response.
+    private IReadOnlyList<OfficialMonthlyIncomeGroupDto> DisplayGroups =>
+        _data?.Groups.Select(group => group with
+            { Rows = group.Rows.Where(row => row.ShowOnOfficialReport).ToList() })
+            .Where(group => group.Rows.Count > 0).ToList() ?? [];
 
     private bool Annual => _data is { Month: null };
     private string OfficialUrl => $"/reports/monthly-income/official?year={Year.ToString(CultureInfo.InvariantCulture)}";

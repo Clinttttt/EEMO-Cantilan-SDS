@@ -108,7 +108,7 @@ else
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var group in Income.Groups)
+                                    @foreach (var group in Income.Groups.Where(group => group.Rows.Any(row => row.ShowOnOfficialReport)))
                                     {
                                         <tr>
                                             <th scope="row">@group.Label</th>
