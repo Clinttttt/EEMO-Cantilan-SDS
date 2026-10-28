@@ -352,6 +352,7 @@
                 <button class="txr-close" type="button" aria-label="Close" @onclick="CloseReview"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </header>
             <div class="v3-modal-body txr-body">
+                <div class="txr-section-heading">Collection details</div>
                 <dl class="txr-meta">
                     <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
                     <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
@@ -374,6 +375,7 @@
                     <p class="txr-subject">@r.Subject</p>
                 }
 
+                <div class="txr-section-heading txr-items-heading">Itemized charges</div>
                 <table class="txr-items" aria-label="Itemized collection">
                     <thead>
                         <tr><th scope="col">Item</th><th scope="col">Period</th><th scope="col" class="txn-num">Amount</th></tr>
@@ -429,7 +431,7 @@
         }
         else
         {
-            <h3 class="txn-drawer-h">Correction</h3>
+            <h3 class="txn-drawer-h">Correction status</h3>
             @if (_reviewLoading) { <p class="txn-muted" role="status">Checking correction status…</p> }
             else if (_reviewError is not null) { <p class="txn-error" role="alert">@_reviewError</p> }
             else if (_reviewInfo is { } info)
@@ -468,6 +470,7 @@
         }
             </div>
             <footer class="txr-foot">
+                <button type="button" class="v3-btn txr-download" @onclick="DownloadReviewCsvAsync">Download CSV</button>
                 @if (isCanonical)
                 {
                     <a class="v3-btn" href="@ReconciliationHref(r)">View Reconciliation</a>
@@ -539,6 +542,93 @@
         if (_review?.CollectionId != id) return;
         if (result.IsSuccess && result.Value is not null) _reviewInfo = result.Value;
         else _reviewError = "Correction status could not be loaded. Close and try again.";
+    }
+
+    private async Task DownloadReviewCsvAsync()
+    {
+        if (_review is not { } entry) return;
+
+        var csv = new System.Text.StringBuilder();
+        // Quote every cell, and neutralize spreadsheet formulas in user-entered text.
+        static string EscapeCsv(string? value)
+        {
+            var safe = value ?? string.Empty;
+            if (safe.Length > 0 && "=+@-\t\r\n".Contains(safe[0]))
+                safe = "'" + safe;
+            return "\"" + safe.Replace("\"", "\"\"") + "\"";
+        }
+        void Add(params string?[] fields) =>
+            csv.AppendLine(string.Join(",", fields.Select(EscapeCsv)));
+        static string Amount(decimal amount) =>
+            amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
+
+        Add("StallTrack — Collection Activity Details");
+        Add("Information copy only — not an OR, CT, SRC or official receipt");
+        Add("Record type", string.IsNullOrWhiteSpace(entry.ReferenceCode) || entry.CollectionId is null
+            ? "Legacy payment record" : "Canonical collection");
+        Add("Payor", entry.PayerName);
+        Add("Business date", entry.BusinessDate.ToString("yyyy-MM-dd"));
+        if (entry.RecordedAtUtc is { } recorded)
+            Add("Recorded at (Philippine time)", PhilippineTime.ToPhilippineTime(recorded).ToString("yyyy-MM-dd HH:mm"));
+        Add("Source", SourceLabel(entry));
+        if (entry.Facility is { } facility)
+            Add("Facility", FacilityCatalog.ShortNameOf(facility));
+        Add("Status", StatusText(entry));
+        if (!string.IsNullOrWhiteSpace(entry.Verification)) Add("Verification", entry.Verification);
+        Add("Recorded by", entry.RecordedBy);
+        if (!string.IsNullOrWhiteSpace(entry.ReferenceCode))
+            Add("StallTrack reference", entry.ReferenceCode);
+        if (!string.IsNullOrWhiteSpace(entry.DocumentNumber))
+        {
+            Add("Physical receipt type", entry.InstrumentType switch
+            {
+                RevenueInstrumentType.OfficialReceipt => "OR",
+                RevenueInstrumentType.CashTicket => "CT",
+                _ => "Not identified"
+            });
+            Add("Physical receipt number (as recorded)", entry.DocumentNumber);
+        }
+        else Add("Physical receipt", "None recorded");
+        if (!string.IsNullOrWhiteSpace(entry.Subject)) Add("Account/period", entry.Subject);
+
+        Add();
+        Add("Itemized charges");
+        Add("Item", "Period", "Amount (PHP)");
+        if (entry.Lines.Count == 0)
+            Add(Detail(entry), "", Amount(entry.Amount));
+        else foreach (var line in entry.Lines)
+            Add(LineLabel(line), LinePeriod(line), Amount(line.Amount));
+        Add("Total collected (PHP)", "", Amount(entry.Amount));
+        if (entry.CorrectionEffect != 0m)
+        {
+            Add("Correction (PHP)", "", Amount(entry.CorrectionEffect));
+            Add("Net after correction (PHP)", "", Amount(entry.NetAmount));
+        }
+
+        if (entry.Corrections.Count > 0)
+        {
+            Add();
+            Add("Correction history");
+            foreach (var correction in entry.Corrections)
+            {
+                Add(CorrectionLabel(correction.CorrectionType),
+                    correction.EffectiveDate.ToString("yyyy-MM-dd"),
+                    Amount(correction.FinancialEffect), correction.Reason);
+            }
+        }
+        if (string.IsNullOrWhiteSpace(entry.ReferenceCode) || entry.CollectionId is null)
+            Add("Record notice", "Legacy financial record; no canonical Collection or SRC was issued.");
+        else if (_reviewInfo is { } status)
+            Add("Correction status", status.Eligibility.Explanation);
+
+        // Use the existing browser download helper: no server mutation or new dependency.
+        var identifier = new string((entry.ReferenceCode ?? "legacy")
+            .Where(ch => char.IsLetterOrDigit(ch) || ch == '-').ToArray());
+        var filename = $"collection-details-{entry.BusinessDate:yyyy-MM-dd}-{identifier}.csv";
+        var bytes = new System.Text.UTF8Encoding(true).GetPreamble()
+            .Concat(System.Text.Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+        await JS.InvokeVoidAsync("downloadFileFromBytes", filename,
+            Convert.ToBase64String(bytes), "text/csv;charset=utf-8");
     }
 
     private void CloseReview() { _review = null; _reviewInfo = null; _arming = false; }
