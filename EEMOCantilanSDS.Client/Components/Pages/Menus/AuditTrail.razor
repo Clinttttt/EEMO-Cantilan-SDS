@@ -88,14 +88,6 @@
         </Figures>
     </V3Hero>
 
-    @if (_data is { } summary && summary.TotalEvents > summary.CreatedCount + summary.UpdatedCount + summary.DeletedCount)
-    {
-        <p class="audit-other-actions">
-            @(summary.TotalEvents - summary.CreatedCount - summary.UpdatedCount - summary.DeletedCount)
-            additional named action(s) are included in Total Events, beyond Created, Updated and Deleted.
-        </p>
-    }
-
     <!-- ── Filter bar ── -->
     <div class="audit-filters">
         <div class="af-field af-search">
