@@ -78,6 +78,38 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
+    [Theory]
+    [InlineData(9)]
+    [InlineData(null)]
+    public void MonthlyIncome_EmbeddedStatementHidesNonAdoptedZeroRowsWithoutChangingTotals(int? month)
+    {
+        var original = Statement(month);
+        var hidden = Row("TABO", "Unselected Tabo", 0m, 0m, "None") with { ShowOnOfficialReport = false };
+        var zeroSpace = Row("KANMANGGAY_SPACE_RENTAL", "Unselected Space Rental", 0m, 0m, "None")
+            with { ShowOnOfficialReport = false };
+        var groups = original.Groups.Select(g => g.Key == "MARKET"
+                ? g with { Rows = g.Rows.Append(hidden).ToArray() }
+                : g).Append(new OfficialMonthlyIncomeGroupDto("SPACE", "Space Rental", [zeroSpace],
+                    Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m))).ToArray();
+        var report = original with { Groups = groups };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, month))
+            .ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(report));
+
+        var cut = RenderComponent<OfficialMonthlyIncomePanel>(p => p
+            .Add(x => x.Year, 2026).Add(x => x.Month, month));
+
+        cut.WaitForAssertion(() =>
+        {
+            var text = cut.Find("table.mi-table").TextContent;
+            Assert.Contains("Market Fees", text);
+            Assert.Contains("Tampak Commercial Center", text);
+            Assert.DoesNotContain("Unselected Tabo", text);
+            Assert.DoesNotContain("Unselected Space Rental", text);
+            Assert.DoesNotContain("SPACE RENTAL", text);
+            Assert.Contains("1,030.00", cut.Find("tfoot").TextContent);
+        }, Timeout);
+    }
+
     [Fact]
     public void MonthlyIncome_FollowsTheOfficeStatement_NotTheFacilities_AndNeverInventsATarget()
     {
