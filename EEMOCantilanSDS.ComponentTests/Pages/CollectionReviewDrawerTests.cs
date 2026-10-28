@@ -147,9 +147,10 @@ public sealed class CollectionReviewDrawerTests : TestContext
         var page = Render(null, Legacy());
         page.Find(".txn-row").Click();
 
-        page.WaitForAssertion(() => Assert.Contains("legacy record", page.Find(".txr").TextContent), Timeout);
+        page.WaitForAssertion(() => Assert.Contains("recorded through a legacy financial workflow", page.Find(".txr").TextContent), Timeout);
         Assert.Contains("546564", page.Find(".txr").TextContent);
-        Assert.Contains("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("StallTrack reference", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
         Assert.Contains("recorded through a legacy financial workflow", page.Find(".txn-note").TextContent);
         Assert.DoesNotContain("recorded before SRCs", page.Find(".txr").TextContent);
         Assert.Empty(page.FindAll(".txn-reason"));
