@@ -61,52 +61,47 @@ public sealed class CollectionReviewDrawerTests : TestContext
         return page;
     }
 
+
     [Fact]
-    public void Canonical_collection_downloads_a_non_receipt_itemized_csv_with_src()
+    public void Canonical_collection_offers_printable_pdf_information_copy_with_real_src()
     {
         var page = Render(Review(true), Canonical());
         page.Find(".txn-row").Click();
         page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-download")), Timeout);
-        Assert.Contains("Collection details", page.Find(".txr").TextContent);
-        Assert.Contains("Itemized charges", page.Find(".txr").TextContent);
+        Assert.Contains("Print / Save as PDF", page.Find(".txr-foot").TextContent);
+        var paper = page.Find(".txr-paper").TextContent;
+        Assert.Contains("Collection Record", paper);
+        Assert.Contains("Information copy", paper);
+        Assert.Contains("SRC-2026-000003", paper);
+        Assert.Contains("NCC rent", paper);
+        Assert.Contains("600.00", paper);
+        Assert.Contains("None recorded", paper);
+        Assert.DoesNotContain("Download CSV", page.Find(".txr-foot").TextContent);
 
         page.Find(".txr-download").Click();
-
         page.WaitForAssertion(() =>
         {
-            var invocation = Assert.Single(JSInterop.Invocations.Where(i => i.Identifier == "downloadFileFromBytes"));
-            Assert.EndsWith(".csv", invocation.Arguments[0]?.ToString());
-            Assert.Equal("text/csv;charset=utf-8", invocation.Arguments[2]?.ToString());
-            var csv = System.Text.Encoding.UTF8.GetString(
-                Convert.FromBase64String(invocation.Arguments[1]!.ToString()!));
-            Assert.Contains("SRC-2026-000003", csv);
-            Assert.Contains("NCC rent", csv); // The displayed line description is the authoritative export label.
-            Assert.Contains("600.00", csv);
-            Assert.Contains("not an OR, CT, SRC or official receipt", csv);
-            Assert.Contains("None recorded", csv);
+            var call = Assert.Single(JSInterop.Invocations, i => i.Identifier == "stalltrackPrint.sectionDocument");
+            Assert.Equal(".txr-paper", call.Arguments[0]?.ToString());
+            Assert.Equal("txr-print-active", call.Arguments[1]?.ToString());
         }, Timeout);
     }
 
     [Fact]
-    public void Legacy_payment_downloads_recorded_receipt_without_fabricating_an_src()
+    public void Legacy_payment_print_copy_preserves_physical_receipt_without_inventing_src()
     {
-        var legacy = Legacy() with { PayerName = "=HYPERLINK(\\\"evil\\\")" };
-        var page = Render(null, legacy);
+        var page = Render(null, Legacy());
         page.Find(".txn-row").Click();
-        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-download")), Timeout);
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-paper")), Timeout);
+        var paper = page.Find(".txr-paper").TextContent;
+        Assert.Contains("Legacy Payor", paper);
+        Assert.Contains("546564", paper);
+        Assert.Contains("1,200.00", paper);
+        Assert.DoesNotContain("StallTrack reference", paper);
+        Assert.DoesNotContain("SRC-2026-", paper);
+        Assert.Contains("Not an Official Receipt", paper);
         page.Find(".txr-download").Click();
-        page.WaitForAssertion(() =>
-        {
-            var invocation = Assert.Single(JSInterop.Invocations.Where(i => i.Identifier == "downloadFileFromBytes"));
-            var csv = System.Text.Encoding.UTF8.GetString(
-                Convert.FromBase64String(invocation.Arguments[1]!.ToString()!));
-            Assert.Contains("Legacy payment record", csv);
-            Assert.Contains("546564", csv);
-            Assert.Contains("1200.00", csv);
-            Assert.DoesNotContain("SRC-2026-", csv);
-            Assert.DoesNotContain("StallTrack reference", csv);
-            Assert.Contains("'=HYPERLINK", csv); // Spreadsheet formula injection is neutralized.
-        }, Timeout);
+        JSInterop.VerifyInvoke("stalltrackPrint.sectionDocument");
     }
 
     [Fact]

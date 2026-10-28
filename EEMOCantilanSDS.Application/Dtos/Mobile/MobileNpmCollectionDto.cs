@@ -48,5 +48,8 @@ public sealed record MobileNpmStallCollectionDto(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     EEMOCantilanSDS.Application.Common.Payments.NpmRentMonthQuote? MonthlyRentQuote = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    decimal? MonthlyRentCollectedToday = null);
+    decimal? MonthlyRentCollectedToday = null,
+    // Authoritative net rent cash recorded against the selected business date. Unlike
+    // MonthlyRentCollectedToday, this includes payments allocated to older owed days.
+    decimal? RentReceivedOnBusinessDate = null);
 
