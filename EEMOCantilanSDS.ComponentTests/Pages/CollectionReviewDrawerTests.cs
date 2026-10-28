@@ -62,6 +62,54 @@ public sealed class CollectionReviewDrawerTests : TestContext
     }
 
     [Fact]
+    public void Canonical_collection_downloads_a_non_receipt_itemized_csv_with_src()
+    {
+        var page = Render(Review(true), Canonical());
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-download")), Timeout);
+        Assert.Contains("Collection details", page.Find(".txr").TextContent);
+        Assert.Contains("Itemized charges", page.Find(".txr").TextContent);
+
+        page.Find(".txr-download").Click();
+
+        page.WaitForAssertion(() =>
+        {
+            var invocation = Assert.Single(JSInterop.Invocations.Where(i => i.Identifier == "downloadFileFromBytes"));
+            Assert.EndsWith(".csv", invocation.Arguments[0]?.ToString());
+            Assert.Equal("text/csv;charset=utf-8", invocation.Arguments[2]?.ToString());
+            var csv = System.Text.Encoding.UTF8.GetString(
+                Convert.FromBase64String(invocation.Arguments[1]!.ToString()!));
+            Assert.Contains("SRC-2026-000003", csv);
+            Assert.Contains("NCC rent", csv); // The displayed line description is the authoritative export label.
+            Assert.Contains("600.00", csv);
+            Assert.Contains("not an OR, CT, SRC or official receipt", csv);
+            Assert.Contains("None recorded", csv);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Legacy_payment_downloads_recorded_receipt_without_fabricating_an_src()
+    {
+        var legacy = Legacy() with { PayerName = "=HYPERLINK(\\\"evil\\\")" };
+        var page = Render(null, legacy);
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-download")), Timeout);
+        page.Find(".txr-download").Click();
+        page.WaitForAssertion(() =>
+        {
+            var invocation = Assert.Single(JSInterop.Invocations.Where(i => i.Identifier == "downloadFileFromBytes"));
+            var csv = System.Text.Encoding.UTF8.GetString(
+                Convert.FromBase64String(invocation.Arguments[1]!.ToString()!));
+            Assert.Contains("Legacy payment record", csv);
+            Assert.Contains("546564", csv);
+            Assert.Contains("1200.00", csv);
+            Assert.DoesNotContain("SRC-2026-", csv);
+            Assert.DoesNotContain("StallTrack reference", csv);
+            Assert.Contains("'=HYPERLINK", csv); // Spreadsheet formula injection is neutralized.
+        }, Timeout);
+    }
+
+    [Fact]
     public void Review_shows_the_selected_SRC_facts_eligibility_and_a_reconciliation_link()
     {
         var page = Render(Review(true), Canonical());
@@ -147,9 +195,10 @@ public sealed class CollectionReviewDrawerTests : TestContext
         var page = Render(null, Legacy());
         page.Find(".txn-row").Click();
 
-        page.WaitForAssertion(() => Assert.Contains("legacy record", page.Find(".txr").TextContent), Timeout);
+        page.WaitForAssertion(() => Assert.Contains("recorded through a legacy financial workflow", page.Find(".txr").TextContent), Timeout);
         Assert.Contains("546564", page.Find(".txr").TextContent);
-        Assert.Contains("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("StallTrack reference", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
         Assert.Contains("recorded through a legacy financial workflow", page.Find(".txn-note").TextContent);
         Assert.DoesNotContain("recorded before SRCs", page.Find(".txr").TextContent);
         Assert.Empty(page.FindAll(".txn-reason"));

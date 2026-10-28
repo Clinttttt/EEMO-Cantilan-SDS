@@ -274,7 +274,8 @@ public sealed class CollectionActivityPageTests : TestContext
         page.WaitForAssertion(() => Assert.Equal("Slaughterhouse", page.Find(".txn-source-name").TextContent));
         page.Find(".txn-row").Click();
         Assert.Equal("Cattle · 1 head", page.Find(".txr-items tbody td").TextContent);
-        Assert.Contains("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("StallTrack reference", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
         Assert.Contains("legacy financial workflow", page.Find(".txn-note").TextContent);
         Assert.DoesNotContain("legacy payment", page.Find(".txn-note").TextContent);
     }
