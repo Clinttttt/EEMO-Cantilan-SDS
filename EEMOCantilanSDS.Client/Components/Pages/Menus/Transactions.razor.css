@@ -830,3 +830,6 @@
     .txr .txr-foot { padding: 12px 16px; }
     .txr .txr-download { margin-right: 0; }
 }
+
+/* Record copy is never an extra on-screen receipt. Print helper exposes it only for Save as PDF. */
+.txr-paper { display: none; }

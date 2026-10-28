@@ -498,8 +498,8 @@
                 </div>
                 <div class="receipt-divider"></div>
                 <div class="receipt-total-row receipt-grand">
-                    <span>Daily Fee</span>
-                    <span>&#8369;@SelectedStall.DailyRate.ToString("N2")</span>
+                    <span>@(SelectedStall.RentReceivedOnBusinessDate is > 0 ? "Rent received today" : "Approved daily rate")</span>
+                    <span>&#8369;@((SelectedStall.RentReceivedOnBusinessDate is > 0 ? SelectedStall.RentReceivedOnBusinessDate.Value : SelectedStall.DailyRate).ToString("N2"))</span>
                 </div>
                 <div class="receipt-divider dashed"></div>
                 <div class="receipt-foot">

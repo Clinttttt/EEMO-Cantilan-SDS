@@ -40,3 +40,107 @@
     .admin-main:has(.slh-client-record) { width: 100% !important; display: block !important; }
     .rpt-content:not(.print-document-content) { padding: 12mm !important; }
 }
+
+/* Collection Activity PDF information-copy print. Activated only by Print / Save as PDF. */
+@media print {
+    body:has(.txr-print-active) * {
+        visibility: hidden !important;
+    }
+    body:has(.txr-print-active) .txr-print-active,
+    body:has(.txr-print-active) .txr-print-active * {
+        visibility: visible !important;
+    }
+    body:has(.txr-print-active) .txr-print-active {
+        display: block !important;
+        position: fixed !important;
+        inset: 0 auto auto 0 !important;
+        width: 210mm !important;
+        max-width: 210mm !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 13mm 15mm !important;
+        background: white !important;
+        color: #142338 !important;
+        box-sizing: border-box !important;
+        z-index: 2147483647 !important;
+        overflow: visible !important;
+        font: 11pt/1.45 Arial, sans-serif !important;
+    }
+    body:has(.txr-print-active) .txr-print-active h1 {
+        font-size: 20pt !important;
+        margin: 4mm 0 1mm !important;
+        color: #142338 !important;
+    }
+    body:has(.txr-print-active) .txr-print-active h2 {
+        font-size: 11pt !important;
+        margin: 7mm 0 3mm !important;
+        color: #142338 !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-head {
+        border-bottom: 1.5pt solid #204a7f !important;
+        padding-bottom: 5mm !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-kicker {
+        font-size: 9pt !important;
+        letter-spacing: .06em !important;
+        font-weight: 700 !important;
+        color: #204a7f !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-head p {
+        margin: 1mm 0 0 !important;
+        font-size: 9pt !important;
+        color: #56677b !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-grid {
+        display: grid !important;
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+        gap: 4mm 10mm !important;
+        padding-top: 6mm !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-grid > div {
+        break-inside: avoid !important;
+        overflow-wrap: anywhere !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-grid span {
+        display: block !important;
+        font-size: 8pt !important;
+        color: #56677b !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-grid strong {
+        display: block !important;
+        font-size: 10pt !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-wide { grid-column: 1 / -1 !important; }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        font-variant-numeric: tabular-nums !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items th,
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items td {
+        border-bottom: 1px solid #dae2eb !important;
+        padding: 3mm 2mm !important;
+        text-align: left !important;
+        overflow-wrap: anywhere !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items th:last-child,
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items td:last-child {
+        text-align: right !important;
+        white-space: nowrap !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items tfoot th,
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items tfoot td {
+        font-weight: 700 !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-items tr,
+    body:has(.txr-print-active) .txr-print-active .txr-paper-corrections li {
+        break-inside: avoid !important;
+    }
+    body:has(.txr-print-active) .txr-print-active .txr-paper-foot {
+        border-top: 1px solid #dae2eb !important;
+        margin-top: 8mm !important;
+        padding-top: 3mm !important;
+        color: #56677b !important;
+        font-size: 9pt !important;
+    }
+}

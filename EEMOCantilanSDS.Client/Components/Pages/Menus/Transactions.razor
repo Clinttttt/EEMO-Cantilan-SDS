@@ -470,7 +470,7 @@
         }
             </div>
             <footer class="txr-foot">
-                <button type="button" class="v3-btn txr-download" @onclick="DownloadReviewCsvAsync">Download CSV</button>
+                <button type="button" class="v3-btn txr-download" @onclick="PrintReviewPdfAsync">Print / Save as PDF</button>
                 @if (isCanonical)
                 {
                     <a class="v3-btn" href="@ReconciliationHref(r)">View Reconciliation</a>
@@ -483,6 +483,64 @@
             </footer>
         </section>
     </div>
+    @* This is an information copy. A print stylesheet isolates the selected record from
+       navigation and other transactions; it never issues a second financial instrument. *@
+    <section class="txr-paper" aria-label="Printable collection record">
+        <header class="txr-paper-head">
+            <div class="txr-paper-kicker">STALLTRACK · COLLECTION ACTIVITY</div>
+            <h1>Collection Record</h1>
+            <p>Information copy · Not an Official Receipt, Cash Ticket or SRC</p>
+        </header>
+        <div class="txr-paper-grid">
+            <div><span>Payor</span><strong>@r.PayerName</strong></div>
+            <div><span>Business date</span><strong>@r.BusinessDate.ToString("MMMM d, yyyy")</strong></div>
+            <div><span>Source</span><strong>@SourceLabel(r)</strong></div>
+            <div><span>Status</span><strong>@StatusText(r)</strong></div>
+            <div><span>Recorded by</span><strong>@r.RecordedBy</strong></div>
+            @if (r.RecordedAtUtc is { } printedAt)
+            { <div><span>Recorded at (PHT)</span><strong>@PhilippineTime.ToPhilippineTime(printedAt).ToString("MMMM d, yyyy · h:mm tt")</strong></div> }
+            @if (!string.IsNullOrWhiteSpace(r.ReferenceCode))
+            { <div><span>StallTrack reference</span><strong>@r.ReferenceCode</strong></div> }
+            <div><span>Physical receipt</span><strong>@(string.IsNullOrWhiteSpace(r.DocumentNumber)
+                ? "None recorded" : r.DocumentNumber)</strong></div>
+            @if (!string.IsNullOrWhiteSpace(r.Subject))
+            { <div class="txr-paper-wide"><span>Account / period</span><strong>@r.Subject</strong></div> }
+        </div>
+        <h2>Itemized charges</h2>
+        <table class="txr-paper-items">
+            <thead><tr><th>Item</th><th>Period</th><th>Amount (PHP)</th></tr></thead>
+            <tbody>
+                @if (r.Lines.Count == 0)
+                { <tr><td>@Detail(r)</td><td></td><td>@r.Amount.ToString("N2")</td></tr> }
+                @foreach (var line in r.Lines)
+                { <tr><td>@LineLabel(line)</td><td>@LinePeriod(line)</td><td>@line.Amount.ToString("N2")</td></tr> }
+            </tbody>
+            <tfoot>
+                <tr><th colspan="2">Total collected</th><td>@r.Amount.ToString("N2")</td></tr>
+                @if (r.CorrectionEffect != 0m)
+                {
+                    <tr><th colspan="2">Correction</th><td>@r.CorrectionEffect.ToString("N2")</td></tr>
+                    <tr><th colspan="2">Net after correction</th><td>@r.NetAmount.ToString("N2")</td></tr>
+                }
+            </tfoot>
+        </table>
+        @if (r.Corrections.Count > 0)
+        {
+            <h2>Recorded corrections</h2>
+            <ul class="txr-paper-corrections">
+                @foreach (var change in r.Corrections)
+                {
+                    <li>@CorrectionLabel(change.CorrectionType) · @change.EffectiveDate.ToString("MMM d, yyyy") ·
+                        PHP @change.FinancialEffect.ToString("N2")
+                        @if (!string.IsNullOrWhiteSpace(change.Reason))
+                        { <span>— @change.Reason</span> }
+                    </li>
+                }
+            </ul>
+        }
+        <footer class="txr-paper-foot">Generated from the recorded collection activity.
+            Physical accountable receipts are issued and verified separately.</footer>
+    </section>
 }
 
 @code {
@@ -544,91 +602,10 @@
         else _reviewError = "Correction status could not be loaded. Close and try again.";
     }
 
-    private async Task DownloadReviewCsvAsync()
+    private async Task PrintReviewPdfAsync()
     {
-        if (_review is not { } entry) return;
-
-        var csv = new System.Text.StringBuilder();
-        // Quote every cell, and neutralize spreadsheet formulas in user-entered text.
-        static string EscapeCsv(string? value)
-        {
-            var safe = value ?? string.Empty;
-            if (safe.Length > 0 && "=+@-\t\r\n".Contains(safe[0]))
-                safe = "'" + safe;
-            return "\"" + safe.Replace("\"", "\"\"") + "\"";
-        }
-        void Add(params string?[] fields) =>
-            csv.AppendLine(string.Join(",", fields.Select(EscapeCsv)));
-        static string Amount(decimal amount) =>
-            amount.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture);
-
-        Add("StallTrack — Collection Activity Details");
-        Add("Information copy only — not an OR, CT, SRC or official receipt");
-        Add("Record type", string.IsNullOrWhiteSpace(entry.ReferenceCode) || entry.CollectionId is null
-            ? "Legacy payment record" : "Canonical collection");
-        Add("Payor", entry.PayerName);
-        Add("Business date", entry.BusinessDate.ToString("yyyy-MM-dd"));
-        if (entry.RecordedAtUtc is { } recorded)
-            Add("Recorded at (Philippine time)", PhilippineTime.ToPhilippineTime(recorded).ToString("yyyy-MM-dd HH:mm"));
-        Add("Source", SourceLabel(entry));
-        if (entry.Facility is { } facility)
-            Add("Facility", FacilityCatalog.ShortNameOf(facility));
-        Add("Status", StatusText(entry));
-        if (!string.IsNullOrWhiteSpace(entry.Verification)) Add("Verification", entry.Verification);
-        Add("Recorded by", entry.RecordedBy);
-        if (!string.IsNullOrWhiteSpace(entry.ReferenceCode))
-            Add("StallTrack reference", entry.ReferenceCode);
-        if (!string.IsNullOrWhiteSpace(entry.DocumentNumber))
-        {
-            Add("Physical receipt type", entry.InstrumentType switch
-            {
-                RevenueInstrumentType.OfficialReceipt => "OR",
-                RevenueInstrumentType.CashTicket => "CT",
-                _ => "Not identified"
-            });
-            Add("Physical receipt number (as recorded)", entry.DocumentNumber);
-        }
-        else Add("Physical receipt", "None recorded");
-        if (!string.IsNullOrWhiteSpace(entry.Subject)) Add("Account/period", entry.Subject);
-
-        Add();
-        Add("Itemized charges");
-        Add("Item", "Period", "Amount (PHP)");
-        if (entry.Lines.Count == 0)
-            Add(Detail(entry), "", Amount(entry.Amount));
-        else foreach (var line in entry.Lines)
-            Add(LineLabel(line), LinePeriod(line), Amount(line.Amount));
-        Add("Total collected (PHP)", "", Amount(entry.Amount));
-        if (entry.CorrectionEffect != 0m)
-        {
-            Add("Correction (PHP)", "", Amount(entry.CorrectionEffect));
-            Add("Net after correction (PHP)", "", Amount(entry.NetAmount));
-        }
-
-        if (entry.Corrections.Count > 0)
-        {
-            Add();
-            Add("Correction history");
-            foreach (var correction in entry.Corrections)
-            {
-                Add(CorrectionLabel(correction.CorrectionType),
-                    correction.EffectiveDate.ToString("yyyy-MM-dd"),
-                    Amount(correction.FinancialEffect), correction.Reason);
-            }
-        }
-        if (string.IsNullOrWhiteSpace(entry.ReferenceCode) || entry.CollectionId is null)
-            Add("Record notice", "Legacy financial record; no canonical Collection or SRC was issued.");
-        else if (_reviewInfo is { } status)
-            Add("Correction status", status.Eligibility.Explanation);
-
-        // Use the existing browser download helper: no server mutation or new dependency.
-        var identifier = new string((entry.ReferenceCode ?? "legacy")
-            .Where(ch => char.IsLetterOrDigit(ch) || ch == '-').ToArray());
-        var filename = $"collection-details-{entry.BusinessDate:yyyy-MM-dd}-{identifier}.csv";
-        var bytes = new System.Text.UTF8Encoding(true).GetPreamble()
-            .Concat(System.Text.Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
-        await JS.InvokeVoidAsync("downloadFileFromBytes", filename,
-            Convert.ToBase64String(bytes), "text/csv;charset=utf-8");
+        if (_review is null) return;
+        await JS.InvokeVoidAsync("stalltrackPrint.sectionDocument", ".txr-paper", "txr-print-active");
     }
 
     private void CloseReview() { _review = null; _reviewInfo = null; _arming = false; }
