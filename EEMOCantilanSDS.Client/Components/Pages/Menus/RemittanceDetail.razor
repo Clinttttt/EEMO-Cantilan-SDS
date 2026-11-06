@@ -229,8 +229,7 @@
         }
     }
 
-    private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
-        : string.Join(" · ", collection.Lines.Select(l => EEMOCantilanSDS.Client.Services.SourceNames.For(l.Name)));
+    private static string SourceLabel(RemittanceCollectionDto collection) => EEMOCantilanSDS.Client.Services.RemittanceSourceLabel.For(collection);
 
     private IReadOnlyList<SummaryStrip.SummaryItem> Summary(RemittanceDetailDto d) =>
     [
@@ -254,6 +253,5 @@
 
     private static string Money(decimal amount) => $"₱{amount:N2}";
 
-    private static string StatusLabel(RemittanceDetailDto d) => d.Row.Status == RemittanceStatus.Voided ? "Voided"
-        : d.NeedsReview ? "Needs review" : "Recorded";
+    private static string StatusLabel(RemittanceDetailDto d) => d.Row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded";
 }

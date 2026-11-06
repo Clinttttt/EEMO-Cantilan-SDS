@@ -15,7 +15,9 @@ public class GetTenantBackupFileQueryHandler(ITenantBackupRepository repository)
             return Result<BackupArtifact>.NotFound();
 
         var stamp = file.Value.Info.CreatedAtUtc.ToString("yyyyMMdd-HHmmss");
-        var fileName = $"stalltrack-backup-{stamp}.json";
+        var fileName = file.Value.Info.IsRestoreReady
+            ? $"stalltrack-restore-point-{stamp}.json"
+            : $"stalltrack-LIMITED-ARCHIVE-NOT-RESTORABLE-{stamp}.json";
         return Result<BackupArtifact>.Success(new BackupArtifact(fileName, file.Value.Bytes, "application/json"));
     }
 }

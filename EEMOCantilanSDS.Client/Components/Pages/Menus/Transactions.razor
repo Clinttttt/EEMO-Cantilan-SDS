@@ -33,12 +33,12 @@
 <div class="content-area">
 
     <V3Hero Eyebrow="@($"{Branding.OfficeAcronym} Admin · Collections")" Title="Collection Activity"
-            Subtitle="Recorded collection activity across StallTrack.">
+            Subtitle="Posted collections and recorded legacy payments.">
         <Icon>
             <svg viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" /><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" /></svg>
         </Icon>
         <Figures>
-            <V3HeroFigure Label="Collections" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
+            <V3HeroFigure Label="Records" Value="@Visible.Count.ToString("N0")" Note="@SelectedDate.ToString("MMM d, yyyy")" />
             <V3HeroFigure Label="Collected" Value="@($"₱{Visible.Sum(e => e.Amount):N2}")" Note="@ScopeLabel" />
             @if (Visible.Any(e => e.Verification is not null))
             {
@@ -352,11 +352,15 @@
                 <button class="txr-close" type="button" aria-label="Close" @onclick="CloseReview"><svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </header>
             <div class="v3-modal-body txr-body">
+                <div class="txr-section-heading">Collection details</div>
                 <dl class="txr-meta">
                     <div><dt>Status</dt><dd><span class="txn-status @StatusClass(r)">@StatusText(r)</span>@if (!string.IsNullOrEmpty(r.Verification)) {<span class="txr-sub">@r.Verification</span>}</dd></div>
                     <div><dt>Source</dt><dd>@SourceLabel(r)@(r.Facility is { } f ? $" · {FacilityCatalog.ShortNameOf(f)}" : "")</dd></div>
                     <div><dt>Recorded by</dt><dd>@r.RecordedBy</dd></div>
-                    <div><dt>StallTrack reference</dt><dd>@(r.ReferenceCode ?? "Legacy payment")</dd></div>
+                    @if (!string.IsNullOrWhiteSpace(r.ReferenceCode))
+                    {
+                        <div><dt>StallTrack reference</dt><dd>@r.ReferenceCode</dd></div>
+                    }
                     <div><dt>Receipt</dt><dd>
                         @if (!string.IsNullOrWhiteSpace(r.DocumentNumber))
                         {
@@ -371,6 +375,7 @@
                     <p class="txr-subject">@r.Subject</p>
                 }
 
+                <div class="txr-section-heading txr-items-heading">Itemized charges</div>
                 <table class="txr-items" aria-label="Itemized collection">
                     <thead>
                         <tr><th scope="col">Item</th><th scope="col">Period</th><th scope="col" class="txn-num">Amount</th></tr>
@@ -422,11 +427,11 @@
 
         @if (!isCanonical)
         {
-            <p class="txn-note" role="status">This is a legacy payment recorded before SRCs. Its history is shown as recorded; it has no SRC and no canonical correction.</p>
+            <p class="txn-note" role="status">This entry was recorded through a legacy financial workflow. No canonical Collection or SRC was issued; the recorded amount and any receipt evidence are preserved.</p>
         }
         else
         {
-            <h3 class="txn-drawer-h">Correction</h3>
+            <h3 class="txn-drawer-h">Correction status</h3>
             @if (_reviewLoading) { <p class="txn-muted" role="status">Checking correction status…</p> }
             else if (_reviewError is not null) { <p class="txn-error" role="alert">@_reviewError</p> }
             else if (_reviewInfo is { } info)
@@ -465,6 +470,7 @@
         }
             </div>
             <footer class="txr-foot">
+                <button type="button" class="v3-btn txr-download" @onclick="PrintReviewPdfAsync">Print / Save as PDF</button>
                 @if (isCanonical)
                 {
                     <a class="v3-btn" href="@ReconciliationHref(r)">View Reconciliation</a>
@@ -477,6 +483,64 @@
             </footer>
         </section>
     </div>
+    @* This is an information copy. A print stylesheet isolates the selected record from
+       navigation and other transactions; it never issues a second financial instrument. *@
+    <section class="txr-paper" aria-label="Printable collection record">
+        <header class="txr-paper-head">
+            <div class="txr-paper-kicker">STALLTRACK · COLLECTION ACTIVITY</div>
+            <h1>Collection Record</h1>
+            <p>Information copy · Not an Official Receipt, Cash Ticket or SRC</p>
+        </header>
+        <div class="txr-paper-grid">
+            <div><span>Payor</span><strong>@r.PayerName</strong></div>
+            <div><span>Business date</span><strong>@r.BusinessDate.ToString("MMMM d, yyyy")</strong></div>
+            <div><span>Source</span><strong>@SourceLabel(r)</strong></div>
+            <div><span>Status</span><strong>@StatusText(r)</strong></div>
+            <div><span>Recorded by</span><strong>@r.RecordedBy</strong></div>
+            @if (r.RecordedAtUtc is { } printedAt)
+            { <div><span>Recorded at (PHT)</span><strong>@PhilippineTime.ToPhilippineTime(printedAt).ToString("MMMM d, yyyy · h:mm tt")</strong></div> }
+            @if (!string.IsNullOrWhiteSpace(r.ReferenceCode))
+            { <div><span>StallTrack reference</span><strong>@r.ReferenceCode</strong></div> }
+            <div><span>Physical receipt</span><strong>@(string.IsNullOrWhiteSpace(r.DocumentNumber)
+                ? "None recorded" : r.DocumentNumber)</strong></div>
+            @if (!string.IsNullOrWhiteSpace(r.Subject))
+            { <div class="txr-paper-wide"><span>Account / period</span><strong>@r.Subject</strong></div> }
+        </div>
+        <h2>Itemized charges</h2>
+        <table class="txr-paper-items">
+            <thead><tr><th>Item</th><th>Period</th><th>Amount (PHP)</th></tr></thead>
+            <tbody>
+                @if (r.Lines.Count == 0)
+                { <tr><td>@Detail(r)</td><td></td><td>@r.Amount.ToString("N2")</td></tr> }
+                @foreach (var line in r.Lines)
+                { <tr><td>@LineLabel(line)</td><td>@LinePeriod(line)</td><td>@line.Amount.ToString("N2")</td></tr> }
+            </tbody>
+            <tfoot>
+                <tr><th colspan="2">Total collected</th><td>@r.Amount.ToString("N2")</td></tr>
+                @if (r.CorrectionEffect != 0m)
+                {
+                    <tr><th colspan="2">Correction</th><td>@r.CorrectionEffect.ToString("N2")</td></tr>
+                    <tr><th colspan="2">Net after correction</th><td>@r.NetAmount.ToString("N2")</td></tr>
+                }
+            </tfoot>
+        </table>
+        @if (r.Corrections.Count > 0)
+        {
+            <h2>Recorded corrections</h2>
+            <ul class="txr-paper-corrections">
+                @foreach (var change in r.Corrections)
+                {
+                    <li>@CorrectionLabel(change.CorrectionType) · @change.EffectiveDate.ToString("MMM d, yyyy") ·
+                        PHP @change.FinancialEffect.ToString("N2")
+                        @if (!string.IsNullOrWhiteSpace(change.Reason))
+                        { <span>— @change.Reason</span> }
+                    </li>
+                }
+            </ul>
+        }
+        <footer class="txr-paper-foot">Generated from the recorded collection activity.
+            Physical accountable receipts are issued and verified separately.</footer>
+    </section>
 }
 
 @code {
@@ -536,6 +600,12 @@
         if (_review?.CollectionId != id) return;
         if (result.IsSuccess && result.Value is not null) _reviewInfo = result.Value;
         else _reviewError = "Correction status could not be loaded. Close and try again.";
+    }
+
+    private async Task PrintReviewPdfAsync()
+    {
+        if (_review is null) return;
+        await JS.InvokeVoidAsync("stalltrackPrint.sectionDocument", ".txr-paper", "txr-print-active");
     }
 
     private void CloseReview() { _review = null; _reviewInfo = null; _arming = false; }

@@ -49,8 +49,13 @@ else
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
+        var wasVisible = showSidebar;
         UpdateSidebarVisibility();
-        StateHasChanged();
+
+        // Ordinary office navigation changes the routed page, not the layout shell.
+        // Only re-render the layout when entering or leaving a standalone page.
+        if (wasVisible != showSidebar)
+            _ = InvokeAsync(StateHasChanged);
     }
 
     /// <summary>

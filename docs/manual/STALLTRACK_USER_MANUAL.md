@@ -146,7 +146,7 @@ The same oldest-month rule applies to same-day rent. You cannot take rent for a 
 | A balance is higher than expected on the portal | It now lists unpaid months that were only on the office's records before | Check the months on Balances, or ask the office |
 | A payment is under *Needs attention* | The gateway's report and the checkout differ | Check with the gateway, then the Head records the decision |
 | Rent refused with "Pay [month] first" | The oldest-first rule | Pay that month, or the Head reviews the policy |
-| An operation reads *Setup required* in Settings › Revenue Sources, or *Not set* under Receipts on Operations | It has no receipt type yet, or no collector | The Head chooses **Set receipt type** (Official Receipt or Cash Ticket, from today or later), then assigns collectors |
+| An operation reads *Setup required* in Settings › Revenue Sources, or *Not set* under Receipts on Operations | It has no receipt type yet, or no collector | The Head chooses **Set up** on the operation: the drawer lists what still needs attention, and the Head picks the approved Official Receipt or Cash Ticket from today or later, confirms it, and chooses **Confirm receipt policy**. Then assign collectors |
 
 ## 12. Where these rules come from
 

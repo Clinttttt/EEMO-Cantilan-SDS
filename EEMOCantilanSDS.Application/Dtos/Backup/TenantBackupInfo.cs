@@ -8,7 +8,8 @@ public sealed record TenantBackupInfo(
     int RowCount,
     int TableCount,
     long SizeBytes,
-    string? Note);
+    string? Note,
+    bool IsRestoreReady = true);
 
 /// <summary>One entry in the per-municipality restore history (derived from the append-only audit log).</summary>
 public sealed record TenantRestoreEventDto(

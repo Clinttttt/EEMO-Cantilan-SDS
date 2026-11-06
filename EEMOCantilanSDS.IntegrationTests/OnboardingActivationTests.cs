@@ -273,6 +273,8 @@ public sealed partial class OnboardingActivationTests(PostgresFixture db)
         Assert.All(rows, r => Assert.Equal("Onboarding", r.Origin));
         Assert.Equal(new[] { "KANMANGGAY_SPACE_RENTAL", "MARKET_FEES" }, rows.Where(r => r.IsListed).Select(r => r.OperationCode).Order().ToArray());
         Assert.Equal("Municipal Plaza Rental", rows.Single(r => r.OperationCode == "KANMANGGAY_SPACE_RENTAL").LocalDisplayName);
+        Assert.Equal(["KANMANGGAY_SPACE_RENTAL", "MARKET_FEES"], await ClassificationsOfAsync(w.TargetId));
+        Assert.Empty(await verify.RevenueClassificationPolicies.ToListAsync());
         Assert.False(rows.Single(r => r.OperationCode == "LANDING_BERTHING").IsListed);
         Assert.Null(rows.Single(r => r.OperationCode == "LANDING_BERTHING").LocalDisplayName); // an unselected operation keeps no name
 
@@ -404,8 +406,8 @@ public sealed partial class OnboardingActivationTests(PostgresFixture db)
             [new ActivationOperation("ECF", true), new ActivationOperation("WCF", true), new ActivationOperation("LANDING_BERTHING", true)]));
         Assert.True(result.IsSuccess, result.Error);
 
-        // Only the two utilities that need one - not Landing/Berthing, which was selected too, and nothing else.
-        Assert.Equal(["ECF", "WCF"], await ClassificationsOfAsync(w.TargetId));
+        // All selected operations have a dormant source identity, but none has receipt/posting authority.
+        Assert.Equal(["ECF", "LANDING_BERTHING", "WCF"], await ClassificationsOfAsync(w.TargetId));
         await using (var verify = db.CreateContext(Guid.Empty))
         {
             Assert.Equal(0, await verify.RevenueClassificationPolicies.IgnoreQueryFilters().CountAsync(p => p.MunicipalityId == w.TargetId));

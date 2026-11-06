@@ -7,6 +7,9 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence;
 
 public interface IAuditRepository
 {
+    /// <summary>Single event after the exact same tenant and historical-record checks as the trail.</summary>
+    Task<AuditEventDetailsDto?> GetAuditEventAsync(Guid eventId, CancellationToken ct);
+
     /// <summary>
     /// Returns a filtered, offset-paginated page of audit entries plus action-summary counts and
     /// the distinct actor/entity values for the filter dropdowns. All filtering/aggregation runs

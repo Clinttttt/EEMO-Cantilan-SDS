@@ -24,12 +24,15 @@ public sealed class OfficeMonthlyIncomeLinesTests(PostgresFixture db)
 {
     private static readonly DateOnly Today = PhilippineTime.Today;
 
-    [SkippableFact]
-    public async Task Another_office_sees_only_its_own_lines_under_its_own_names_and_no_money_is_hidden()
+    // A standalone deployment makes its only office the sign-in default (IsDefault); that never gives it Cantilan's sheet.
+    [SkippableTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Another_office_sees_only_its_own_lines_under_its_own_names_and_no_money_is_hidden(bool signInDefault)
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? "");
         await db.ResetAsync();
-        var tenant = await TenantAsync("RIVERSIDE");
+        var tenant = await TenantAsync("RIVERSIDE", signInDefault);
         await using (var ctx = db.CreateContext(tenant))
         {
             var hall = Facility.Create(FacilityCode.TCC, "Riverside Trade Hall", "RTH", municipalityId: tenant);
@@ -53,13 +56,16 @@ public sealed class OfficeMonthlyIncomeLinesTests(PostgresFixture db)
         var sheet = await StatementAsync(tenant);
         var rows = sheet.Groups.SelectMany(g => g.Rows).ToDictionary(r => r.Key);
 
-        Assert.Equal(["MARKET_FEES", "RENT_TCC", "RENT_BBQ", "ARREARS", "PENALTIES_AND_FINES"], rows.Keys.ToArray());
+        // Every official line stays in the response for reconciliation; the sheet shows the lines this office holds.
+        Assert.Equal(OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey != OfficialMonthlyIncomeStructure.Pending).Select(r => r.Key),
+            rows.Keys);
+        Assert.Equal(["MARKET_FEES", "RENT_TCC", "RENT_BBQ", "ARREARS", "PENALTIES_AND_FINES"],
+            rows.Values.Where(r => r.ShowOnOfficialReport).Select(r => r.Key).ToArray());
         Assert.Equal("Palengke Fees", rows["MARKET_FEES"].Label);
         Assert.Equal("Riverside Trade Hall (RTH)", rows["RENT_TCC"].Label);
         Assert.Equal("Old Food Stands (OFS)", rows["RENT_BBQ"].Label);
         Assert.Equal(500m, rows["RENT_BBQ"].Total.Total);
         Assert.Equal("Others", sheet.Groups.Single(g => g.Rows.Any(r => r.Key == "PENALTIES_AND_FINES")).Label);
-        Assert.Equal(["A"], sheet.Sections!.Select(s => s.Key).ToArray());
         Assert.Equal(1400m, sheet.GrandTotal.Total);
         Assert.DoesNotContain(rows.Values, r => r.Label.Contains("Tampak") || r.Label.Contains("Barbecue") || r.Label.Contains("Kanmanggay"));
     }
@@ -74,15 +80,20 @@ public sealed class OfficeMonthlyIncomeLinesTests(PostgresFixture db)
         var sheet = await StatementAsync(tenant);
 
         var expected = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey != OfficialMonthlyIncomeStructure.Pending).ToList();
-        Assert.Equal(expected.Select(r => (r.Key, r.Label)), sheet.Groups.SelectMany(g => g.Rows).Select(r => (r.Key, r.Label)));
+        var rows = sheet.Groups.SelectMany(g => g.Rows).ToList();
+        Assert.Equal(expected.Select(r => r.Key), rows.Select(r => r.Key));
+        Assert.All(rows, r => Assert.True(r.ShowOnOfficialReport));
+        // A line without a facility keeps the sheet's name; a facility line is named from Cantilan's own facility register.
+        Assert.Equal(expected.Where(r => r.Facility is null).Select(r => (r.Key, r.Label)),
+            rows.Where(r => expected.Single(e => e.Key == r.Key).Facility is null).Select(r => (r.Key, r.Label)));
         Assert.Equal(OfficialMonthlyIncomeStructure.Groups.Where(g => g.Key != OfficialMonthlyIncomeStructure.Pending).Select(g => g.Label),
             sheet.Groups.Select(g => g.Label));
         Assert.Equal(["A", "B", "C"], sheet.Sections!.Select(s => s.Key).ToArray());
     }
 
-    private async Task<Guid> TenantAsync(string code)
+    private async Task<Guid> TenantAsync(string code, bool isDefault = false)
     {
-        var tenant = Municipality.Create(code, code, "Province", MunicipalityStatus.Active, tenantCode: code.ToLowerInvariant());
+        var tenant = Municipality.Create(code, code, "Province", MunicipalityStatus.Active, tenantCode: code.ToLowerInvariant(), isDefault: isDefault);
         await using var setup = db.CreateContext(Guid.Empty);
         setup.Municipalities.Add(tenant);
         await setup.SaveChangesAsync();

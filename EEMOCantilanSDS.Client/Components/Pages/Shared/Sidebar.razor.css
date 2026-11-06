@@ -226,16 +226,11 @@
         outline-offset: -2px;
     }
 
-    /* Smooth the move between destinations: the icon's colour eases with the label, and the new destination's bar grows in. */
+    /* Preserve subtle icon colour feedback without replaying the selection bar
+       animation on every navigation. */
     .sidebar ::deep .nav-item svg {
         transition: stroke 0.15s ease;
     }
-
-@media (prefers-reduced-motion: no-preference) {
-    .sidebar ::deep .nav-item.active::before {
-        animation: motion-bar-in var(--motion-base) var(--motion-ease) backwards;
-    }
-}
 
 .nav-badge {
     margin-left: auto;

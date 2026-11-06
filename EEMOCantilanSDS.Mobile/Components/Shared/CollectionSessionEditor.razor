@@ -110,14 +110,14 @@ else
             }
             @if (_suggestOpen)
             {
-                <div class="payer-panel" aria-label="Sources" aria-busy="@(_searching ? "true" : "false")">
+                <div class="payer-panel @(OnlyOperation == "ECF" ? "utility-source-panel" : "")" aria-label="Sources" aria-busy="@(_searching ? "true" : "false")">
                     @if (VisibleSources.Count > 0)
                     {
-                        <div class="payer-list @(CollectorOperationCodes.IsSpaceObligation(OnlyOperation) ? "payer-list-space" : "")" role="list">
+                        <div class="payer-list @(OnlyOperation == "ECF" ? "utility-source-list payer-list-space" : CollectorOperationCodes.IsSpaceObligation(OnlyOperation) ? "payer-list-space" : "")" role="list">
                             @foreach (var found in VisibleSources)
                             {
-                                <button class="collection-option payer-option" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
-                                    <span class="payer-option-text"><strong>@found.DisplayName</strong><small>@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small>@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Event date @available.ToString("MMM d, yyyy") · payment opens that day</small> }</span>
+                                <button class="collection-option payer-option @(OnlyOperation == "ECF" ? "utility-source-option" : "")" type="button" role="listitem" disabled="@(!found.CanSelect)" @onclick="() => SelectSuggestedSourceAsync(found)">
+                                    <span class="payer-option-text @(OnlyOperation == "ECF" ? "utility-source-text" : "")"><strong class="utility-source-name">@found.DisplayName</strong><small class="utility-source-context">@found.Context</small>@if (OnlyOperation == "ECF" && !string.IsNullOrWhiteSpace(found.SectionLabel)) { <small class="utility-source-context">@found.SectionLabel</small> }@if (!found.CanSelect && found.AvailableOn is { } available) { <small>Event date @available.ToString("MMM d, yyyy") - payment opens that day</small> }</span>
                                     <span aria-hidden="true">›</span></button>
                             }
                         </div>

@@ -22,7 +22,11 @@ public record PaymentHistoryDto(
     // folded into one row here because that is how the office reconciles it, but the payor pays a day at a time and could
     // not see the days behind the total, including the ones a collector took in the field. Empty for monthly facilities.
     IReadOnlyList<PaymentHistoryDayDto>? Days = null,
-    SettlementAuthority SettlementAuthority = SettlementAuthority.Legacy
+    SettlementAuthority SettlementAuthority = SettlementAuthority.Legacy,
+    // Persisted canonical Collection SRCs allocated to this monthly rent record.
+    // Read-only evidence; an older Legacy payment has no SRC to display.
+    // A month may have more than one Collection after partial settlements.
+    IReadOnlyList<string>? SrcReferences = null
 );
 
 /// <summary>

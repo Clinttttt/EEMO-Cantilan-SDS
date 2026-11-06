@@ -194,7 +194,7 @@
                     }
                     else if (DirectCards.Count == 0)
                     {
-                        <p class="dash-note" role="status">The official source projection returned no other operations for this period.</p>
+                        <p class="dash-note" role="status">@(_names?.Adopted == true ? "No additional operations selected for this office." : "The official source projection returned no other operations for this period.")</p>
                     }
                     else
                     {
@@ -252,6 +252,7 @@
                         else
                         {
                             <RevenueSourcePerformancePanel Year="_now.Year" Month="_now.Month" OverviewMode="true" Embedded="true" Preloaded="_source" Facilities="_revenueFacilities"
+                                                           ConfiguredFacilityCodes="@(Facilities.Select(f => f.Code).ToArray())"
                                                            HeaderActions="@Toolbar("rev", compact: true)" />
                         }
                     }
@@ -566,11 +567,7 @@ var button = _view == ViewRevenue ? _revToRev : _opsToOps;        try { await bu
     /// always kept, so a hidden operation never hides activity); an office that never adopted configuration sees every card, as before.
     /// </summary>
     private IReadOnlyList<(DashboardOperations.Entry Entry, RevenueSourcePerformanceRowDto Row)> DirectCards =>
-        DashboardOperations.CardsFor(_source).Where(card => _names?.IsListed(card.Row.Key, HasActivity(card.Row)) ?? true).ToList();
-
-    private static bool HasActivity(RevenueSourcePerformanceRowDto row) =>
-        row.Collected != 0m || row.LegacyCollected != 0m || row.CanonicalCollected != 0m || row.AdjustmentAmount != 0m
-        || (row.TransactionCount ?? 0) > 0 || (row.DocumentCount ?? 0) > 0;
+        DashboardOperations.CardsFor(_source).Where(card => TenantRevenueSourceVisibility.Show(card.Row, _names, Facilities.Select(f => f.Code).ToArray())).ToList();
 
     /// <summary>"Open Kanmanggay" becomes "Open Municipal Plaza Rental" for an office that named it so; every other action is unchanged.</summary>
     private string ActionLabel(DashboardOperations.Entry op, RevenueSourcePerformanceRowDto row) =>

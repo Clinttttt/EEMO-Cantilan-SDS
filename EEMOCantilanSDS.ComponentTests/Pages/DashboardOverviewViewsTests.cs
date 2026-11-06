@@ -31,6 +31,8 @@ public sealed class DashboardOverviewViewsTests : TestContext
     private readonly Mock<IOfficeSourcesApiClient> _office = new();
     private readonly Mock<IDashboardApiClient> _dashboard = new();
     private readonly Mock<IReportsApiClient> _financialReports = new();
+    private readonly Mock<IOperationSettingsApiClient> _tenantSettingsApi = new();
+    private readonly OperationNameService _tenantNames;
 
     public DashboardOverviewViewsTests()
     {
@@ -41,6 +43,8 @@ public sealed class DashboardOverviewViewsTests : TestContext
         Services.AddSingleton(_official.Object);
         Services.AddSingleton(_financialReports.Object);
         Services.AddSingleton(_office.Object);
+        _tenantNames = new OperationNameService(_tenantSettingsApi.Object);
+        Services.AddSingleton(_tenantNames);
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
@@ -126,6 +130,66 @@ public sealed class DashboardOverviewViewsTests : TestContext
 
     private static void Switch(IRenderedComponent<Menu> cut, string label) =>
         cut.FindAll(".dash-view:not([hidden]) .dashboard-view-switch button").Single(b => b.TextContent.Trim() == label).Click();
+
+    [Fact]
+    public async Task AdoptedOffice_OverviewShowsOnlySelectedOperationsAndHistoricalActivity()
+    {
+        var settings = OperationsTenantConfigurationTests.SettingsApi(adopted: true,
+            listed: ["MARKET_FEES", "TRANSPORTATION"]);
+        _tenantSettingsApi.Setup(c => c.GetAsync()).Returns(() => settings.Object.GetAsync());
+        await _tenantNames.EnsureLoadedAsync();
+        Dashboard();
+        ServeSource(
+            Row("MARKET_FEES", "Market Fees", "MARKET", "Income From Market", RevenueSourceModel.Transactional, 0m, 0),
+            Row("TRANSPORTATION_PARKING", "Transportation", "MARKET", "Income From Market", RevenueSourceModel.Transactional, 0m, 0),
+            Row("FISH_MEAT_VENDOR_FEE", "Fish / Meat", "MARKET", "Income From Market", RevenueSourceModel.Transactional, 0m, 0),
+            Row("WEIGHT_AND_MEASURE", "Weight & Measure", "MARKET", "Income From Market", RevenueSourceModel.QuantityService, 25m, 1),
+            Row("PENALTIES_AND_FINES", "Fines", "OTHER", "Other operations", RevenueSourceModel.Transactional, 0m, 0));
+
+        var cut = RenderLoaded();
+        cut.WaitForAssertion(() =>
+        {
+            var keys = cut.FindAll(".facility-card[data-source-key]")
+                .Select(card => card.GetAttribute("data-source-key")).ToArray();
+            Assert.Equal(["MARKET_FEES", "TRANSPORTATION_PARKING", "WEIGHT_AND_MEASURE"], keys);
+            Assert.DoesNotContain("PENALTIES_AND_FINES", keys);
+        }, Timeout);
+    }
+
+    [Fact]
+    public async Task AdoptedOffice_RevenueTableHidesUnselectedZeroRowsButKeepsCashAndTotal()
+    {
+        var settings = OperationsTenantConfigurationTests.SettingsApi(adopted: true,
+            listed: ["MARKET_FEES"],
+            labels: new Dictionary<string, string> { ["MARKET_FEES"] = "Carmen Market Fee" });
+        _tenantSettingsApi.Setup(c => c.GetAsync()).Returns(() => settings.Object.GetAsync());
+        await _tenantNames.EnsureLoadedAsync();
+        var source = Source(
+            Row("MARKET_FEES", "Market Fees", "MARKET", "Income From Market", RevenueSourceModel.Transactional, 0m, 0),
+            Row("LANDING_BERTHING", "Landing", "MARKET", "Income From Market", RevenueSourceModel.Transactional, 0m, 0),
+            Row("RENT_NCC", "NCC Rent", "RENT", "Rent Income", RevenueSourceModel.RecurringObligation, 0m, 0, FacilityCode.NCC),
+            Row("RENT_NPM", "NPM Rent", "RENT", "Rent Income", RevenueSourceModel.RecurringObligation, 0m, 0, FacilityCode.NPM),
+            Row("PENALTIES_AND_FINES", "Fines", "OTHER", "Other operations", RevenueSourceModel.Transactional, 0m, 0),
+            Row("OTHER_HISTORICAL", "Legacy source", "OTHER", "Other operations", RevenueSourceModel.Transactional, 120m, null));
+        source = source with
+        {
+            TotalCollected = 120m,
+            Groups = [new("MARKET", "Income From Market", 0m), new("RENT", "Rent Income", 0m),
+                new("OTHER", "Other operations", 120m)]
+        };
+
+        var cut = RenderComponent<RevenueSourcePerformancePanel>(p => p
+            .Add(x => x.Year, source.Year).Add(x => x.Month, source.Month)
+            .Add(x => x.Preloaded, source)
+            .Add(x => x.ConfiguredFacilityCodes, [FacilityCode.NPM]));
+        cut.WaitForAssertion(() =>
+        {
+            var labels = cut.FindAll("tr.rsp-row th.rsp-source").Select(x => x.TextContent.Trim()).ToArray();
+            Assert.Equal(["Carmen Market Fee", "NPM Rent", "Legacy source"], labels);
+            Assert.DoesNotContain("Fines", labels);
+            Assert.Contains("120", cut.Find("tfoot tr").TextContent);
+        }, Timeout);
+    }
 
     [Fact]
     public void TheSwitchDefaultsToOperations_AndTheRevenueTableIsNotMountedUntilChosen()

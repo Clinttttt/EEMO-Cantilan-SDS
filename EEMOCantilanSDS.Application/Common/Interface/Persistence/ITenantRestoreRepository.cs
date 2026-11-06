@@ -13,6 +13,13 @@ public interface ITenantRestoreRepository
     Task<TenantRestoreSnapshot> CreateSnapshotAsync(CancellationToken ct);
 
     /// <summary>
+    /// Capture a stored backup: restore-v2 when the physical schema is fully supported, otherwise
+    /// an explicitly non-restorable archive-v1 of only approved mapped tenant tables.
+    /// Never relaxes CreateSnapshotAsync or RestoreAsync safety rules.
+    /// </summary>
+    Task<TenantRestoreSnapshot> CreateStoredBackupSnapshotAsync(CancellationToken ct);
+
+    /// <summary>
     /// Atomically replace the caller's municipality data with <paramref name="snapshot"/> — DELETE the
     /// tenant's rows then re-insert from the snapshot, in FK order, in ONE transaction. Rejects a snapshot
     /// whose <see cref="TenantRestoreSnapshot.MunicipalityId"/> is not the caller's own tenant. The audit

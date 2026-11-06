@@ -143,7 +143,8 @@ public sealed class RemittanceGroupingTests(PostgresFixture db)
         Assert.Equal(batch[0].Row.SubmissionId, row.SubmissionId);
         Assert.Equal((6, 180m, 170m, 10m), (row.CollectionCount, row.ExpectedAmount, row.RemittedAmount, row.DifferenceAmount));
         Assert.Equal(row.RemittedAmount, row.Members.Sum(x => x.RemittedAmount));
-        Assert.Equal("Needs review", row.StatusLabel);
+        // A financial difference remains in DifferenceAmount, without changing the persisted Recorded lifecycle.
+        Assert.Equal("Recorded", row.StatusLabel);
 
         // Each collector's remittance is still its own record, covering only its own collections.
         var records = await ctx.CollectionRemittances.AsNoTracking().OrderBy(x => x.SubmissionSequence).ToListAsync();

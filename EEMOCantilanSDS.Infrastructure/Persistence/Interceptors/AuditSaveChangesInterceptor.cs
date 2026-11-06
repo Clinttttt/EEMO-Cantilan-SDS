@@ -65,16 +65,29 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     // MfaEnabled/MfaSecretCipher, which are NOT in this set, so that decision is still recorded.
     private static readonly HashSet<string> AuthHousekeepingFields = new(StringComparer.Ordinal)
     {
-        "LastLoginAt", "RefreshToken", "RefreshTokenExpiryTime", "FailedAttempts", "LockedUntil",
+        "LastLoginAt", "LastActiveAt", "RefreshToken", "RefreshTokenExpiryTime", "FailedAttempts", "LockedUntil",
         "MfaChallengeTokenHash", "MfaChallengeTokenExpiry", "MfaLastUsedStep", "MfaReminderShownAt",
         "UpdatedAt", "UpdatedBy"
     };
 
     // Secrets/credentials that must NEVER be written into the audit snapshot (old or new values).
-    private static readonly HashSet<string> RedactedFields = new(StringComparer.Ordinal)
+    private static readonly HashSet<string> RedactedFields = new(StringComparer.OrdinalIgnoreCase)
     {
-        "PasswordHash", "RefreshToken", "RefreshTokenExpiryTime", "Code"
+        "PasswordHash", "RefreshToken", "RefreshTokenExpiryTime", "Code",
+        "MfaSecretCipher", "MfaChallengeTokenHash", "PayorActivationCodeHash",
+        "SecretKey", "PublicKey", "WebhookSecret", "ApiKey", "AccessToken",
+        "CheckoutUrl", "RawPayload"
     };
+
+    // New properties must not silently introduce credential or gateway payload disclosure.
+    // Legitimate references (for example ORNumber and GatewayReference) remain auditable.
+    private static bool IsSensitive(string field) => RedactedFields.Contains(field)
+        || field.Contains("Password", StringComparison.OrdinalIgnoreCase)
+        || field.Contains("Token", StringComparison.OrdinalIgnoreCase)
+        || field.Contains("Secret", StringComparison.OrdinalIgnoreCase)
+        || field.Contains("Cipher", StringComparison.OrdinalIgnoreCase)
+        || field.Contains("Payload", StringComparison.OrdinalIgnoreCase)
+        || field.Contains("CheckoutUrl", StringComparison.OrdinalIgnoreCase);
 
     public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
@@ -157,5 +170,5 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
     private static string Serialize(PropertyValues values) =>
         JsonSerializer.Serialize(values.Properties.ToDictionary(
             p => p.Name,
-            p => RedactedFields.Contains(p.Name) ? (object?)"[redacted]" : values[p.Name]));
+            p => IsSensitive(p.Name) ? (object?)"[redacted]" : values[p.Name]));
 }

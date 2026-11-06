@@ -152,6 +152,31 @@ public class TenantRestoreV2SafetyTests
     }
 
     [Fact]
+    public async Task LimitedArchive_CanValidateItsScope_ButNeverEnterDestructiveRestore()
+    {
+        await using var context = Context();
+        var schema = Schema(retained: true);
+        var archive = Snapshot(schema) with
+        {
+            FormatVersion = TenantRestoreSnapshot.ArchiveOnlyFormatVersion,
+            ExcludedLegacyTables = ["RetainedHistoricalEvidence"]
+        };
+
+        TenantRestoreValidation.ValidateArchive(archive, Mid, schema);
+        Assert.Throws<InvalidOperationException>(() =>
+            TenantRestoreValidation.ValidateArchive(archive with { ExcludedLegacyTables = ["Unknown"] }, Mid, schema));
+        Assert.Throws<InvalidOperationException>(() =>
+            TenantRestoreValidation.ValidateArchive(archive with { MunicipalityId = Guid.NewGuid() }, Mid, schema));
+        Assert.Throws<InvalidOperationException>(() =>
+            TenantRestoreValidation.ValidateArchive(archive with { Tables = [] }, Mid, schema));
+
+        var spy = new BoundarySpy(context, Reader(schema).Object);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => spy.RestoreAsync(archive, default));
+        Assert.Equal(0, spy.DestructivePhaseCalls);
+        Assert.Empty(await context.TenantBackups.ToListAsync());
+    }
+
+    [Fact]
     public void UploadedManifestIsFrozenBeforeAsynchronousPreflight()
     {
         var original = Snapshot(Schema());

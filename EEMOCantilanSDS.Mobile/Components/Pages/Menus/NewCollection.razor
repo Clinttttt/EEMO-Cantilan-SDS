@@ -47,7 +47,7 @@
     private string Last => new Uri(Navigation.Uri).AbsolutePath.TrimEnd('/').Split('/').Last().ToLowerInvariant();
     private string Title => CorrectId is not null ? "Edit collection" : OnlyOperation switch
     {
-        "ECF" => "Electricity",
+        "ECF" => "Electricity Consumption Fee",
         "WEIGHT_AND_MEASURE" => "Weight & Measure",
         "FISH_MEAT_VENDOR_FEE" => "Fish / Meat Collection",
         "TERMINAL" => "Income From Terminal",

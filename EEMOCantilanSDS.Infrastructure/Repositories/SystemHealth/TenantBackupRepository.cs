@@ -37,7 +37,7 @@ public class TenantBackupRepository(
     /// </param>
     public async Task<TenantBackupInfo> CreateAsync(string? note, bool automated, CancellationToken ct)
     {
-        var snapshot = await restoreRepository.CreateSnapshotAsync(ct);
+        var snapshot = await restoreRepository.CreateStoredBackupSnapshotAsync(ct);
         var json = JsonSerializer.Serialize(snapshot, Options);
 
         var (rowCount, tableCount) = CountRows(snapshot);
@@ -67,7 +67,8 @@ public class TenantBackupRepository(
             .AsNoTracking()
             .OrderByDescending(b => b.CreatedAtUtc)
             .Select(b => new TenantBackupInfo(
-                b.Id, b.CreatedAtUtc, b.CreatedBy, b.RowCount, b.TableCount, b.SizeBytes, b.Note))
+                b.Id, b.CreatedAtUtc, b.CreatedBy, b.RowCount, b.TableCount, b.SizeBytes, b.Note,
+                b.FormatVersion == TenantRestoreSnapshot.CurrentFormatVersion))
             .ToListAsync(ct);
     }
 
@@ -113,7 +114,8 @@ public class TenantBackupRepository(
 
         return new TenantBackupContentsDto(
             backup.Id, backup.CreatedAtUtc, backup.CreatedBy, backup.RowCount, backup.TableCount,
-            backup.SizeBytes, backup.Note, tables);
+            backup.SizeBytes, backup.Note, tables,
+            backup.FormatVersion == TenantRestoreSnapshot.CurrentFormatVersion);
     }
 
     public async Task<IReadOnlyList<TenantRestoreEventDto>> ListRestoreEventsAsync(int take, CancellationToken ct)
@@ -211,7 +213,8 @@ public class TenantBackupRepository(
     }
 
     private static TenantBackupInfo ToInfo(TenantBackup b) =>
-        new(b.Id, b.CreatedAtUtc, b.CreatedBy, b.RowCount, b.TableCount, b.SizeBytes, b.Note);
+        new(b.Id, b.CreatedAtUtc, b.CreatedBy, b.RowCount, b.TableCount, b.SizeBytes, b.Note,
+            b.FormatVersion == TenantRestoreSnapshot.CurrentFormatVersion);
 
     // Count rows across the snapshot's per-table JSON arrays (tableCount = tables that hold ≥1 row).
     private static (int Rows, int Tables) CountRows(TenantRestoreSnapshot snapshot)

@@ -12,7 +12,8 @@ public sealed record TenantBackupContentsDto(
     int TableCount,
     long SizeBytes,
     string? Note,
-    IReadOnlyList<TenantBackupTableDto> Tables);
+    IReadOnlyList<TenantBackupTableDto> Tables,
+    bool IsRestoreReady = true);
 
 /// <summary>One line of a backup's manifest: a table, its friendly label, and how many records it holds.</summary>
 public sealed record TenantBackupTableDto(string Table, string DisplayName, int RowCount);

@@ -98,6 +98,7 @@ public partial class StallRepository
             var absentDays = s.DailyCollections.Count(d => d.IsAbsent
                 && d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd);
             var daysMissed = Math.Max(0, collectableDays - daysCollected - absentDays);
+            var rentReceivedOnDate = todayCollection?.IsPaid == true ? todayCollection.DailyFee : 0m;
             var monthCollectedAmount = paidCollections.Sum(d =>
                 d.DailyFee + (d.FishKilos.GetValueOrDefault() * npmFishRate) + d.MeatFeeAmount)
                 // money received on days that are only part paid belongs to the month too
@@ -126,7 +127,8 @@ public partial class StallRepository
                 todayCollection?.MeatKilos,
                 todayCollection?.MeatFeeAmount ?? 0m,
                 todayCollection?.MeatFeeRatePerKilo,
-                todayCollection?.MeatFeeRateEffectiveDate);
+                todayCollection?.MeatFeeRateEffectiveDate,
+                RentReceivedOnBusinessDate: rentReceivedOnDate);
         }).ToList();
 
         if (_npmRentMonths is not null)
@@ -143,6 +145,9 @@ public partial class StallRepository
                 var events = await _npmRentMonths.ReadCashEventsAsync(row.StallId, monthStart, ct);
                 var dailyEvents = events.Where(x => x.InstallmentDate.HasValue && x.Net > 0).ToArray();
                 var collectedOnDate = dailyEvents.Where(x => x.InstallmentDate == collectionDate && x.BusinessDate == collectionDate).Sum(x => x.Net);
+                // A custom received amount may settle older days. It is cash taken today,
+                // not the approved daily rate and not necessarily today's installment.
+                var rentCashOnBusinessDate = events.Where(x => x.BusinessDate == collectionDate).Sum(x => x.Net);
                 var weighing = stalls.Single(x => x.Id == row.StallId).DailyCollections
                     .Where(d => d.CollectionDate >= monthStart && d.CollectionDate <= effectiveEnd && d.IsPaid)
                     .Sum(d => d.FishKilos.GetValueOrDefault() * npmFishRate + d.MeatFeeAmount);
@@ -151,7 +156,9 @@ public partial class StallRepository
                     IsMarkedToday = row.IsMarkedToday || collectedOnDate > 0,
                     DaysCollected = row.DaysCollected + dailyEvents.Select(x => x.InstallmentDate).Distinct().Count(),
                     DaysMissed = available.Count, IsCollectableToday = quoted.Value!.EligibleAmount > 0,
-                    MonthCollectedAmount = position.LegacyCash + position.CanonicalCash + weighing };
+                    MonthCollectedAmount = position.LegacyCash + position.CanonicalCash + weighing,
+                    RentReceivedOnBusinessDate = rentCashOnBusinessDate > 0m
+                        ? rentCashOnBusinessDate : row.RentReceivedOnBusinessDate };
             }
         }
         var collectedToday = rows.Where(r => r.IsCollectedToday).ToList();
@@ -166,8 +173,8 @@ public partial class StallRepository
             rows.Count,
             collectedToday.Count,
             pendingToday.Count,
-            collectedToday.Sum(r => (r.MonthlyRentCollectedToday is > 0 ? r.MonthlyRentCollectedToday.Value : r.DailyRate)
-                + (r.FishKilosToday.GetValueOrDefault() * npmFishRate) + r.MeatFeeToday),
+            rows.Sum(r => (r.RentReceivedOnBusinessDate ?? (r.IsCollectedToday ? r.DailyRate : 0m))
+                + (r.IsCollectedToday ? (r.FishKilosToday.GetValueOrDefault() * npmFishRate) + r.MeatFeeToday : 0m)),
             pendingToday.Sum(r => r.MonthlyRentQuote?.EligibleAmount ?? r.DailyRate),
             rows.Sum(r => r.DaysCollected),
             rows.Sum(r => r.DaysMissed),

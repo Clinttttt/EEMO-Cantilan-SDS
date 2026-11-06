@@ -15,9 +15,12 @@ public sealed record TenantRestoreSnapshot(
     DateTime GeneratedAtUtc,
     // tableName -> JSON array text of that table's rows for this municipality
     [property: JsonConverter(typeof(RestoreTableManifestConverter))] Dictionary<string, string> Tables,
-    string? SchemaFingerprint = null)
+    string? SchemaFingerprint = null,
+    // Archive-only captures explicitly list physical legacy tables NOT included. They are NEVER restorable.
+    IReadOnlyList<string>? ExcludedLegacyTables = null)
 {
     public const string CurrentFormatVersion = "restore-v2";
+    public const string ArchiveOnlyFormatVersion = "archive-v1";
 }
 
 /// <summary>Outcome of a scoped restore: total rows written and per-table counts (for the audit + UI).</summary>

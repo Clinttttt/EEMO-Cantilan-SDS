@@ -137,7 +137,7 @@ public sealed class OperationSettingsPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             Assert.Equal(1, cut.FindAll(".os-policy").Count);
-            Assert.Contains("Policy confirmation required", cut.Find("li[data-operation=\"KANMANGGAY_SPACE_RENTAL\"] .os-policy").TextContent);
+            Assert.Contains("Signed-contract duration not configured", cut.Find("li[data-operation=\"KANMANGGAY_SPACE_RENTAL\"] .os-policy").TextContent);
             Assert.Contains("three-year", cut.Find(".os-policy").TextContent);
         }, Timeout);
     }

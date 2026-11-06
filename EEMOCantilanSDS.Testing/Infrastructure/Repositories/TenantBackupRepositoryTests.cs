@@ -65,6 +65,7 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
         {
             var m = new Mock<ITenantRestoreRepository>();
             m.Setup(r => r.CreateSnapshotAsync(It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
+            m.Setup(r => r.CreateStoredBackupSnapshotAsync(It.IsAny<CancellationToken>())).ReturnsAsync(snapshot);
             return m.Object;
         }
 
@@ -99,6 +100,35 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories
             Assert.Equal(15, list.Count);
             Assert.All(list, b => Assert.Equal(2, b.RowCount));
             Assert.All(list, b => Assert.Equal(1, b.TableCount));
+        }
+
+        [Fact]
+        public async Task ArchiveOnlyBackup_IsStoredAndDownloadable_ButExplicitlyNotRestoreReady()
+        {
+            using var ctx = new AppDbContext(Options(), new FixedMunicipality(Tenant));
+            var archive = SampleSnapshot() with
+            {
+                FormatVersion = TenantRestoreSnapshot.ArchiveOnlyFormatVersion,
+                ExcludedLegacyTables = ["RetainedHistoricalEvidence"]
+            };
+            var repo = new TenantBackupRepository(ctx, RestoreRepoReturning(archive), User());
+
+            var info = await repo.CreateAsync(note: "Preview-only", CancellationToken.None);
+            Assert.False(info.IsRestoreReady);
+            var list = await repo.ListAsync(CancellationToken.None);
+            Assert.Single(list);
+            Assert.False(list[0].IsRestoreReady);
+            var file = await repo.GetFileAsync(info.Id, CancellationToken.None);
+            Assert.NotNull(file);
+            Assert.False(file!.Value.Info.IsRestoreReady);
+            var restoredJson = JsonSerializer.Deserialize<TenantRestoreSnapshot>(file.Value.Bytes);
+            Assert.NotNull(restoredJson);
+            Assert.Equal(TenantRestoreSnapshot.ArchiveOnlyFormatVersion, restoredJson!.FormatVersion);
+            Assert.Equal("RetainedHistoricalEvidence", Assert.Single(restoredJson.ExcludedLegacyTables!));
+            var contents = await repo.GetContentsAsync(info.Id, CancellationToken.None);
+            Assert.NotNull(contents);
+            Assert.False(contents!.IsRestoreReady);
+            Assert.Equal(2, contents.RowCount);
         }
 
         [Fact]

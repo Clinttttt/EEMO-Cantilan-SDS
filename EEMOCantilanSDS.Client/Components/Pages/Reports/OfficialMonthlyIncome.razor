@@ -117,7 +117,8 @@ else
                     <tr class="omi-section"><th scope="rowgroup" colspan="16">1. Receipts</th></tr>
                 </tbody>
                 }
-                @foreach (var section in SectionList.Where(s => (s.Key == "A") == (pageNumber == 1)))
+                @* A family with no line on this office's sheet (no terminal, no slaughterhouse) is not printed (IA-080). *@
+                @foreach (var section in SectionList.Where(s => (s.Key == "A") == (pageNumber == 1) && GroupsOf(s).Count > 0))
                 {
                     var groups = GroupsOf(section);
                     _letter = 0;
@@ -287,7 +288,11 @@ else
         : _data is null ? [] : [new("A", "Income From Market", OfficialGroups.Select(g => g.Key).ToArray(), _data.MonthTotals, _data.GrandTotal)];
 
     private IReadOnlyList<OfficialMonthlyIncomeGroupDto> GroupsOf(OfficialMonthlyIncomeSectionDto section) =>
-        section.GroupKeys.Select(key => OfficialGroups.FirstOrDefault(g => g.Key == key)).OfType<OfficialMonthlyIncomeGroupDto>().ToList();
+        section.GroupKeys.Select(key => OfficialGroups.FirstOrDefault(g => g.Key == key))
+            .OfType<OfficialMonthlyIncomeGroupDto>()
+            .Select(group => group with { Rows = group.Rows.Where(row => row.ShowOnOfficialReport).ToList() })
+            .Where(group => group.Rows.Count > 0)
+            .ToList();
 
     // Lines are lettered on across the official groups, as on the office sheet (a. Market Fees … r. Fines).
     private string NextLetter()

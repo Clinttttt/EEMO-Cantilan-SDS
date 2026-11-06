@@ -2,11 +2,12 @@
 @inject FacilityState Facilities
 
 <FacilityHero Code="@((Workspace.Source as FacilityRentalSource)?.Code)"
-              Title="@Workspace.DisplayName(Facilities)" Eyebrow="@($"OPERATION · {Workspace.DisplayCode}")"
+              Title="@(TitleOverride ?? Workspace.DisplayName(Facilities))" Eyebrow="@($"OPERATION · {Workspace.DisplayCode}")"
               Scope="@Scope" Icon="@Icon" Stats="Stats" ShowProgress="true" ProgressPercentage="ProgressPercentage" />
 
 @code {
     [Parameter, EditorRequired] public RentalWorkspaceDefinition Workspace { get; set; } = null!;
+    [Parameter] public string? TitleOverride { get; set; }
     [Parameter, EditorRequired] public List<FacilityHero.HeroStat> Stats { get; set; } = [];
     [Parameter, EditorRequired] public string Scope { get; set; } = string.Empty;
     [Parameter] public RenderFragment? Icon { get; set; }

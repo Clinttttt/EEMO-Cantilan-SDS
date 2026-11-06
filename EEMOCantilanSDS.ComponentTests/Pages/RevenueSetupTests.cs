@@ -210,6 +210,112 @@ public sealed class RevenueSetupTests : TestContext
     }
 
     [Fact]
+    public void GuidedSetup_MissingRevenueSource_RequiresHeadApproval_AndUsesCanonicalCode()
+    {
+        var setting = new OperationSetupDto(CollectorOperationCodes.MarketFees, "Carrascal Market Fees", "MARKET",
+            OperationSetupState.SetupRequired, false, false, false, 0, 0, ["No revenue source set up"], 1);
+        var ops = new Mock<IOperationSettingsApiClient>();
+        ops.Setup(x => x.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("Not needed", 500));
+        ops.Setup(x => x.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true, [setting])));
+        Services.AddSingleton(ops.Object);
+
+        var (cut, api) = RenderPage([]);
+        CreateRevenueClassificationCommand? sent = null;
+        api.Setup(x => x.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
+            .Callback<CreateRevenueClassificationCommand>(x => sent = x)
+            .ReturnsAsync(Result<RevenueClassificationDto>.Success(
+                Classification("MARKET_FEES", "Carrascal Market Fees", true, true,
+                    Policy("MARKET_FEES", "Carrascal Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket))));
+
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Review setup for Carrascal Market Fees']"), RenderTimeout);
+        cut.Find("button[aria-label='Review setup for Carrascal Market Fees']").Click();
+        Assert.Contains("What still needs attention", cut.Find("[role='dialog']").TextContent);
+        Assert.Single(cut.FindAll(".rev-receipt-fields #rev-receipt-choice"));
+        Assert.Single(cut.FindAll(".rev-receipt-fields #rev-receipt-effective"));
+        Assert.Single(cut.FindAll(".rev-receipt-attest input[type='checkbox']"));
+        Assert.Contains("This step does not set rates", cut.Find("[role='dialog']").TextContent);
+        Assert.NotNull(cut.Find("button:disabled"));
+        api.Verify(x => x.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
+
+        cut.Find("#rev-receipt-choice").Change("CT");
+        cut.Find("input[type='checkbox']").Change(true);
+        ClickButton(cut, "Confirm receipt policy");
+        cut.WaitForAssertion(() => Assert.NotNull(sent), RenderTimeout);
+        Assert.Equal(("MARKET_FEES", "Carrascal Market Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket),
+            (sent!.SemanticCode, sent.DisplayName, sent.EffectiveDate, sent.PermittedInstrumentType));
+        api.Verify(x => x.AppendPolicyAsync(It.IsAny<Guid>(), It.IsAny<AppendRevenueClassificationPolicyRequest>()), Times.Never);
+        Assert.Contains("remaining collector", cut.Markup);
+    }
+
+    [Fact]
+    public void GuidedSetup_ExistingDormantSource_AppendsItsFirstPolicy_WithoutCreatingAnotherSource()
+    {
+        var sourceId = Guid.NewGuid();
+        var ops = new Mock<IOperationSettingsApiClient>();
+        ops.Setup(x => x.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("Not needed", 500));
+        ops.Setup(x => x.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+        [new("WCF", "Carrascal Water Fees", "MARKET", OperationSetupState.SetupRequired,
+            true, false, false, 0, 0, ["No effective policy (receipt type) yet"], 1)])));
+        Services.AddSingleton(ops.Object);
+
+        var (cut, api) = RenderPage([Classification("WCF", "Water Fees", true, false, null, sourceId)]);
+        AppendRevenueClassificationPolicyRequest? sent = null;
+        api.Setup(x => x.AppendPolicyAsync(sourceId, It.IsAny<AppendRevenueClassificationPolicyRequest>()))
+            .Callback<Guid, AppendRevenueClassificationPolicyRequest>((_, x) => sent = x)
+            .ReturnsAsync(Result<RevenueClassificationPolicyDto>.Success(
+                Policy("WCF", "Carrascal Water Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket)));
+
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Review setup for Carrascal Water Fees']"), RenderTimeout);
+        cut.Find("button[aria-label='Review setup for Carrascal Water Fees']").Click();
+        Assert.Single(cut.FindAll("#rev-receipt-choice option[value='CT']"));
+        Assert.Empty(cut.FindAll("#rev-receipt-choice option[value='OR']"));
+        api.Verify(x => x.AppendPolicyAsync(It.IsAny<Guid>(), It.IsAny<AppendRevenueClassificationPolicyRequest>()), Times.Never);
+        cut.Find("input[type='checkbox']").Change(true);
+        ClickButton(cut, "Confirm receipt policy");
+        cut.WaitForAssertion(() => Assert.NotNull(sent), RenderTimeout);
+        Assert.Equal((PhilippineTime.Today, "Carrascal Water Fees", RevenueInstrumentType.CashTicket),
+            (sent!.EffectiveDate, sent.DisplayName, sent.PermittedInstrumentType));
+        api.Verify(x => x.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
+    }
+
+    [Fact]
+    public void GuidedSetup_RetiredOrExistingScheduledPolicy_OnlyExplainsNextSteps()
+    {
+        var ops = new Mock<IOperationSettingsApiClient>();
+        ops.Setup(x => x.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("Not needed", 500));
+        ops.Setup(x => x.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+        [new("MARKET_FEES", "Retired Fees", "MARKET", OperationSetupState.SetupRequired,
+            true, true, false, 0, 0, ["Its revenue source is retired"], 1)])));
+        Services.AddSingleton(ops.Object);
+        var (cut, api) = RenderPage([Classification("MARKET_FEES", "Retired Fees", false, true, null)]);
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Review setup for Retired Fees']"), RenderTimeout);
+        cut.Find("button[aria-label='Review setup for Retired Fees']").Click();
+        var drawer = cut.Find("[role='dialog']");
+        Assert.Contains("retired policies are preserved", drawer.TextContent);
+        Assert.Empty(drawer.QuerySelectorAll("#rev-receipt-choice"));
+        Assert.Empty(drawer.QuerySelectorAll("button").Where(b => b.TextContent.Contains("Confirm receipt policy")));
+        api.Verify(x => x.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
+    }
+
+    [Fact]
+    public void GuidedSetup_ScheduledPolicyCannotBeReplacedFromTheFirstPolicyDrawer()
+    {
+        var sourceId = Guid.NewGuid();
+        var ops = new Mock<IOperationSettingsApiClient>();
+        ops.Setup(x => x.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("Not needed", 500));
+        ops.Setup(x => x.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+            [new("ECF", "Future Electricity", "MARKET", OperationSetupState.SetupRequired,
+                true, false, false, 0, 0, ["No effective policy (receipt type) yet"], 1)])));
+        Services.AddSingleton(ops.Object);
+        var (cut, api) = RenderPage([Classification("ECF", "Future Electricity", true, true, null, sourceId)]);
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Review setup for Future Electricity']"), RenderTimeout);
+        cut.Find("button[aria-label='Review setup for Future Electricity']").Click();
+        Assert.Empty(cut.FindAll("#rev-receipt-choice"));
+        Assert.Empty(cut.FindAll("button").Where(b => b.TextContent.Contains("Confirm receipt policy")));
+        api.Verify(x => x.AppendPolicyAsync(It.IsAny<Guid>(), It.IsAny<AppendRevenueClassificationPolicyRequest>()), Times.Never);
+    }
+
+    [Fact]
     public void AddingAnOperation_SendsTheLocalNameAndTheViewedVersion_ExplainsItAuthorizesNothing_AndReloads()
     {
         var settings = new Mock<IOperationSettingsApiClient>();
@@ -261,83 +367,6 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Contains("changed by someone else", cut.Find("[role='dialog']").TextContent);
             Assert.NotEmpty(cut.FindAll("section[aria-labelledby='rev-g-available']"));
         }, RenderTimeout);
-    }
-
-    [Fact]
-    public void SettingTheReceiptType_ForAnOperationWithNoSource_CreatesItsSourceWithTheChosenType_AndReloads()
-    {
-        var settings = new Mock<IOperationSettingsApiClient>();
-        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
-        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
-        [
-            new("ECF", "Electricity Fees", "MARKET", OperationSetupState.SetupRequired, false, false, false, 0, 0, ["No revenue source set up"], 3),
-            Setup("MARKET_FEES", "Market Fees", OperationSetupState.Ready),
-        ])));
-        Services.AddSingleton(settings.Object);
-        var (cut, api) = RenderPage([]);
-        CreateRevenueClassificationCommand? sent = null;
-        api.Setup(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
-            .Callback<CreateRevenueClassificationCommand>(c => sent = c)
-            .ReturnsAsync(Result<RevenueClassificationDto>.Success(Classification(RevenueClassificationCodes.Ecf, "Electricity Fees", true, true, null)));
-        cut.WaitForAssertion(() => cut.Find("button[aria-label='Set receipt type for Electricity Fees']"), RenderTimeout);
-        Assert.Empty(cut.FindAll("button[aria-label='Set receipt type for Market Fees']")); // a ready operation already has one
-
-        cut.Find("button[aria-label='Set receipt type for Electricity Fees']").Click();
-        Assert.Contains("does not assign collectors", cut.Find("[role='dialog']").TextContent);
-        ClickButton(cut, "Save receipt type");
-        Assert.Contains("Choose the receipt", cut.Find("[role='dialog']").TextContent); // nothing is assumed
-        api.Verify(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
-
-        ClickButton(cut, "Cash Ticket (CT)");
-        Assert.Equal("true", cut.FindAll("[role='dialog'] button").Single(b => b.TextContent.Contains("Cash Ticket")).GetAttribute("aria-pressed"));
-        ClickButton(cut, "Save receipt type");
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Equal((RevenueClassificationCodes.Ecf, "Electricity Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket),
-                (sent!.SemanticCode, sent.DisplayName, sent.EffectiveDate, sent.PermittedInstrumentType));
-            Assert.Empty(cut.FindAll("[role='dialog']"));
-            Assert.Contains("Electricity Fees uses the Cash Ticket", cut.Markup);
-        }, RenderTimeout);
-        settings.Verify(s => s.GetSetupAsync(), Times.Exactly(2));
-        api.Verify(a => a.AppendPolicyAsync(It.IsAny<Guid>(), It.IsAny<AppendRevenueClassificationPolicyRequest>()), Times.Never);
-    }
-
-    [Fact]
-    public void SettingTheReceiptType_ForASourceWithNoPolicy_AppendsItsFirstPolicy_AndAFailureStaysOpenWithTheReason()
-    {
-        var weightId = Guid.NewGuid();
-        var settings = new Mock<IOperationSettingsApiClient>();
-        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
-        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
-        [
-            Setup(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", OperationSetupState.SetupRequired),
-            Setup(CollectorOperationCodes.MarketFees, "Market Fees", OperationSetupState.SetupRequired),
-        ])));
-        Services.AddSingleton(settings.Object);
-        var (cut, api) = RenderPage(
-        [
-            Classification(RevenueClassificationCodes.WeightAndMeasure, "Weight & Measure", true, false, null, weightId),
-            Classification(RevenueClassificationCodes.MarketFees, "Market Fees", true, true, null), // its policy is scheduled, not missing
-        ]);
-        AppendRevenueClassificationPolicyRequest? sent = null;
-        api.Setup(a => a.AppendPolicyAsync(weightId, It.IsAny<AppendRevenueClassificationPolicyRequest>()))
-            .Callback<Guid, AppendRevenueClassificationPolicyRequest>((_, r) => sent = r)
-            .ReturnsAsync(Result<RevenueClassificationPolicyDto>.Failure("A policy already starts on this date.", 409));
-        cut.WaitForAssertion(() => cut.Find("button[aria-label='Set receipt type for Weight & Measure']"), RenderTimeout);
-        Assert.Empty(cut.FindAll("button[aria-label='Set receipt type for Market Fees']"));
-
-        cut.Find("button[aria-label='Set receipt type for Weight & Measure']").Click();
-        ClickButton(cut, "Official Receipt (OR)");
-        ClickButton(cut, "Save receipt type");
-
-        cut.WaitForAssertion(() =>
-        {
-            Assert.Equal((PhilippineTime.Today, "Weight & Measure", RevenueInstrumentType.OfficialReceipt), (sent!.EffectiveDate, sent.DisplayName, sent.PermittedInstrumentType));
-            Assert.Contains("A policy already starts on this date.", cut.Find("[role='dialog']").TextContent);
-        }, RenderTimeout);
-        api.Verify(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
-        settings.Verify(s => s.GetSetupAsync(), Times.Once); // nothing changed, so nothing reloads
     }
 
     [Fact]

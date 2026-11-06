@@ -47,6 +47,15 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
 
         var rowFacts = facts.GroupBy(x => OfficialMonthlyIncomeStructure.RowKeyFor(x.Code, x.Facility))
             .ToDictionary(g => g.Key, g => g.ToList());
+        // Official row keys are stable for reconciliation and approved report revisions; only the
+        // displayed facility labels are taken from this municipality's own registry.
+        var facilityNames = await db.Facilities.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenantId)
+            .Select(f => new { f.Code, f.Name })
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
+        var activeSources = (await db.RevenueClassifications.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.IsActive)
+            .Select(x => x.SemanticCode).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         var defined = OfficialMonthlyIncomeStructure.Rows.ToDictionary(x => x.Key);
         var pendingExtras = rowFacts.Keys.Where(k => !defined.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal)
             .Select(k => new OfficialMonthlyIncomeStructure.Row(k, k.Replace("OTHER_", string.Empty), OfficialMonthlyIncomeStructure.Pending,
@@ -57,22 +66,38 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             x.MunicipalityId == tenantId && x.Year == request.Year).ToListAsync(ct);
         var currentRevisions = revisions.GroupBy(x => (x.Kind, x.RowKey, x.Month))
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Revision).First());
+        // The sheet's own office is Cantilan by tenant code, not the sign-in default (IsDefault), which a standalone
+        // deployment gives to its only office.
         var office = await OfficeLinesAsync(tenantId, ct);
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
             var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
                 .Concat(pendingExtras.Where(r => r.GroupKey == group.Key))
-                .Select(r => office?.Names.GetValueOrDefault(r.Key) is { } name ? r with { Label = name } : r).ToList();
+                // Keep every official row key for the source-performance register, including zero rows. Another office reads each
+                // line under its own name (IA-080); a facility line it never registered never borrows another municipality's name.
+                .Select(r => office?.Names.GetValueOrDefault(r.Key) is { } name ? r with { Label = name }
+                    : r.Facility is { } facility && facilityNames.TryGetValue(facility, out var tenantName)
+                        ? r with { Label = $"{tenantName} ({facility})" }
+                        : r.Facility is { } fallbackCode
+                            ? r with { Label = $"{fallbackCode} rental (historical)" }
+                            : r)
+                .ToList();
             var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
-                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
-            // Pending rows with no cash are not listed: nothing has been recorded that needs a home. Another office's sheet lists
-            // the lines it holds; a line with money, a target or an adjustment is always kept, so nothing recorded is hidden.
+                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0),
+                // Hide only zero-only, unapproved template entries on a nondefault office's sheet; a line the office holds is shown
+                // (IA-080). The DTO stays in the query response for downstream source-performance reconciliation.
+                office is null || rowFacts.ContainsKey(row.Key)
+                    || currentRevisions.Keys.Any(k => k.RowKey == row.Key)
+                    || office.Held.Contains(row.Key)
+                    || (row.Facility is { } facility && facilityNames.ContainsKey(facility))
+                    || (row.Facility is null && row.ClassificationCode is { } code && activeSources.Contains(code)))).ToList();
+            // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
             if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(Carries).ToList();
-            else if (office is not null) rowDtos = rowDtos.Where(r => office.Held.Contains(r.Key) || Carries(r)).ToList();
             if (rowDtos.Count == 0) continue;
             // Fines alone are not space rental: on another office's sheet that group reads as Others, as Revenue Sources groups it.
-            var groupLabel = office is not null && group.Key == OfficialMonthlyIncomeStructure.Space
-                && rowDtos.All(r => r.ClassificationCode == RevenueClassificationCodes.PenaltiesAndFines) ? "Others" : group.Label;
+            var shown = rowDtos.Where(r => r.ShowOnOfficialReport).ToList();
+            var groupLabel = office is not null && group.Key == OfficialMonthlyIncomeStructure.Space && shown.Count > 0
+                && shown.All(r => r.ClassificationCode == RevenueClassificationCodes.PenaltiesAndFines) ? "Others" : group.Label;
             groups.Add(new(group.Key, groupLabel, rowDtos, SumMonths(rowDtos.Select(r => r.Months)), SumCell(rowDtos.Select(r => r.Total))));
         }
         var monthTotals = SumMonths(groups.Select(g => g.MonthTotals));
@@ -96,7 +121,6 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             ("C", "Income from Slaughterhouse", new[] { OfficialMonthlyIncomeStructure.Slaughterhouse }) })
         {
             var members = groups.Where(g => keys.Contains(g.Key)).ToArray();
-            if (members.Length == 0) continue; // an office without a terminal or slaughterhouse prints no empty family
             sections.Add(new(key, label, keys, SumMonths(members.Select(g => g.MonthTotals)), SumCell(members.Select(g => g.Total))));
         }
         // The facility each recovered Arrears amount came from, for the period read: it reports on one row but its origin stays stated (Rulebook, Arrears).
@@ -123,7 +147,8 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
     }
 
     private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts,
-        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through)
+        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through,
+        bool showOnOfficialReport)
     {
         var months = Enumerable.Range(1, 12).Select(m => new MonthlyIncomeCellDto(
             facts.Where(f => f.Month == m && !f.Canonical).Sum(f => f.Amount),
@@ -136,7 +161,8 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             : total.Canonical != 0m ? "Canonical" : total.Legacy != 0m ? "Legacy" : "None";
         var target = revisions.GetValueOrDefault((OfficialReportRevisionKind.AnnualTarget, row.Key, 0))?.Amount;
         return new(row.Key, row.Label, row.ClassificationCode, months, total, authority, target,
-            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null);
+            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null,
+            showOnOfficialReport);
     }
 
     private static bool Carries(OfficialMonthlyIncomeRowDto row) =>

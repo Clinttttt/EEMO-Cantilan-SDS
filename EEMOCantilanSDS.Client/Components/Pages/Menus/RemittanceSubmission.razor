@@ -196,8 +196,7 @@
         new("Collections", d.CollectionCount.ToString(CultureInfo.InvariantCulture)),
     ];
 
-    private static string StatusLabel(RemittanceDetailDto item) => item.Row.Status == RemittanceStatus.Voided ? "Voided"
-        : item.NeedsReview ? "Needs review" : "Recorded";
+    private static string StatusLabel(RemittanceDetailDto item) => item.Row.Status == RemittanceStatus.Voided ? "Voided" : "Recorded";
 
     private static string PeriodLabel(RemittanceSubmissionDto d) =>
         $"{d.PeriodFrom.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)} – {d.PeriodTo.ToString("MMM d, yyyy", CultureInfo.InvariantCulture)}";
@@ -209,8 +208,7 @@
         _ => "OR and CT"
     };
 
-    private static string SourceLabel(RemittanceCollectionDto collection) => collection.Lines.Count == 0 ? "—"
-        : string.Join(" · ", collection.Lines.Select(l => EEMOCantilanSDS.Client.Services.SourceNames.For(l.Name)));
+    private static string SourceLabel(RemittanceCollectionDto collection) => EEMOCantilanSDS.Client.Services.RemittanceSourceLabel.For(collection);
 
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", CultureInfo.InvariantCulture)}";
 }

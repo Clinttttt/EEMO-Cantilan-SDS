@@ -27,15 +27,25 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
     // one statement of what an LGU's backup consists of, held to the model by TenantBackupCoverageTests.
     private static IReadOnlySet<string> RestorableTables => TenantDataTables.Restorable;
 
-    public async Task<TenantRestoreSnapshot> CreateSnapshotAsync(CancellationToken ct)
+    public Task<TenantRestoreSnapshot> CreateSnapshotAsync(CancellationToken ct) => CaptureAsync(storedBackup: false, ct);
+
+    public Task<TenantRestoreSnapshot> CreateStoredBackupSnapshotAsync(CancellationToken ct) => CaptureAsync(storedBackup: true, ct);
+
+    private async Task<TenantRestoreSnapshot> CaptureAsync(bool storedBackup, CancellationToken ct)
     {
         var mid = context.CurrentMunicipalityId;
-        var schemaState = await schemaReader.ReadAsync(ct);
-        schemaState.RequireRestorable();
+        if (mid == Guid.Empty) throw new InvalidOperationException("A municipality is required to capture a backup.");
+        var before = await schemaReader.ReadAsync(ct);
+        if (!storedBackup) before.RequireRestorable();
         await using var snapshotTransaction = await context.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         await context.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", ct);
-        schemaState = await schemaReader.ReadAsync(ct);
-        schemaState.RequireRestorable();
+        var schemaState = await schemaReader.ReadAsync(ct);
+        if (!storedBackup) schemaState.RequireRestorable();
+        if (schemaState.Fingerprint != before.Fingerprint ||
+            !schemaState.UnmanagedTables.OrderBy(x => x, StringComparer.Ordinal)
+                .SequenceEqual(before.UnmanagedTables.OrderBy(x => x, StringComparer.Ordinal)))
+            throw new InvalidOperationException("The physical schema changed during backup capture.");
+        var archiveOnly = storedBackup && schemaState.UnmanagedTables.Count != 0;
         var order = GetInsertOrder().Where(t => schemaState.Tables.ContainsKey(t.Table)).ToList();
         var tables = new Dictionary<string, string>();
 
@@ -72,13 +82,15 @@ public class TenantRestoreRepository(AppDbContext context, ICurrentUserService c
         }
 
         var snapshot = new TenantRestoreSnapshot(
-            TenantRestoreSnapshot.CurrentFormatVersion,
+            archiveOnly ? TenantRestoreSnapshot.ArchiveOnlyFormatVersion : TenantRestoreSnapshot.CurrentFormatVersion,
             muni?.TenantCode ?? "tenant",
             mid,
             DateTime.UtcNow,
             tables,
-            schemaState.Fingerprint);
-        TenantRestoreValidation.Validate(snapshot, mid, schemaState);
+            schemaState.Fingerprint,
+            archiveOnly ? schemaState.UnmanagedTables.ToArray() : null);
+        if (archiveOnly) TenantRestoreValidation.ValidateArchive(snapshot, mid, schemaState);
+        else TenantRestoreValidation.Validate(snapshot, mid, schemaState);
         await snapshotTransaction.CommitAsync(ct);
         return snapshot;
     }
