@@ -239,6 +239,11 @@ namespace EEMOCantilanSDS.Application.Command.Onboarding.ActivateMunicipality
             // AssessmentRequest appearing active, and a failed activation leaves the request in Activation to retry.
             pipeline.CompleteActivation(currentUser.Username ?? "Operator");
 
+            // A new office's terms may have begun long before it kept records here, so its billing rules begin the month it goes live (IA-075).
+            var wentLive = PhilippineTime.Today;
+            context.BillingPolicyVersions.Add(BillingPolicyVersion.Create(municipality.Id, wentLive, wentLive,
+                BillingPolicy.StallTrackDefaults with { CountsMonthsFrom = new DateOnly(wentLive.Year, wentLive.Month, 1) }, null, currentUser.UserId ?? head.Id, DateTime.UtcNow));
+
             // One SaveChanges => one transaction => all-or-nothing.
             await context.SaveChangesAsync(ct);
 

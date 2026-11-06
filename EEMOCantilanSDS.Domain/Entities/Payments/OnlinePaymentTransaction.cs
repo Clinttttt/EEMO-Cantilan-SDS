@@ -52,6 +52,18 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public string? RawPayload { get; private set; }                   // last gateway payload (jsonb, audit)
         public string? ORNumber { get; private set; }                     // staff-encoded later
 
+        // Only on a capture the system would not apply: what the gateway really took (when it differs from Amount, the figure the
+        // checkout asked for) and why it is waiting for the office.
+        public decimal? CapturedAmount { get; private set; }
+        public string? ReconciliationReason { get; private set; }
+
+        // The Head's decision on that capture. Status stays ReconciliationRequired so the history of why it was held is not rewritten.
+        public OnlinePaymentDisposition? Disposition { get; private set; }
+        public string? DispositionReference { get; private set; }
+        public string? DispositionNote { get; private set; }
+        public string? DispositionBy { get; private set; }
+        public DateTime? DispositionAtUtc { get; private set; }
+
         public PaymentRecord? PaymentRecord { get; private set; }
 
         private OnlinePaymentTransaction() { }
@@ -280,7 +292,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// Preserves a captured payment as a durable exception when its source has entered cutover.
         /// No source settlement is changed; gateway evidence and any issued legacy OR remain traceable.
         /// </summary>
-        public void MarkSettlementReconciliationRequired(string reason, string? issuedDocumentNumber = null)
+        public void MarkSettlementReconciliationRequired(string reason, string? issuedDocumentNumber = null, decimal? capturedAmount = null)
         {
             if (Status != OnlinePaymentStatus.Paid)
                 throw new InvalidOperationException("Only a captured online payment can require settlement reconciliation.");
@@ -291,10 +303,39 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
 
             if (!string.IsNullOrWhiteSpace(issuedDocumentNumber))
                 ORNumber = issuedDocumentNumber.Trim();
+            CapturedAmount = capturedAmount;
+            var trimmed = reason.Trim();
+            ReconciliationReason = trimmed[..Math.Min(500, trimmed.Length)];
             Status = OnlinePaymentStatus.ReconciliationRequired;
             UpdatedAt = DateTime.UtcNow;
             var note = "Reconciliation required: " + reason.Trim();
             UpdatedBy = note[..Math.Min(100, note.Length)];
+        }
+
+        /// <summary>Captured money is waiting for the Head. Unlike <see cref="IsSettled"/>, which only means "do not settle again".</summary>
+        public bool IsAwaitingOfficeDecision => Status == OnlinePaymentStatus.ReconciliationRequired && Disposition is null;
+
+        /// <summary>Records the Head's decision once. It moves no money, and a second decision on the same capture is refused.</summary>
+        public void RecordOfficeDecision(OnlinePaymentDisposition disposition, string reference, string? note, string actor, DateTime nowUtc)
+        {
+            if (!IsAwaitingOfficeDecision)
+                throw new InvalidOperationException("Only a captured payment still awaiting the office's decision can be resolved.");
+            if (!Enum.IsDefined(disposition))
+                throw new ArgumentOutOfRangeException(nameof(disposition));
+            if (string.IsNullOrWhiteSpace(reference) || reference.Trim().Length > 100)
+                throw new ArgumentException("A reference of up to 100 characters is required.", nameof(reference));
+            if (note is { Length: > 500 })
+                throw new ArgumentException("The note must not exceed 500 characters.", nameof(note));
+            if (string.IsNullOrWhiteSpace(actor))
+                throw new ArgumentException("The deciding user is required.", nameof(actor));
+
+            Disposition = disposition;
+            DispositionReference = reference.Trim();
+            DispositionNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+            DispositionBy = actor[..Math.Min(100, actor.Length)];
+            DispositionAtUtc = nowUtc;
+            UpdatedAt = nowUtc;
+            UpdatedBy = DispositionBy;
         }
 
         public void MarkFailed(string rawPayload) => SetTerminal(OnlinePaymentStatus.Failed, rawPayload);

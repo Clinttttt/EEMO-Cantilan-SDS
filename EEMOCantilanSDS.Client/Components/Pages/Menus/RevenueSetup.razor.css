@@ -175,3 +175,7 @@
 .rev-notice { margin: 0 0 12px; }
 .rev-status.is-neutral { color: var(--text-secondary); border-color: var(--border); background: var(--surface-muted); }
 .rev-add-dialog { width: min(100%, 30rem); }
+.rev-choice { display: grid; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
+/* Reads as the field labels beside it (.v3-field > span). */
+.rev-choice legend { padding: 0; margin-bottom: 6px; color: var(--text-secondary); font-size: 0.75rem; font-weight: 600; }
+.rev-choice .v3-btn-group { justify-self: start; max-width: 100%; }

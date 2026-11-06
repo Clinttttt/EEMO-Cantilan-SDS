@@ -75,6 +75,7 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
             .AsNoTracking()
             .Where(p => p.CollectorId == collectorId
                      && p.Status != PaymentStatus.Unpaid
+                     && !p.Instalments.Any(i => i.Amount > 0m)
                      && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc
                      && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
             .Select(p => new
@@ -111,6 +112,38 @@ public class CollectorReportQueries(AppDbContext context) : ICollectorReportQuer
                 CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, npmFishRate),
                 null,
                 new DateOnly(p.BillingYear, p.BillingMonth, 1)));
+        }
+
+        // A month paid in more than one receipt: each receipt this collector took, with its own OR and date (IA-081).
+        var receipted = await context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.Status != PaymentStatus.Unpaid
+                     && p.Instalments.Any(i => i.Amount > 0m && i.CollectorId == collectorId && i.ReceivedAt >= startUtc && i.ReceivedAt < endUtc))
+            .Select(p => new
+            {
+                p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos, p.BillingYear, p.BillingMonth, p.SettlementAuthorityState,
+                p.Stall!.StallNo, Code = p.Stall.Facility!.Code,
+                Contracts = p.Stall.Contracts.Select(c => new { c.ActualOccupant, c.NameOnContract, c.EffectivityDate }).ToList(),
+                Receipts = p.Instalments.OrderBy(i => i.ReceivedAt).Select(i => new { i.ReceivedAt, i.Amount, i.ORNumber, i.CollectorId }).ToList()
+            })
+            .ToListAsync(ct);
+
+        foreach (var p in receipted)
+        {
+            if (!CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.PaymentRecord, p.SettlementAuthorityState))
+                continue;
+            var payor = p.Contracts
+                .OrderByDescending(c => c.EffectivityDate)
+                .Select(c => string.IsNullOrWhiteSpace(c.ActualOccupant) ? c.NameOnContract : c.ActualOccupant)
+                .FirstOrDefault(n => !string.IsNullOrWhiteSpace(n)) ?? "No active occupant";
+            var portion = CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, npmFishRate);
+            foreach (var (receipt, receiptRent, receiptWeighing) in CollectorFeeMoney.PlaceReceipts(portion, p.BaseRentalAmount, p.Receipts.Select(r => (r, r.Amount))))
+            {
+                if (receipt.CollectorId != collectorId || receipt.ReceivedAt < startUtc || receipt.ReceivedAt >= endUtc) continue;
+                lines.Add(new CollectorCollectionLine(
+                    receipt.ORNumber, receipt.ReceivedAt, payor!, p.StallNo, p.Code, "Stall Rental", receiptRent + receiptWeighing, null,
+                    new DateOnly(p.BillingYear, p.BillingMonth, 1)));
+            }
         }
 
         // ── Canonical rent this collector took: the authoritative record of a converted rent row (IA-050) ──

@@ -55,7 +55,7 @@
 .me-picker-month:hover { background: var(--bg-icon); }
 .me-picker-month.current { border-color: var(--accent); color: var(--accent); }
 .me-picker-month.selected, .me-picker-month.selected:hover {
-    background: var(--accent); color: #fff; border-color: transparent;
+    background: var(--dark-accent-fill, var(--accent)); color: #fff; border-color: transparent;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .16);
 }
 .me-picker-foot { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; text-align: center; }
@@ -64,11 +64,11 @@
 
 .me-print-btn {
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--accent); color: #fff; border: none; border-radius: 9px;
+    background: var(--dark-accent-fill, var(--accent)); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 .me-print-btn { min-height: 38px; }
-.me-print-btn:hover { background: var(--accent-hover); }
+.me-print-btn:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
 .me-print-btn:disabled { opacity: .5; cursor: default; }
 .me-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -106,7 +106,7 @@
 
 .me-state { padding: 40px; text-align: center; color: var(--text-subtle); font-size: 14px; }
 .me-state-error { color: var(--red); }
-.me-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.me-retry { margin-left: 10px; background: var(--dark-accent-fill, var(--accent)); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
 
 .me-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
 
@@ -156,7 +156,7 @@
 
 .me-status { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .2px; }
 .me-paid { color: var(--green); }
-.me-partial { color: #8a6d1b; }
+.me-partial { color: var(--dark-amber-text, #8a6d1b); }
 .me-unpaid { color: var(--red); }
 
 .me-fac-note { font-size: 12.5px; color: var(--text-subtle); padding: 10px 12px; background: var(--bg); border-radius: 9px; }

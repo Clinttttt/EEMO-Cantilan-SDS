@@ -28,11 +28,7 @@ public sealed class OnlinePaymentSettlementService(
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
         var outcome = await canonicalRent!.PostAsync(transaction, record, ct);
         if (outcome.RejectionReason is { } reason)
-        {
-            transaction.MarkSettlementReconciliationRequired(reason);
-            await unitOfWork.SaveChangesAsync(ct);
-            return Result<bool>.Failure("RECONCILIATION_REQUIRED: " + reason, ResultStatus.Conflict);
-        }
+            return await HoldCaptureForReconciliationAsync(transaction, reason, ct);
 
         if (outcome.AlreadyPosted)
             return Result<bool>.Success(true);
@@ -67,9 +63,11 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.IsSettled)
             return Result<bool>.Success(true);
 
-        // Amount integrity — never settle on a mismatch.
+        // Amount integrity — never settle on a mismatch, and never lose the money either: the gateway has already taken it.
         if (Math.Round(evt.Amount, 2) != Math.Round(transaction.Amount, 2))
-            return Result<bool>.Failure("Payment amount does not match the initiated amount.", ResultStatus.Conflict);
+            return await PreserveCaptureForReconciliationAsync(transaction, evt,
+                $"The gateway captured {evt.Amount:0.00} but the checkout asked for {transaction.Amount:0.00}. Nothing was applied.",
+                cancellationToken, capturedAmount: evt.Amount);
 
         // A pre-cutover checkout may still callback. Do not mark it settled or project it into day rows.
         if (monthly is not null && transaction.TargetKind is OnlinePaymentTargetKind.NpmDailyMonth
@@ -85,7 +83,8 @@ public sealed class OnlinePaymentSettlementService(
             monthlyRecord = transaction.PaymentRecordId is { } recordId
                 ? await paymentRepository.GetByIdAsync(recordId, cancellationToken) : null;
             if (monthlyRecord is null || monthlyRecord.MunicipalityId != transaction.MunicipalityId)
-                return Result<bool>.Failure("Linked monthly source not found in this municipality.", ResultStatus.Conflict);
+                return await PreserveCaptureForReconciliationAsync(transaction, evt,
+                    "The linked monthly record was not found in this municipality. Nothing was applied.", cancellationToken);
             // ST-17: a Canonical row gets exactly one canonical Collection/SRC. Transitioning rows stay parked.
             if (monthlyRecord.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
                 return await SettleCanonicalRentAsync(transaction, evt, monthlyRecord, cancellationToken);
@@ -118,27 +117,23 @@ public sealed class OnlinePaymentSettlementService(
 
         var record = monthlyRecord;
         if (record is null)
-            return Result<bool>.Failure("Linked payment record not found.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "The payment has no monthly record to settle. Nothing was applied.", cancellationToken);
 
-        // Cross-channel safety: between initiation and now, this period may already have been settled by
-        // another channel (an offline collection, or a duplicate online transaction). The gateway has
-        // still captured the payor's money, so we RECORD this transaction as Paid (above) for audit and
-        // refund — but we must NOT overwrite the record's existing Paid status, OR number, or collector
-        // attribution. Only clear the balance when the period is still outstanding (the normal case).
-        if (record.Status != PaymentStatus.Paid)
-        {
-            var note = $"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}";
-            // Bill-changed-mid-checkout guard: the captured amount was frozen when the payor opened checkout.
-            // If the balance has since grown (e.g. staff added a utility charge), the captured amount no
-            // longer covers it — record it as PARTIAL for what was actually received rather than clearing
-            // the full (larger) balance. Only for a still-Unpaid record; every other case is unchanged.
-            if (record.Status == PaymentStatus.Unpaid && transaction.Amount < record.BalanceDue)
-                record.MarkPartiallyPaidOnline(transaction.Amount, note + " · partial (balance increased after checkout)");
-            else
-                record.MarkPaidOnline(note);
+        // Between initiation and now the row may have moved. A capture that no longer fits it goes to the office with the row untouched.
+        if (WhyTheCaptureDoesNotFit(record, transaction.Amount) is { } conflict)
+            return await HoldCaptureForReconciliationAsync(transaction, conflict, cancellationToken);
 
-            await paymentRepository.UpdateAsync(record, cancellationToken);
-        }
+        var note = $"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}";
+        // Bill-changed-mid-checkout guard: the captured amount was frozen when the payor opened checkout.
+        // If the balance has since grown (e.g. staff added a utility charge), the captured amount no
+        // longer covers it — record it as PARTIAL for what was actually received rather than clearing
+        // the full (larger) balance.
+        if (transaction.Amount < record.BalanceDue)
+            record.MarkPartiallyPaidOnline(transaction.Amount, note + " · partial (balance increased after checkout)");
+        else
+            record.MarkPaidOnline(note);
+
+        await paymentRepository.UpdateAsync(record, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
         // The financial write has committed. Cache invalidation is independent of push delivery;
@@ -171,11 +166,36 @@ public sealed class OnlinePaymentSettlementService(
         return Result<bool>.Success(true);
     }
 
+    /// <summary>
+    /// A legacy monthly row absorbs only an exact settlement of what it still owes, or less than an Unpaid balance. Anything else would erase an
+    /// issued OR or collector (MarkPaidOnline clears both), clear money nobody paid, forget an earlier part, or make an excess vanish.
+    /// </summary>
+    private static string? WhyTheCaptureDoesNotFit(PaymentRecord record, decimal captured)
+    {
+        if (record.Status == PaymentStatus.Paid)
+            return "This period was already settled through another channel when the capture arrived. The original receipt was kept.";
+        if (record.Status == PaymentStatus.Partial && (!string.IsNullOrWhiteSpace(record.ORNumber) || record.CollectorId is not null))
+            return "Part of this period was already collected and receipted. That evidence was kept and nothing was applied.";
+        if (record.Status == PaymentStatus.Partial && captured != record.BalanceDue)
+            return $"The capture of {captured:0.00} does not equal the {record.BalanceDue:0.00} still owed on this part-paid period. Nothing was applied.";
+        if (captured > record.BalanceDue)
+            return $"The capture of {captured:0.00} is more than the {record.BalanceDue:0.00} now owed on this period. Nothing was applied.";
+        return null;
+    }
+
     private async Task<Result<bool>> PreserveCaptureForReconciliationAsync(
-        OnlinePaymentTransaction transaction, PaymentGatewayEvent evt, string reason, CancellationToken ct)
+        OnlinePaymentTransaction transaction, PaymentGatewayEvent evt, string reason, CancellationToken ct, decimal? capturedAmount = null)
     {
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
-        transaction.MarkSettlementReconciliationRequired(reason);
+        return await HoldCaptureForReconciliationAsync(transaction, reason, ct, capturedAmount);
+    }
+
+    // The caller has already recorded the capture on the transaction. Saving here is the point: returning a failure with nothing saved
+    // left captured money looking unpaid, with only a provider retry between it and being forgotten.
+    private async Task<Result<bool>> HoldCaptureForReconciliationAsync(
+        OnlinePaymentTransaction transaction, string reason, CancellationToken ct, decimal? capturedAmount = null)
+    {
+        transaction.MarkSettlementReconciliationRequired(reason, capturedAmount: capturedAmount);
         await unitOfWork.SaveChangesAsync(ct);
         return Result<bool>.Failure("RECONCILIATION_REQUIRED: " + reason, ResultStatus.Conflict);
     }
@@ -186,11 +206,11 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "This market payment is missing its target stall or month. Nothing was applied.", cancellationToken);
 
         var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
         if (stall is null)
-            return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "The linked stall was not found. Nothing was applied.", cancellationToken);
 
         if (wholeMonth)
             await npmMonthSettlementService.SettleWholeMonthAsync(
@@ -231,15 +251,15 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM fish-days online payment is missing its target stall/month.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "This fish-days payment is missing its target stall or month. Nothing was applied.", cancellationToken);
 
         var declarations = transaction.FishDays();
         if (declarations.Count == 0)
-            return Result<bool>.Failure("NPM fish-days online payment is missing its days.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "This fish-days payment is missing its days. Nothing was applied.", cancellationToken);
 
         var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
         if (stall is null)
-            return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "The linked stall was not found. Nothing was applied.", cancellationToken);
 
         var daysInMonth = DateTime.DaysInMonth(year, month);
         foreach (var declaration in declarations)
@@ -285,11 +305,11 @@ public sealed class OnlinePaymentSettlementService(
         if (transaction.TargetStallId is not { } stallId
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month)
-            return Result<bool>.Failure("NPM online payment is missing its target stall/month.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "This utility payment is missing its target stall or month. Nothing was applied.", cancellationToken);
 
         var bill = await utilityBillRepository.GetByStallAndMonthAsync(stallId, year, month, cancellationToken);
         if (bill is null)
-            return Result<bool>.Failure("Linked utility bill not found.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "The linked utility bill was not found. Nothing was applied.", cancellationToken);
 
         // The legacy online checkout is one combined ECF/WCF settlement with an OR bridge. It cannot
         // safely settle either part once a scoped source cutover begins. The gateway has captured the
@@ -373,11 +393,11 @@ public sealed class OnlinePaymentSettlementService(
             || transaction.TargetYear is not { } year
             || transaction.TargetMonth is not { } month
             || transaction.TargetDay is not { } day)
-            return Result<bool>.Failure("NPM fish-day online payment is missing its target stall/day.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "This fish-day payment is missing its target stall or day. Nothing was applied.", cancellationToken);
 
         var stall = await stallRepository.GetByIdAsync(stallId, cancellationToken);
         if (stall is null)
-            return Result<bool>.Failure("Linked stall not found.", ResultStatus.Failed);
+            return await HoldCaptureForReconciliationAsync(transaction, "The linked stall was not found. Nothing was applied.", cancellationToken);
 
         var date = new DateOnly(year, month, day);
         await npmMonthSettlementService.SettleFishDayAsync(

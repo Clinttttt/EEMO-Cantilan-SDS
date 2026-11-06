@@ -63,7 +63,7 @@
     width: 56px;
     height: 56px;
     border-radius: 13px;
-    background: rgba(13, 33, 55, .06);
+    background: var(--dark-tint, rgba(13, 33, 55, .06));
     border: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -150,7 +150,7 @@
 }
 
 .btn-outline {
-    background: #fff;
+    background: var(--dark-surface, #fff);
     color: var(--navy);
     border-color: var(--border);
 }
@@ -173,7 +173,7 @@
 .btn-primary {
     /* Navy, the colour every other primary action in the portal uses. Gold was chosen against the navy hero this card
        replaced; on a light hero it read as a warning rather than as the page's main action. */
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: #fff;
     border-color: var(--navy);
     font-weight: 700;
@@ -181,7 +181,7 @@
 
     .btn-primary:hover {
         background: #16324f;
-        border-color: #16324f;
+        border-color: var(--dark-border-strong, #16324f);
     }
 
     .btn-primary svg {
@@ -215,8 +215,8 @@
 }
 
 .pill-partial {
-    background: #fff8e1;
-    color: #7a5c00;
+    background: var(--dark-amber-tint, #fff8e1);
+    color: var(--dark-text, #7a5c00);
 }
 
 .pill-active {
@@ -341,7 +341,7 @@
     }
 
     .prof-field-val.text-warn {
-        color: #a06010;
+        color: var(--dark-amber-text, #a06010);
     }
 
 .prof-no-contract {
@@ -356,8 +356,8 @@
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 20px;
-    background: #fff3cd;
-    color: #856404;
+    background: var(--dark-amber-tint, #fff3cd);
+    color: var(--dark-text, #856404);
     border: 1px solid #ffc107;
 }
 
@@ -455,11 +455,11 @@
     }
 
 .month-partial .prof-month-icon {
-    background: #fff8e1;
+    background: var(--dark-amber-tint, #fff8e1);
 }
 
     .month-partial .prof-month-icon svg {
-        stroke: #b07d2b;
+        stroke: var(--dark-amber-text, #b07d2b);
     }
 
 .month-unpaid .prof-month-icon {
@@ -477,7 +477,7 @@
 }
 
 .month-partial .prof-month-label {
-    color: #7a5500;
+    color: var(--dark-text, #7a5500);
 }
 
 .month-unpaid .prof-month-label {
@@ -517,13 +517,13 @@
 }
 
 .hist-partial {
-    background: #fff8e1;
+    background: var(--dark-amber-tint, #fff8e1);
     border-color: #b07d2b;
 }
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-absent {
@@ -533,8 +533,8 @@
 
 .hist-na,
 .hist-future {
-    background: #f5f7f9;
-    border-color: #dde4ea;
+    background: var(--dark-surface-muted, #f5f7f9);
+    border-color: var(--dark-border, #dde4ea);
     opacity: 0.6;
 }
 
@@ -566,7 +566,7 @@
 }
 
 .hist-partial .prof-hist-icon {
-    color: #b07d2b;
+    color: var(--dark-amber-text, #b07d2b);
 }
 
 .hist-unpaid .prof-hist-icon {
@@ -723,8 +723,8 @@
 
 .pay-opt-partial {
     border-color: #b07d2b;
-    background: #fffbea;
-    color: #7a5500;
+    background: var(--dark-amber-tint, #fffbea);
+    color: var(--dark-text, #7a5500);
 }
 
 .pay-opt-unpaid {
@@ -887,7 +887,7 @@
 
 .partial-hint {
     font-size: 11px;
-    color: #b87333;
+    color: var(--dark-amber-text, #b87333);
     margin-top: 6px;
     font-weight: 500;
 }
@@ -1011,7 +1011,7 @@
 }
 
     .ph-year-cell:hover { background: var(--border); }
-    .ph-year-cell.active { background: var(--navy); color: #fff; }
+    .ph-year-cell.active { background: var(--dark-navy-fill, var(--navy)); color: #fff; }
 
 .ph-year-current {
     width: 100%;
@@ -1035,7 +1035,7 @@
 .ph-heat-dow { display: grid; grid-template-rows: repeat(7, 11px); gap: 3px; width: 24px; }
 .ph-heat-dow span { font-size: 11px; line-height: 11px; color: var(--text-muted); }
 .ph-heat-grid { display: grid; grid-template-rows: repeat(7, 11px); grid-auto-flow: column; grid-auto-columns: 11px; gap: 3px; }
-.ph-cell { width: 11px; height: 11px; border-radius: 2px; background: #eceff3; display: inline-block; position: relative; }
+.ph-cell { width: 11px; height: 11px; border-radius: 2px; background: var(--dark-surface-sunken, #eceff3); display: inline-block; position: relative; }
 
 /* GitHub-style hover tooltip — right-anchored so recent (right-side) cells never clip */
 .ph-cell[data-tip]:hover::after {
@@ -1057,8 +1057,8 @@
 }
 .ph-collected { background: #2d7a5f; }
 .ph-excused { background: #c8a84b; }
-.ph-missed { background: #ecc4c4; }
-.ph-none { background: #eceff3; }
+.ph-missed { background: var(--dark-red-tint, #ecc4c4); }
+.ph-none { background: var(--dark-surface-sunken, #eceff3); }
 .ph-future { background: transparent; box-shadow: inset 0 0 0 1px var(--border); }
 .ph-heat-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; padding: 0 18px 4px; font-size: 11px; color: var(--text-subtle); }
 .ph-legend-item { display: inline-flex; align-items: center; gap: 6px; }
@@ -1107,7 +1107,7 @@
     text-transform: uppercase;
     color: var(--text-subtle);
     padding: 10px 14px;
-    background: rgba(13, 33, 55, 0.03);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.03));
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
 }
@@ -1124,7 +1124,7 @@
 }
 
 .prof-ch-table tbody tr:hover td {
-    background: rgba(13, 33, 55, 0.02);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.02));
 }
 
 .prof-ch-r {
@@ -1154,8 +1154,8 @@
 }
 
 .prof-ch-partial {
-    background: #fdf6e3;
-    color: #9a7b1f;
+    background: var(--dark-amber-tint, #fdf6e3);
+    color: var(--dark-amber-text, #9a7b1f);
 }
 
 .prof-ch-unpaid {
@@ -1184,7 +1184,7 @@
 }
 
 .prof-ch-more:hover:not(:disabled) {
-    background: #e6ebf1;
+    background: var(--dark-surface-sunken, #e6ebf1);
     border-color: var(--text-muted);
 }
 
@@ -1220,7 +1220,7 @@
 .skel {
     position: relative;
     overflow: hidden;
-    background: #e8edf2;
+    background: var(--dark-surface-sunken, #e8edf2);
     border-radius: 6px;
 }
 
@@ -1229,7 +1229,7 @@
         position: absolute;
         inset: 0;
         transform: translateX(-100%);
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent);
+        background: linear-gradient(90deg, transparent, var(--dark-surface-muted, rgba(255, 255, 255, 0.65)), transparent);
         animation: skel-shimmer 1.25s infinite;
     }
 
@@ -1246,13 +1246,13 @@
 /* The hero's placeholders are dark-on-light, like every other skeleton on the page. They were white-on-navy for the
    navy hero; left as they were against the light card they would have been invisible, so the page would have appeared
    to load with an empty hero rather than a loading one. */
-.skel-hero-badge { width: 56px; height: 56px; border-radius: 13px; background: rgba(13, 33, 55, 0.10); flex-shrink: 0; }
+.skel-hero-badge { width: 56px; height: 56px; border-radius: 13px; background: var(--dark-tint, rgba(13, 33, 55, 0.10)); flex-shrink: 0; }
 
     .prof-hero-skel .skel::after {
-        background: linear-gradient(90deg, transparent, rgba(13, 33, 55, 0.10), transparent);
+        background: linear-gradient(90deg, transparent, var(--dark-tint, rgba(13, 33, 55, 0.10)), transparent);
     }
 
-.prof-hero-skel .skel-line { background: rgba(13, 33, 55, 0.09); }
+.prof-hero-skel .skel-line { background: var(--dark-tint, rgba(13, 33, 55, 0.09)); }
 
 .skel-field { display: flex; align-items: center; justify-content: space-between; }
 
@@ -1406,7 +1406,7 @@
     font-size: 11px;
     font-weight: 600;
     color: var(--text-primary);
-    background: #fff;
+    background: var(--dark-surface, #fff);
     border: 1px solid var(--border);
     border-radius: 6px;
     cursor: pointer;
@@ -1458,12 +1458,12 @@
 
 .btn-primary {
     border-color: var(--accent);
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
     .btn-primary:hover {
         border-color: var(--accent-hover);
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
     }
 
 .btn-outline:focus-visible,
@@ -1473,6 +1473,76 @@
 }
 
 .ph-year-cell.active {
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
+}
+
+/* Statement of Account: one column of figures, the total under a stronger rule. */
+.prof-stmt-asof {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.prof-stmt {
+    margin: 0;
+    padding: 4px 18px 8px;
+}
+
+.prof-stmt-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 8px 0;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text);
+}
+
+    .prof-stmt-row:first-child {
+        border-top: 0;
+    }
+
+    .prof-stmt-row dd {
+        margin: 0;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+
+    .prof-stmt-row.part {
+        padding: 0 0 8px 16px;
+        border-top: 0;
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+        .prof-stmt-row.part dd {
+            font-weight: 400;
+        }
+
+    .prof-stmt-row.total {
+        border-top: 1px solid var(--border-strong);
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--navy);
+    }
+
+        .prof-stmt-row.total dd {
+            font-weight: 700;
+        }
+
+.prof-stmt-failed {
+    margin: 0;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.prof-stmt-note {
+    margin: 0;
+    padding: 12px 18px 14px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-muted);
 }

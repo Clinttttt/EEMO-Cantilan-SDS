@@ -139,6 +139,9 @@ public class PageNotFoundTests : TestContext
         // No Blazor script: the page has nothing that changes and its only control is a link, so it must not depend on a circuit
         // connecting - which is also why the way back is an anchor.
         Assert.DoesNotContain("blazor.web.js", markup);
+
+        // This document skips App.razor's head script, so it reads the saved light or dark choice itself.
+        Assert.Contains("st-theme", markup);
     }
 
     [Fact]

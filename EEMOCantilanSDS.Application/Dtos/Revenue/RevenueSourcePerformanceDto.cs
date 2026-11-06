@@ -57,4 +57,5 @@ public sealed record RevenueSourcePerformanceDto(
     decimal TotalCollected,
     IReadOnlyList<string> Notes,
     DateTime GeneratedAtUtc,
-    TargetCoverageDto? TargetCoverage = null);
+    TargetCoverageDto? TargetCoverage = null,
+    IReadOnlyList<RecoveredArrearsDto>? RecoveredArrears = null);

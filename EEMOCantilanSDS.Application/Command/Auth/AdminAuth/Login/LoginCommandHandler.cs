@@ -170,6 +170,7 @@ public class LoginCommandHandler(IAuthRepository authRepository, IMunicipalityRe
         }
 
         // CreateTokenResponse persists the reset login state together with the new refresh token.
+        user.RecordSessionIssued(clock.UtcNow);
         return Result<TokenResponseDto>.Success(await tokenService.CreateTokenResponse(user));
     }
 

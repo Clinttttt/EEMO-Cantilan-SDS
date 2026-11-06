@@ -650,6 +650,12 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         var w = await SeedAsync("rsp");
         await PostAsync(w, 0, CollectorOperationCodes.LandingBerthing, 50m);
         await PostAsync(w, 1, CollectorOperationCodes.MarketFees, 30m);
+        await using (var setup = db.CreateContext(w.Tenant.Id))
+        {
+            // An operation the office lists but has not collected yet.
+            setup.Add(TenantOperationSetting.Create(CollectorOperationCodes.TransferLargeCattle, true, null, "Onboarding", w.Tenant.Id, "test"));
+            await setup.SaveChangesAsync();
+        }
 
         await using var ctx = db.CreateContext(w.Tenant.Id);
         var head = new Caller(w.HeadId, w.Tenant.Id, "Admin");
@@ -667,10 +673,9 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
         Assert.Null(landing.Facility);
         Assert.Equal(30m, month.Rows.Single(r => r.Key == "MARKET_FEES").Collected);
 
-        // Every source the statement knows is listed, facility or not, and an empty source states nothing, not a rate.
-        foreach (var key in new[] { "ECF", "WCF", "TABO", "WEIGHT_AND_MEASURE", "TRANSFER_LARGE_CATTLE", "ICE_PLANT", "RENT_NPM",
-                     "RENT_NCC", "RENT_TCC", "VEGETABLE_FRUIT_SPACE_RENTAL", "KANMANGGAY_SPACE_RENTAL", "FIESTA_ARAW_LOT_RENTAL", "PENALTIES_AND_FINES", "ARREARS" })
-            Assert.Contains(month.Rows, r => r.Key == key);
+        // IA-080: every line the office holds is listed, facility or not, and nothing it does not hold; an empty line states
+        // nothing, not a rate.
+        Assert.Equal(["LANDING_BERTHING", "MARKET_FEES", "TRANSFER_LARGE_CATTLE"], month.Rows.Select(r => r.Key).Order().ToArray());
         Assert.Equal("Nothing recorded", month.Rows.Single(r => r.Key == "TRANSFER_LARGE_CATTLE").Status);
 
         // The register's total is the statement's total for the month; the statement's year total is its months added up.

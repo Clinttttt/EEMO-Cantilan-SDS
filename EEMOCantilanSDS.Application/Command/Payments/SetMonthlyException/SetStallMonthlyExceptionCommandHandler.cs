@@ -12,6 +12,7 @@ namespace EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
 public class SetStallMonthlyExceptionCommandHandler(
     IStallMonthlyExceptionRepository exceptionRepository,
     IStallRepository stallRepository,
+    IPaymentRepository paymentRepository,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
@@ -32,6 +33,11 @@ public class SetStallMonthlyExceptionCommandHandler(
         if (stall.Facility?.Code is not { } code || !MonthlyFacilities.Contains(code))
             return Result<bool>.Failure(
                 "Monthly exceptions apply to monthly-rental facilities (TCC / NCC / BBQ / ICE) only.", ResultStatus.Invalid);
+
+        // A receipted month cannot also read as nothing owed: the bill would drop while the money stays reported (IA-079).
+        var payment = await paymentRepository.GetPaymentRecordAsync(request.StallId, request.Year, request.Month, ct);
+        if (payment?.Status is PaymentStatus.Paid or PaymentStatus.Partial)
+            return Result<bool>.Failure("This month has a recorded payment. Correct the payment first, then excuse the month.", ResultStatus.Invalid);
 
         var recordedBy = currentUser.Username ?? "Admin";
         var existing = await exceptionRepository.GetAsync(request.StallId, request.Year, request.Month, ct);

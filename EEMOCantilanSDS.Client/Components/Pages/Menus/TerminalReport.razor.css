@@ -39,8 +39,8 @@
 }
 
 .tmr-bar::-webkit-progress-bar { background: var(--surface-muted); border-radius: 999px; }
-.tmr-bar::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
-.tmr-bar::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+.tmr-bar::-webkit-progress-value { background: var(--dark-accent-fill, var(--accent)); border-radius: 999px; }
+.tmr-bar::-moz-progress-bar { background: var(--dark-accent-fill, var(--accent)); border-radius: 999px; }
 
 .tmr-card-facts {
     display: grid;

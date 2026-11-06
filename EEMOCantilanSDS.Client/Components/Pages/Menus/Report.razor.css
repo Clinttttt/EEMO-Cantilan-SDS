@@ -23,7 +23,7 @@
     flex-wrap: wrap;
     gap: 14px;
     padding: 18px 20px 16px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     border-bottom: 1px solid var(--border);
     border-top-left-radius: 16px;
     border-top-right-radius: 16px;
@@ -127,7 +127,7 @@
 }
 
     .rfp-select:hover {
-        border-color: #aab6c4;
+        border-color: var(--dark-border, #aab6c4);
     }
 
     .rfp-select:focus {
@@ -230,7 +230,7 @@
     padding: 0 14px;
     border-radius: 9px;
     border: none;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     font-size: 12.5px;
     font-weight: 600;
@@ -247,7 +247,7 @@
     }
 
     .rpt-btn-excel:hover {
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
     }
 
 /* ── Divider ── */
@@ -263,7 +263,7 @@
     justify-content: space-between;
     gap: 14px;
     padding: 12px 20px;
-    background: #f8fafb;
+    background: var(--dark-surface-muted, #f8fafb);
     flex-wrap: wrap;
     border-bottom-left-radius: 16px;
     border-bottom-right-radius: 16px;
@@ -340,7 +340,7 @@
     font-size: 11px;
     font-weight: 700;
     letter-spacing: .4px;
-    background: #eef2f6;
+    background: var(--dark-surface-sunken, #eef2f6);
     color: var(--navy);
     border-radius: 4px;
     padding: 1px 5px;
@@ -477,7 +477,7 @@
     padding: 12px 14px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     box-shadow: 0 8px 24px rgba(15, 35, 65, .12);
     font-size: 12.5px;
     font-weight: 400;
@@ -663,7 +663,7 @@
     }
 
     .bar.collected {
-        background: var(--accent);
+        background: var(--dark-accent-fill, var(--accent));
         z-index: 1;
     }
     .bar.collected::before { background: #2e4d6e; }
@@ -678,10 +678,10 @@
 
     /* Current-period unpaid sits "in front" so the side faces layer cleanly */
     .bar.unpaid {
-        background: linear-gradient(180deg, #e7edf2 0%, #d3dbe3 100%);
+        background: linear-gradient(180deg, var(--dark-surface-sunken, #e7edf2) 0%, var(--dark-blue-tint, #d3dbe3) 100%);
         z-index: 2;
     }
-    .bar.unpaid::before { background: #f1f5f8; }
+    .bar.unpaid::before { background: var(--dark-surface-muted, #f1f5f8); }
     .bar.unpaid::after  { background: #b9c4ce; }
 
 .bar-month {
@@ -761,13 +761,13 @@
         letter-spacing: .7px;
         text-transform: uppercase;
         color: var(--text-subtle);
-        background: #f8fafb;
+        background: var(--dark-surface-muted, #f8fafb);
         border-bottom: 1px solid var(--border);
     }
 
     .fac-table td {
         padding: 13px 22px;
-        border-bottom: 1px solid #f0f4f8;
+        border-bottom: 1px solid var(--dark-border, #f0f4f8);
         vertical-align: middle;
     }
 
@@ -776,7 +776,7 @@
     }
 
     .fac-table tr:hover td {
-        background: #fafcfd;
+        background: var(--dark-surface-muted, #fafcfd);
     }
 
 .fac-name {
@@ -790,7 +790,7 @@
 }
 
 .progress-bar-bg {
-    background: #eef2f6;
+    background: var(--dark-surface-sunken, #eef2f6);
     border-radius: 99px;
     height: 6px;
     overflow: hidden;
@@ -830,7 +830,7 @@
         font: inherit;
         font-size: 12px;
         color: var(--text-primary);
-        background: #fff;
+        background: var(--dark-surface, #fff);
         border: 1px solid var(--border);
         border-radius: 6px;
     }
@@ -859,7 +859,7 @@
     align-items: center;
     gap: 12px;
     padding: 13px 22px;
-    border-bottom: 1px solid #f0f4f8;
+    border-bottom: 1px solid var(--dark-border, #f0f4f8);
     cursor: pointer;
     transition: background .12s;
 }
@@ -869,7 +869,7 @@
     }
 
     .delinq-item:hover {
-        background: #fafcfd;
+        background: var(--dark-surface-muted, #fafcfd);
     }
 
 .delinq-avatar {
@@ -938,13 +938,13 @@
         letter-spacing: .7px;
         text-transform: uppercase;
         color: var(--text-subtle);
-        background: #f8fafb;
+        background: var(--dark-surface-muted, #f8fafb);
         border-bottom: 1px solid var(--border);
     }
 
     .tx-table td {
         padding: 12px 22px;
-        border-bottom: 1px solid #f0f4f8;
+        border-bottom: 1px solid var(--dark-border, #f0f4f8);
         vertical-align: middle;
     }
 
@@ -973,11 +973,11 @@
     #rpt-misc .tx-table tfoot td {
         border-top: 1px solid var(--border);
         border-bottom: none;
-        background: #fafcfd;
+        background: var(--dark-surface-muted, #fafcfd);
     }
 
     .tx-table tr:hover td {
-        background: #fafcfd;
+        background: var(--dark-surface-muted, #fafcfd);
     }
 
 .tx-id {
@@ -1093,7 +1093,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 6px 0;
-    border-bottom: 1px solid #f0f4f8;
+    border-bottom: 1px solid var(--dark-border, #f0f4f8);
     font-size: 13px;
 }
 
@@ -1130,7 +1130,7 @@
 
 .cr-bar-bg {
     height: 8px;
-    background: #eef2f6;
+    background: var(--dark-surface-sunken, #eef2f6);
     border-radius: 99px;
     overflow: hidden;
 }
@@ -1182,8 +1182,8 @@
 }
 
     .rpt-register-print:hover:not(:disabled) {
-        background: #f4f8fb;
-        border-color: #c9d6e0;
+        background: var(--dark-surface-muted, #f4f8fb);
+        border-color: var(--dark-border, #c9d6e0);
     }
 
     .rpt-register-print:disabled {
@@ -1377,7 +1377,7 @@
     }
 
     .attn-col-title.attn-arrears {
-        color: #a9791b;
+        color: var(--dark-amber-text, #a9791b);
     }
 
 .attn-count {
@@ -1394,7 +1394,7 @@
 }
 
 .attn-count-amber {
-    color: #a9791b;
+    color: var(--dark-amber-text, #a9791b);
     background: rgba(200, 168, 75, .16);
 }
 
@@ -1409,11 +1409,11 @@
 }
 
 .attn-age-amber {
-    color: #a9791b !important;
+    color: var(--dark-amber-text, #a9791b) !important;
 }
 
 .delinq-amt-val.amber {
-    color: #a9791b;
+    color: var(--dark-amber-text, #a9791b);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -1460,7 +1460,7 @@
 .rpt-grid-line {
     width: 100%;
     height: 1px;
-    background: #eef2f6;
+    background: var(--dark-surface-sunken, #eef2f6);
 }
 
 .rpt-plot .bar-chart {
@@ -1535,14 +1535,14 @@
 }
 
 .fac-row-inactive td {
-    background: #fafbfc;
+    background: var(--dark-surface-muted, #fafbfc);
     color: var(--text-subtle);
 }
 
 .fac-table tfoot .fac-foot td {
     border-top: 2px solid var(--border);
     border-bottom: none;
-    background: #f8fafb;
+    background: var(--dark-surface-muted, #f8fafb);
     padding-top: 12px;
     padding-bottom: 12px;
 }
@@ -1571,7 +1571,7 @@
 
 .rpt-retry {
     margin-left: 10px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     border: none;
     border-radius: 8px;
@@ -1599,14 +1599,14 @@
         padding: 8px 12px;
         border: 1px solid var(--border);
         border-radius: 9px;
-        background: #fafcfd;
+        background: var(--dark-surface-muted, #fafcfd);
         text-decoration: none;
         transition: background .12s, border-color .12s;
     }
 
         .rpt-empty-note:hover {
-            background: #f4f8fb;
-            border-color: #c9d6e0;
+            background: var(--dark-surface-muted, #f4f8fb);
+            border-color: var(--dark-border, #c9d6e0);
         }
 
     .rpt-empty-note-val {
@@ -1632,7 +1632,7 @@
     padding: 14px 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: #fafcfd;
+    background: var(--dark-surface-muted, #fafcfd);
 }
 
 .rpt-aging-head {
@@ -1767,7 +1767,7 @@
 
     /* The period the rest of the report is about, marked so the table and the chart agree at a glance. */
     .rpt-trend-table tr.is-selected td {
-        background: #f6f9fc;
+        background: var(--dark-surface-muted, #f6f9fc);
         color: var(--navy);
         font-weight: 700;
     }
@@ -2028,7 +2028,7 @@
 }
 
 .fac-expandable:hover td {
-    background: #fafcfd;
+    background: var(--dark-surface-muted, #fafcfd);
 }
 
 .fac-caret {
@@ -2044,9 +2044,9 @@
 }
 
 .fac-detail-row td {
-    background: #f8fafb;
+    background: var(--dark-surface-muted, #f8fafb);
     padding: 0;
-    border-bottom: 1px solid #f0f4f8;
+    border-bottom: 1px solid var(--dark-border, #f0f4f8);
 }
 
 .fac-detail {
@@ -2095,7 +2095,7 @@
 }
 
 .fac-detail-amber {
-    color: #b5872a !important;
+    color: var(--dark-amber-text, #b5872a) !important;
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -2114,7 +2114,7 @@
     min-width: 160px;
     padding: 10px 12px;
     border-radius: 10px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     color: var(--navy);
     border: 1px solid var(--border);
     box-shadow: 0 10px 28px rgba(13, 33, 55, .14);
@@ -2582,14 +2582,14 @@
     padding: 12px 16px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: #fafcfd;
+    background: var(--dark-surface-muted, #fafcfd);
     text-decoration: none;
     transition: background .12s, border-color .12s;
 }
 
     .rpt-closed-note:hover {
-        background: #f4f8fb;
-        border-color: #c9d6e0;
+        background: var(--dark-surface-muted, #f4f8fb);
+        border-color: var(--dark-border, #c9d6e0);
     }
 
 .rpt-closed-note-title {
@@ -2693,7 +2693,7 @@
     left: 10px;
     height: 2px;
     border-radius: 2px 2px 0 0;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 .rpt-nav .rpt-sec-tab:focus-visible {

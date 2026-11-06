@@ -4,12 +4,11 @@
    1000px, where two would be too narrow to read. */
 .op-form-wrap {
     display: flex;
-    justify-content: center;
-    padding: 8px 0 40px;
+    padding: 0 0 40px;
 }
 
 .op-form-card {
-    width: min(1180px, 100%);
+    width: 100%;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 16px;
@@ -25,7 +24,7 @@
     left: 0;
     right: 0;
     height: 3px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 .op-form-head {
@@ -145,7 +144,7 @@
     gap: 8px;
     padding: 9px 16px;
     border-radius: 9px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     font-family: 'DM Sans', sans-serif;
     font-size: 13px;

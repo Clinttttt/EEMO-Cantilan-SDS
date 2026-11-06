@@ -182,14 +182,14 @@
 
 .cr-status-corrected {
     border-color: #d4b25a;
-    background: #fdf7e6;
-    color: #7a5a06;
+    background: var(--dark-amber-tint, #fdf7e6);
+    color: var(--dark-text, #7a5a06);
 }
 
 .cr-status-reversed {
-    border-color: #e5bcbc;
-    background: #fff5f5;
-    color: #9b2c2c;
+    border-color: var(--dark-red-border, #e5bcbc);
+    background: var(--dark-surface-muted, #fff5f5);
+    color: var(--dark-red-text, #9b2c2c);
 }
 
 .cr-print-head {
@@ -224,7 +224,7 @@
 .cr-group:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .cr-group-title { display: inline-flex; align-items: center; gap: 6px; }
 .cr-chevron { display: inline-block; width: 12px; color: var(--accent); }
-.cr-child td { background: var(--surface-subtle, #f7f9fc); }
+.cr-child td { background: var(--surface-subtle, var(--dark-surface-muted, #f7f9fc)); }
 .cr-child .cr-child-src { padding-left: 24px; }
 .cr-child[hidden] { display: none; }
 @media print { .cr-child[hidden] { display: table-row; } .cr-child td { background: none; } }

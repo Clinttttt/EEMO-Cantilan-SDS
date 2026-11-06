@@ -170,11 +170,13 @@ public sealed partial class CollectionSessionTests
         Assert.Equal(300m, performance.TotalCollected); Assert.Equal(300m, performance.Rows.Sum(x => x.Collected));
         var terminal = performance.Rows.Where(x => x.Key.StartsWith("TERMINAL_")).ToArray(); Assert.Equal(3, terminal.Length);
         Assert.All(terminal, x => { Assert.Equal(100m, x.Collected); Assert.Equal(1, x.TransactionCount); Assert.False(x.AwaitingPlacement); });
-        Assert.Equal("RENT", performance.Rows.Single(x => x.Key == "RENT_BBQ").GroupKey);
-        Assert.Equal("SLAUGHTERHOUSE", performance.Rows.Single(x => x.Key == "SLAUGHTERHOUSE").GroupKey);
+        // IA-080: this office runs a market and a terminal, so its own lines keep their official groups and the lines it does not
+        // hold (barbecue stands, a slaughterhouse) are not shown.
+        Assert.Equal("RENT", performance.Rows.Single(x => x.Key == "RENT_NPM").GroupKey);
+        Assert.DoesNotContain(performance.Rows, x => x.Key is "RENT_BBQ" or "SLAUGHTERHOUSE");
         var report = (await official.Handle(new(date.Year, date.Month), default)).Value!;
         Assert.Equal(300m, report.Sections!.Single(x => x.Key == "B").Total.Canonical);
-        Assert.Contains(report.Sections!, x => x.Key == "A"); Assert.Contains(report.Sections!, x => x.Key == "C");
+        Assert.Equal(["A", "B"], report.Sections!.Select(x => x.Key).ToArray());
         Assert.Equal(300m, report.GrandTotal.Canonical);
     }
     [SkippableFact]

@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Infrastructure.Repositories;
@@ -21,6 +22,138 @@ namespace EEMOCantilanSDS.Testing.Infrastructure.Repositories;
 /// </summary>
 public class PayorBalanceBillingBasisTests : RepositoryTestBase
 {
+    /// <summary>A contract from here has no elapsed month behind it, so a test about the month in progress sees only that month.</summary>
+    private static DateOnly ThisMonth => new(PhilippineTime.Today.Year, PhilippineTime.Today.Month, 1);
+
+    private static BillingPolicyVersion CountingFrom(DateOnly month) => BillingPolicyVersion.Create(Guid.NewGuid(), PhilippineTime.Today, PhilippineTime.Today,
+        BillingPolicy.StallTrackDefaults with { CountsMonthsFrom = month }, null, Guid.NewGuid(), DateTime.UtcNow);
+
+    [Fact]
+    public async Task AMonthWithNoRecord_FromBeforeTheRulesBegin_IsNotAskedOfThePayor()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", ThisMonth.AddMonths(-6), 3, 2400m);
+        ctx.AddRange(tcc, stall, contract, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth));
+        await ctx.SaveChangesAsync();
+
+        var item = Assert.Single(await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor));
+
+        Assert.Equal((ThisMonth.Year, ThisMonth.Month, true), (item.Year, item.Month, item.PayableOnline));
+        // The office still sees all of it, and can still take it.
+        var office = await new FacilityReportsRepository(ctx).GetStallStatementAsync(stall.Id, CancellationToken.None);
+        Assert.Equal(6, office!.UnpaidMonths.Count);
+        Assert.Equal(6 * 2400m, office.BalanceBeforeRules);
+    }
+
+    [Fact]
+    public async Task ARecordedMonth_FromBeforeTheRulesBegin_IsStillPayable_AndHoldsNothingUp()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", ThisMonth.AddMonths(-6), 3, 2400m);
+        var old = ThisMonth.AddMonths(-4);
+        var recorded = PaymentRecord.Create(stall.Id, old.Year, old.Month, 2400m, "test");
+        recorded.MarkPartiallyPaidOnline(400m, "test");
+        ctx.AddRange(tcc, stall, contract, recorded, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        var listedOld = items.Single(i => i.Period == recorded.PeriodKey);
+        Assert.Equal((2000m, true, null), (listedOld.BalanceDue, listedOld.PayableOnline, listedOld.PayFirst));
+        var current = items.Single(i => i.Year == ThisMonth.Year && i.Month == ThisMonth.Month);
+        Assert.Equal((true, null), (current.PayableOnline, current.PayFirst));
+    }
+
+    [Fact]
+    public async Task WhileTheStartMonthIsStillAhead_NextMonthIsNotOffered_OverTheMonthInProgress()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", ThisMonth, 3, 2400m);
+        ctx.AddRange(tcc, stall, contract, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth.AddMonths(2)));
+        await ctx.SaveChangesAsync();
+
+        var item = Assert.Single(await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor));
+
+        Assert.Equal((ThisMonth.Year, ThisMonth.Month), (item.Year, item.Month));
+    }
+
+    [Fact]
+    public async Task AMonthNobodyRecorded_IsOwedOnThePortal_AsThePreviousBalance()
+    {
+        // Nothing writes a record until money moves, so a month nobody paid had no row here while the office counted it: two totals for one account.
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", ThisMonth.AddMonths(-3), 3, 2400m);
+        ctx.AddRange(tcc, stall, contract, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth.AddMonths(-3)));
+        await ctx.SaveChangesAsync();
+
+        var repo = new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object);
+        var items = await repo.GetPayableItemsAsync(payor);
+
+        Assert.Equal(4, items.Count);
+        Assert.Equal(3, items.Count(i => i.PreviousBalance));
+        Assert.False(items.Single(i => i.Period == $"{ThisMonth.Year:0000}-{ThisMonth.Month:00}").PreviousBalance);
+        Assert.All(items, i => Assert.Equal((PayorPayableKind.Monthly, 2400m), (i.Kind, i.BalanceDue)));
+        var oldest = ThisMonth.AddMonths(-3);
+        Assert.Equal($"{oldest.Year:0000}-{oldest.Month:00}", Assert.Single(items, i => i.PayableOnline).Period);
+        Assert.Equal(9600m, Assert.Single(await repo.GetBalancesAsync(payor)).OutstandingBalance);
+    }
+
+    [Fact]
+    public async Task AMonthWithAnUnpaidRecord_IsListedOnce_AtTheRecordsBalance()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", ThisMonth.AddMonths(-2), 3, 2400m);
+        var lastMonth = ThisMonth.AddMonths(-1);
+        var partial = PaymentRecord.Create(stall.Id, lastMonth.Year, lastMonth.Month, 2400m, "test");
+        partial.MarkPartiallyPaidOnline(400m, "test");
+        ctx.AddRange(tcc, stall, contract, partial, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth.AddMonths(-2)));
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        var listed = Assert.Single(items, i => i.Period == partial.PeriodKey);
+        Assert.Equal(2000m, listed.BalanceDue);
+        Assert.Equal(3, items.Count);
+    }
+
+    [Fact]
+    public async Task AMarketStallsElapsedMonth_IsListedReadOnly_AtWhatTheOfficeSaysIsUnpaid()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
+        var stall = Stall.Create(npm.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
+        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", ThisMonth.AddMonths(-1), 3, 900m);
+        ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id), CountingFrom(ThisMonth.AddMonths(-1)));
+        await ctx.SaveChangesAsync();
+
+        var settlement = new Mock<INpmMonthSettlementService>();
+        settlement.Setup(s => s.ComputeWholeMonthPayableAsync(It.IsAny<Stall>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                  .ReturnsAsync(new NpmMonthPayable(0, 0m));
+
+        var item = Assert.Single(await new PayorRepository(ctx, settlement.Object).GetPayableItemsAsync(payor));
+
+        var office = await new FacilityReportsRepository(ctx).GetStallStatementAsync(stall.Id, CancellationToken.None);
+        Assert.Equal(Assert.Single(office!.UnpaidMonths).Unpaid, item.BalanceDue);
+        Assert.True(item.BalanceDue > 0m);
+        Assert.Equal((PayorPayableKind.NpmDaily, false, true), (item.Kind, item.PayableOnline, item.PreviousBalance));
+    }
+
     [Fact]
     public async Task AMarketStallStatesADaysFeeAndTheDaysItOwes()
     {
@@ -58,7 +191,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
 
         var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(npm.Id, "1", 900m, ApplicableFees.DailyRental, section: MarketSection.FishSection);
-        var contract = Contract.Create(stall.Id, "Godon Lar", "Godon Lar", PhilippineTime.Today.AddMonths(-1), 3, 900m);
+        var contract = Contract.Create(stall.Id, "Godon Lar", "Godon Lar", ThisMonth, 3, 900m);
 
         ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id));
         await ctx.SaveChangesAsync();
@@ -90,7 +223,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
 
         var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(npm.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
-        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", PhilippineTime.Today.AddMonths(-1), 3, 900m);
+        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", ThisMonth, 3, 900m);
 
         ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id));
         await ctx.SaveChangesAsync();
@@ -120,7 +253,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         var payor = Guid.NewGuid();
         var npm = Facility.Create(FacilityCode.NPM, "New Public Market", "NPM");
         var stall = Stall.Create(npm.Id, "4", 900m, ApplicableFees.DailyRental, section: MarketSection.VegetableArea);
-        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", PhilippineTime.Today.AddMonths(-1), 3, 900m);
+        var contract = Contract.Create(stall.Id, "Kim Chui", "Kim Chui", ThisMonth, 3, 900m);
         ctx.AddRange(npm, stall, contract, PayorStallLink.Create(payor, stall.Id));
         await ctx.SaveChangesAsync();
 
@@ -135,7 +268,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
     }
 
     [Fact]
-    public async Task MonthlyStallRent_ListsEveryEarlierPeriod_EachPayableByItself()
+    public async Task AnOfficeThatTakesAnyMonth_ListsEveryEarlierPeriod_EachPayableByItself()
     {
         await using var ctx = NewContext();
         var payor = Guid.NewGuid();
@@ -144,7 +277,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
         var earlier = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-2).Year, PhilippineTime.Today.AddMonths(-2).Month, 2400m, "test");
         var previous = PaymentRecord.Create(stall.Id, PhilippineTime.Today.AddMonths(-1).Year, PhilippineTime.Today.AddMonths(-1).Month, 2400m, "test");
-        ctx.AddRange(tcc, stall, contract, earlier, previous, PayorStallLink.Create(payor, stall.Id));
+        ctx.AddRange(tcc, stall, contract, earlier, previous, PayorStallLink.Create(payor, stall.Id), AnyMonthPolicy());
         await ctx.SaveChangesAsync();
 
         var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
@@ -153,6 +286,9 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         Assert.All(items, i => Assert.True(i.PayableOnline));
         Assert.Equal(items.Count, items.Select(i => i.Period).Distinct().Count());
     }
+
+    private static BillingPolicyVersion AnyMonthPolicy() => BillingPolicyVersion.Create(Guid.NewGuid(), PhilippineTime.Today, PhilippineTime.Today,
+        BillingPolicy.StallTrackDefaults with { OldestMonthFirst = false }, null, Guid.NewGuid(), DateTime.UtcNow);
 
     [Fact]
     public async Task MonthlyRecordNotOnLegacyAuthority_IsNotOfferedOnline()
@@ -173,6 +309,43 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
     }
 
     [Fact]
+    public async Task APeriodWithACaptureUnderReview_IsNotOfferedOnline_AndSaysSo()
+    {
+        await using var ctx = NewContext();
+        var payor = Guid.NewGuid();
+        var tcc = Facility.Create(FacilityCode.TCC, "Town Center", "TCC");
+        var stall = Stall.Create(tcc.Id, "7", 2400m, ApplicableFees.BaseRental);
+        var contract = Contract.Create(stall.Id, "Occupant", "Occupant", PhilippineTime.Today.AddMonths(-6), 3, 2400m);
+        var month = PhilippineTime.Today.AddMonths(-1);
+        var earlier = PhilippineTime.Today.AddMonths(-2);
+        var underReview = PaymentRecord.Create(stall.Id, month.Year, month.Month, 2400m, "test");
+        var ordinary = PaymentRecord.Create(stall.Id, earlier.Year, earlier.Month, 2400m, "test");
+        var capture = OnlinePaymentTransaction.Create("EEMO-OP-REVIEW", payor, underReview.Id, 2400m, "PayMongo");
+        capture.SetPending("cs_review", "https://checkout");
+        capture.MarkPaid("pay_review", "gcash", DateTime.UtcNow, "{}");
+        capture.MarkSettlementReconciliationRequired("needs treasury review");
+        ctx.AddRange(tcc, stall, contract, underReview, ordinary, capture, PayorStallLink.Create(payor, stall.Id), AnyMonthPolicy());
+        await ctx.SaveChangesAsync();
+
+        var items = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+
+        var held = items.Single(i => i.Period == underReview.PeriodKey);
+        Assert.False(held.PayableOnline);
+        Assert.True(held.PaymentUnderReview);
+        var open = items.Single(i => i.Period == ordinary.PeriodKey);
+        Assert.True(open.PayableOnline);
+        Assert.False(open.PaymentUnderReview);
+
+        // Once the Head has decided, the period is an ordinary balance again and can be paid.
+        capture.RecordOfficeDecision(OnlinePaymentDisposition.Refunded, "ref_1", null, "head", DateTime.UtcNow);
+        await ctx.SaveChangesAsync();
+        var after = await new PayorRepository(ctx, new Mock<INpmMonthSettlementService>().Object).GetPayableItemsAsync(payor);
+        var released = after.Single(i => i.Period == underReview.PeriodKey);
+        Assert.True(released.PayableOnline);
+        Assert.False(released.PaymentUnderReview);
+    }
+
+    [Fact]
     public async Task AMonthlySpaceIsOfferedAtItsContractRate_NotTheStallsCurrentRate()
     {
         await using var ctx = NewContext();
@@ -180,7 +353,7 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
 
         var tcc = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
         var stall = Stall.Create(tcc.Id, "B-2", 3000m, ApplicableFees.BaseRental);
-        var contract = Contract.Create(stall.Id, "Juan Cruz", "Juan Cruz", PhilippineTime.Today.AddMonths(-1), 3, 2400m);
+        var contract = Contract.Create(stall.Id, "Juan Cruz", "Juan Cruz", ThisMonth, 3, 2400m);
 
         ctx.AddRange(tcc, stall, contract, PayorStallLink.Create(payor, stall.Id));
         await ctx.SaveChangesAsync();
@@ -226,8 +399,8 @@ public class PayorBalanceBillingBasisTests : RepositoryTestBase
         var first = Stall.Create(restRooms.Id, "2", 900m, ApplicableFees.BaseRental);
         var second = Stall.Create(coldStorage.Id, "7", 1_500m, ApplicableFees.BaseRental);
         ctx.AddRange(restRooms, coldStorage, first, second,
-            Contract.Create(first.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 900m),
-            Contract.Create(second.Id, "Robin Padilla", "Robin Padilla", PhilippineTime.Today.AddMonths(-1), 3, 1_500m),
+            Contract.Create(first.Id, "Robin Padilla", "Robin Padilla", ThisMonth, 3, 900m),
+            Contract.Create(second.Id, "Robin Padilla", "Robin Padilla", ThisMonth, 3, 1_500m),
             PayorStallLink.Create(payor, first.Id), PayorStallLink.Create(payor, second.Id));
         await ctx.SaveChangesAsync();
 

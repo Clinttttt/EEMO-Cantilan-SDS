@@ -6,7 +6,7 @@
 .cdm-head p { margin: 2px 0 0; color: rgba(255, 255, 255, 0.78); font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
 .cdm-close { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; background: rgba(255, 255, 255, 0.1); cursor: pointer; }
 .cdm-close svg { width: 16px; height: 16px; fill: none; stroke: #ffffff; stroke-width: 2; stroke-linecap: round; }
-.cdm-close:focus-visible { outline: 2px solid #ffffff; outline-offset: 2px; }
+.cdm-close:focus-visible { outline: 2px solid var(--dark-surface, #ffffff); outline-offset: 2px; }
 .cdm-body { display: grid; gap: 16px; overflow-y: auto; padding: 20px; background: var(--surface); }
 .cdm-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 24px; margin: 0; }
 .cdm-meta dt { color: var(--text-tertiary); font-size: 0.75rem; }

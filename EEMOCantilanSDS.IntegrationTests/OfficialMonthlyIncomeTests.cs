@@ -339,6 +339,32 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Equal(900m + 100m + 60m, statement.GrandTotal.Total);
     }
 
+    [SkippableFact]
+    public async Task LegacyRent_FromAPriorYear_ReportsOnArrears_AndTheTotalCountsItOnce()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        decimal totalBefore;
+        await using (var ctx = db.CreateContext(w.Tenant.Id))
+        {
+            totalBefore = Statement(w, ctx).GrandTotal.Total;
+            var stall = await ctx.PaymentRecords.Where(x => x.BaseRentalAmount == 900m).Select(x => x.StallId).SingleAsync();
+            var old = PaymentRecord.Create(stall, Today.Year - 1, 12, 700m, "test");
+            old.RecordPayment("LEGACY-OLD", w.Collector.Id, PaymentStatus.Paid, updatedBy: "test");
+            ctx.Add(old);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(w.Tenant.Id);
+        var statement = Statement(w, read);
+
+        Assert.Equal(700m, Cell(statement, "ARREARS", c => c.Legacy));
+        Assert.Equal(900m, Cell(statement, "RENT_TCC", c => c.Legacy));   // this year's rent stays where it was
+        Assert.Equal(totalBefore + 700m, statement.GrandTotal.Total);
+        Assert.Equal(new RecoveredArrearsDto(FacilityCode.TCC, 700m), Assert.Single(statement.RecoveredArrears!));
+    }
+
     private async Task<Guid> ReadTccRecordIdAsync(World w)
     {
         await using var ctx = db.CreateContext(w.Tenant.Id);

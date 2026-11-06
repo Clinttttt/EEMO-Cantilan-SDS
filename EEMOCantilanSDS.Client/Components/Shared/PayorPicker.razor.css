@@ -23,7 +23,7 @@
     padding: 7px 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     /* 16px so a phone does not zoom the page when the control is focused. */
     font-size: 16px;
     font-family: inherit;
@@ -93,7 +93,7 @@
     max-height: calc(100vh - 96px);
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     border: 1px solid var(--border);
     border-radius: 14px;
     box-shadow: 0 24px 60px rgba(13, 33, 55, .28);
@@ -133,7 +133,7 @@
     flex-shrink: 0;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     color: var(--text-muted);
     cursor: pointer;
 }
@@ -221,7 +221,7 @@
     }
 
     .pp-opt-on {
-        background: rgba(13, 33, 55, .05);
+        background: var(--dark-tint, rgba(13, 33, 55, .05));
     }
 
 .pp-opt-name {
@@ -261,7 +261,7 @@
     padding: 5px 12px;
     border: 1px solid var(--border);
     border-radius: 7px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     font-family: inherit;
     font-size: 12px;
     font-weight: 600;

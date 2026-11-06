@@ -23,7 +23,7 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories.Revenue;
 public sealed partial class CollectionSessionSources(AppDbContext db, ICurrentUserService user,
     ICurrentMunicipalityAccessor municipality, IClock clock, ISender sender, ITpmMarketDayProvider marketDays,
     NpmWholePaymentWorkflow? npmWhole = null, NpmDailyBatchWorkflow? npmDaily = null, NpmPartPaymentWorkflow? npmPart = null,
-    NpmRentMonthWorkflow? monthly = null, FishMeatRegistrationOptions? registrationOptions = null) : ICollectionSessionSources
+    NpmRentMonthWorkflow? monthly = null, FishMeatRegistrationOptions? registrationOptions = null, BillingRules? billingRules = null) : ICollectionSessionSources
 {
     private WcfCollectionWorkflow Water => new(db, user, municipality, clock);
     private GovernedServiceWorkflow Governed => new(db, user, municipality, clock);

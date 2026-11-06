@@ -105,8 +105,8 @@
     letter-spacing: 0.02em;
 }
 
-.vl-pill.is-linked { background: var(--success-soft, #e7f6ee); color: var(--success, #157347); }
-.vl-pill.is-open { background: var(--warning-soft, #fff4e5); color: var(--warning, #9a5b00); }
+.vl-pill.is-linked { background: var(--success-soft, var(--dark-green-tint, #e7f6ee)); color: var(--success, var(--dark-text, #157347)); }
+.vl-pill.is-open { background: var(--warning-soft, var(--dark-amber-tint, #fff4e5)); color: var(--warning, var(--dark-amber-text, #9a5b00)); }
 
 .vl-action { text-align: right; white-space: nowrap; }
 

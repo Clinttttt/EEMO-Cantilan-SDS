@@ -20,6 +20,12 @@ public class UpdateStallCommandHandler(
         if (stall is null)
             return Result<StallDto>.NotFound();
 
+        // While a term runs, every month is charged at its agreed rate (IA-077). Changing the space's own rate here would change nothing anyone owes
+        // and leave two figures for one space. A day-billed market's rate is not a term's, so it stays editable.
+        if (request.MonthlyRate != stall.MonthlyRate && stall.Facility is not { Code: FacilityCode.NPM, IsMonthlyRentMarket: false }
+            && stall.Contracts.Any(c => c.IsActive && c.ExpiryDate >= PhilippineTime.Today))
+            return Result<StallDto>.Failure("This space has a running term, and a term keeps the rate agreed for it. Set the new rate when the term is renewed.", ResultStatus.Invalid);
+
         // A null DailyRate means "not supplied", NOT "clear it". Editing a stall from a screen that does
         // not show the daily rate (the stall profile, the generic vendor registry) previously wiped or
         // overwrote it: for a per-LGU CUSTOM section, whose own rate IS what billing charges via

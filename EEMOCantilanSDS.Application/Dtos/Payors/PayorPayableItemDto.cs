@@ -36,4 +36,19 @@ public sealed record PayorPayableItemDto(
     /// settlement authority), so the button and the server cannot disagree. Defaults true for an older API.
     /// </summary>
     public bool PayableOnline { get; init; } = true;
+
+    /// <summary>The gateway took money for this period and the office is reviewing it, so the payor must not pay it again.</summary>
+    public bool PaymentUnderReview { get; init; }
+
+    /// <summary>The billing month has ended, so this is stated under "Previous balance". The office's clock decides, not the payor's device.</summary>
+    public bool PreviousBalance { get; init; }
+
+    /// <summary>A month that has not begun, which the office lets this account pay ahead. It is not owed, so it is never part of a balance.</summary>
+    public bool Advance { get; init; }
+
+    /// <summary>Monthly rent's due date under the office's billing rules.</summary>
+    public DateOnly? DueDate { get; init; }
+
+    /// <summary>The older period to pay first, when the office takes the oldest unpaid month first. Null when this one can be paid now.</summary>
+    public string? PayFirst { get; init; }
 }

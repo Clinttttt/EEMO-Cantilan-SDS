@@ -114,7 +114,7 @@ public class SetMunicipalityPaymentCredentialsCommandHandler(
             .AnyAsync(t => t.MunicipalityId == municipalityId && !t.IsDeleted
                 && (t.Status == OnlinePaymentStatus.Initiated
                     || t.Status == OnlinePaymentStatus.Pending
-                    || t.Status == OnlinePaymentStatus.ReconciliationRequired)
+                    || (t.Status == OnlinePaymentStatus.ReconciliationRequired && t.Disposition == null))
                 && t.GatewayReference != null, ct);
 
     /// <summary>

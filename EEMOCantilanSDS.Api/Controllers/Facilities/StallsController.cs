@@ -127,6 +127,13 @@ public class StallsController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    [HttpGet("{stallId}/statement")]
+    public async Task<ActionResult<Application.Dtos.Facilities.StallStatementDto>> GetStatement(Guid stallId)
+    {
+        var result = await Sender.Send(new Application.Queries.Stalls.GetStallStatement.GetStallStatementQuery(stallId));
+        return HandleResponse(result);
+    }
+
     [HttpGet("{stallId}/collection-history")]
     public async Task<ActionResult<CursorPagedResult<Application.Dtos.Payments.StallCollectionHistoryRowDto>>> GetCollectionHistory(
         Guid stallId, [FromQuery] DateTime? cursor = null, [FromQuery] int pageSize = 10)

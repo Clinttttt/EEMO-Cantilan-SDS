@@ -140,7 +140,7 @@
 }
 
     .cal-cell-header-clickable:hover {
-        background: rgba(13, 33, 55, 0.05);
+        background: var(--dark-tint, rgba(13, 33, 55, 0.05));
     }
 
 /* ── Kilo block — stacked column, centered at bottom of cell ── */
@@ -197,7 +197,7 @@
 /* ── Before contract days ── */
 .cal-cell.cal-before-contract {
     background: rgba(139, 58, 58, 0.04);
-    border-color: #d4a5a5;
+    border-color: var(--dark-red-border, #d4a5a5);
     cursor: not-allowed;
     position: relative;
 }
@@ -212,13 +212,13 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #7a8fa5;
+    color: var(--dark-text-tertiary, #7a8fa5);
     pointer-events: none;
     z-index: 1;
 }
 
 .cal-overlay-before {
-    color: #a67676;
+    color: var(--dark-text-tertiary, #a67676);
 }
 
 /* ── Today highlight ── */
@@ -267,7 +267,7 @@
 
 /* Collected — navy circle, white check */
 .cal-icon-yes {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
 }
 
     .cal-icon-yes svg {
@@ -281,7 +281,7 @@
 }
 
     .cal-icon-no svg {
-        stroke: #8b3a3a;
+        stroke: var(--dark-red-text, #8b3a3a);
     }
 
 /* Absent (excused) — amber circle with a dash */
@@ -291,11 +291,11 @@
 }
 
     .cal-icon-absent svg {
-        stroke: #b5872a;
+        stroke: var(--dark-amber-text, #b5872a);
     }
 
 .cal-sum-amber {
-    color: #b5872a;
+    color: var(--dark-amber-text, #b5872a);
 }
 
 .cal-checkmark-corner {
@@ -553,18 +553,18 @@
 
 /* ── Market closed (whole market shut that day) — neutral slate, locked (not toggleable) ── */
 .cal-cell.cal-closed {
-    background: rgba(13, 33, 55, 0.05);
-    border-color: rgba(13, 33, 55, 0.18);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.05));
+    border-color: var(--dark-border, rgba(13, 33, 55, 0.18));
     cursor: not-allowed;
 }
 .cal-icon-closed {
-    background: rgba(13, 33, 55, 0.08);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.08));
     border: 1.5px solid rgba(13, 33, 55, 0.35);
 }
     .cal-icon-closed svg {
-        stroke: #44607d;
+        stroke: var(--dark-text-secondary, #44607d);
     }
-.cal-sum-val.cal-sum-closed { color: #44607d; }
+.cal-sum-val.cal-sum-closed { color: var(--dark-text-secondary, #44607d); }
 
 
 /* ══════════════════════════════════════════════════════════════

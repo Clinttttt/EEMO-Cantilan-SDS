@@ -28,7 +28,7 @@
     width: 56px;
     height: 56px;
     border-radius: 13px;
-    background: rgba(13, 33, 55, .06);
+    background: var(--dark-tint, rgba(13, 33, 55, .06));
     border: 1px solid var(--border);
     display: flex;
     align-items: center;
@@ -115,7 +115,7 @@
 }
 
 .btn-outline {
-    background: #fff;
+    background: var(--dark-surface, #fff);
     color: var(--navy);
     border-color: var(--border);
 }
@@ -138,7 +138,7 @@
 .btn-primary {
     /* Navy, the colour every other primary action in the portal uses. Gold was chosen against the navy hero this card
        replaced; on a light hero it read as a warning rather than as the page's main action. */
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: #fff;
     border-color: var(--navy);
     font-weight: 700;
@@ -146,7 +146,7 @@
 
     .btn-primary:hover {
         background: #16324f;
-        border-color: #16324f;
+        border-color: var(--dark-border-strong, #16324f);
     }
 
     .btn-primary svg {
@@ -180,8 +180,8 @@
 }
 
 .pill-partial {
-    background: #fff8e1;
-    color: #7a5c00;
+    background: var(--dark-amber-tint, #fff8e1);
+    color: var(--dark-text, #7a5c00);
 }
 
 .pill-active {
@@ -306,7 +306,7 @@
     }
 
     .prof-field-val.text-warn {
-        color: #a06010;
+        color: var(--dark-amber-text, #a06010);
     }
 
 .prof-no-contract {
@@ -321,8 +321,8 @@
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 20px;
-    background: #fff3cd;
-    color: #856404;
+    background: var(--dark-amber-tint, #fff3cd);
+    color: var(--dark-text, #856404);
     border: 1px solid #ffc107;
 }
 
@@ -378,13 +378,13 @@
 }
 
 .hist-partial {
-    background: #fff8e1;
+    background: var(--dark-amber-tint, #fff8e1);
     border-color: #b07d2b;
 }
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-absent {
@@ -394,8 +394,8 @@
 
 .hist-na,
 .hist-future {
-    background: #f5f7f9;
-    border-color: #dde4ea;
+    background: var(--dark-surface-muted, #f5f7f9);
+    border-color: var(--dark-border, #dde4ea);
     opacity: 0.6;
 }
 
@@ -427,7 +427,7 @@
 }
 
 .hist-partial .prof-hist-icon {
-    color: #b07d2b;
+    color: var(--dark-amber-text, #b07d2b);
 }
 
 .hist-unpaid .prof-hist-icon {
@@ -564,7 +564,7 @@
 }
 
     .ph-year-cell:hover { background: var(--border); }
-    .ph-year-cell.active { background: var(--navy); color: #fff; }
+    .ph-year-cell.active { background: var(--dark-navy-fill, var(--navy)); color: #fff; }
 
 .ph-year-current {
     width: 100%;
@@ -610,7 +610,7 @@
     text-transform: uppercase;
     color: var(--text-subtle);
     padding: 10px 14px;
-    background: rgba(13, 33, 55, 0.03);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.03));
     border-bottom: 1px solid var(--border);
     white-space: nowrap;
 }
@@ -627,7 +627,7 @@
 }
 
 .prof-ch-table tbody tr:hover td {
-    background: rgba(13, 33, 55, 0.02);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.02));
 }
 
 .prof-ch-r {
@@ -657,8 +657,8 @@
 }
 
 .prof-ch-partial {
-    background: #fdf6e3;
-    color: #9a7b1f;
+    background: var(--dark-amber-tint, #fdf6e3);
+    color: var(--dark-amber-text, #9a7b1f);
 }
 
 .prof-ch-unpaid {
@@ -687,7 +687,7 @@
 }
 
 .prof-ch-more:hover:not(:disabled) {
-    background: #e6ebf1;
+    background: var(--dark-surface-sunken, #e6ebf1);
     border-color: var(--text-muted);
 }
 

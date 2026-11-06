@@ -3,6 +3,7 @@
 @using EEMOCantilanSDS.Application.Dtos.DailyCollections
 @using EEMOCantilanSDS.Application.Dtos.Mobile
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead
 @using EEMOCantilanSDS.Application.Command.Payments.RecordPayment
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmMonth
 @using EEMOCantilanSDS.Application.Command.DailyCollections.SettleNpmDays
@@ -43,9 +44,49 @@
                         settling them does not affect whoever holds the stall now.
                     </p>
                 }
+                @if (!_loading && _ahead is { Months.Count: > 0 })
+                {
+                    <div class="pb-seg pb-mode">
+                        <button type="button" class="pb-seg-btn @(!_payingAhead ? "on" : "")" aria-pressed="@(_payingAhead ? "false" : "true")" @onclick="() => _payingAhead = false" disabled="@_submitting">Outstanding</button>
+                        <button type="button" class="pb-seg-btn @(_payingAhead ? "on" : "")" aria-pressed="@(_payingAhead ? "true" : "false")" @onclick="() => _payingAhead = true" disabled="@_submitting">Pay ahead</button>
+                    </div>
+                }
                 @if (_loading)
                 {
                     <div class="pb-loading">Loading outstanding balance…</div>
+                }
+                else if (_payingAhead)
+                {
+                    <div class="pb-detail">
+                        <div class="pb-controls">
+                            <div class="pb-control">
+                                <span class="pb-label">Months to pay</span>
+                                <FhSelect Block="true" AriaLabel="Months to pay" Options="AheadCounts" @bind-Value="_aheadCount" />
+                            </div>
+                            <div class="pb-control pb-control-or">
+                                <label class="pb-label" for="pb-ahead-or">Official Receipt (OR) No.</label>
+                                <input id="pb-ahead-or" class="pb-input" type="text" maxlength="30" autocomplete="off" inputmode="numeric"
+                                       placeholder="e.g. 1234567" @bind="_aheadOr" @bind:event="oninput" disabled="@_submitting" />
+                            </div>
+                        </div>
+                        <div class="pb-orhint">One OR covers these months in a single receipt.</div>
+                    </div>
+                    <div class="pb-scroll">
+                        <table class="pb-table">
+                            <thead>
+                                <tr><th>Billing period</th><th class="r">Rent</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var month in AheadMonths)
+                                {
+                                    <tr class="on">
+                                        <td>@MonthLabel($"{month.Year:D4}-{month.Month:D2}")</td>
+                                        <td class="r amt">₱@month.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
                 }
                 else if (_unpaid.Count == 0)
                 {
@@ -53,6 +94,10 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                         <span>No outstanding balance — this account is fully paid.</span>
                     </div>
+                    @if (_aheadUnavailable)
+                    {
+                        <p class="pb-hint" role="status">Pay ahead could not be loaded. Close this and open it again.</p>
+                    }
                 }
                 else
                 {
@@ -215,19 +260,28 @@
                             </table>
                         }
                     </div>
-
-                    @if (_error is not null)
-                    {
-                        <div class="pb-error">
-                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
-                            @_error
-                        </div>
-                    }
                 }
             </div>
 
+            @* Outside the scrolling body: a refusal stays on screen, directly above the button that caused it. *@
+            @if (!_loading && (_payingAhead ? _aheadError : _error) is { } refusal)
+            {
+                <div class="pb-error" role="alert">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                    @refusal
+                </div>
+            }
+
             <div class="eemo-modal-footer">
-                @if (!_loading && _unpaid.Count > 0)
+                @if (!_loading && _payingAhead)
+                {
+                    <div class="pb-txnbar">
+                        <span class="pb-txn-cap">This transaction</span>
+                        <span class="pb-txn-amt">₱@AheadTotal.ToString("N2")</span>
+                        <span class="pb-txn-sub">@AheadMonths.Count month@(AheadMonths.Count == 1 ? "" : "s") ahead · one OR</span>
+                    </div>
+                }
+                else if (!_loading && _unpaid.Count > 0)
                 {
                     <div class="pb-txnbar">
                         <span class="pb-txn-cap">This transaction</span>
@@ -236,7 +290,13 @@
                     </div>
                 }
                 <button class="btn-ghost" @onclick="HandleClose" disabled="@_submitting">Cancel</button>
-                @if (!_loading && _unpaid.Count > 0)
+                @if (!_loading && _payingAhead)
+                {
+                    <button class="btn-primary" @onclick="SubmitAhead" disabled="@(_submitting || string.IsNullOrWhiteSpace(_aheadOr))">
+                        @(_submitting ? "Recording…" : $"Record ₱{AheadTotal.ToString("N2")}")
+                    </button>
+                }
+                else if (!_loading && _unpaid.Count > 0)
                 {
                     <button class="btn-primary" @onclick="Submit" disabled="@(!CanSubmit())">
                         @(_submitting ? "Recording…" : (AmountToRecord > 0m ? $"Record ₱{AmountToRecord.ToString("N2")}" : "Record payment"))
@@ -253,6 +313,9 @@
     [Parameter] public FacilityCode Facility { get; set; }
     [Parameter] public string StallNo { get; set; } = string.Empty;
     [Parameter] public string Occupant { get; set; } = string.Empty;
+
+    /// <summary>Opens on Pay ahead when months can be taken, for a caller reached from a month still to come.</summary>
+    [Parameter] public bool StartAhead { get; set; }
 
     /// <summary>
     /// The term being collected on, when it is not the stall's current one — an inactive-account balance left by a
@@ -293,6 +356,18 @@
     private readonly Dictionary<string, NpmWholePaymentRequest> _monthRequests = new();
     private readonly Dictionary<string, MobileRentPostRequest> _rentRequests = new();
     private readonly HashSet<string> _rentAttempted = new();
+
+    private PayAheadOptionsDto? _ahead;
+    private bool _aheadUnavailable;
+    private bool _payingAhead;
+    private string _aheadCount = "1";
+    private string _aheadOr = string.Empty;
+    private string? _aheadError;
+    private List<PayAheadMonthDto> AheadMonths => _ahead?.Months.Take(int.TryParse(_aheadCount, out var n) ? n : 0).ToList() ?? [];
+    private decimal AheadTotal => AheadMonths.Sum(m => m.Amount);
+    private IReadOnlyList<(string Value, string Label)> AheadCounts => _ahead?.Counts
+        .Select(n => (n.ToString(), n == 12 ? "12 months (one year)" : n == 1 ? "1 month" : $"{n} months")).ToList() ?? [];
+
     private bool CanonicalRentSelected => !IsNpm && _unpaid.Any(x => x.SettlementAuthority == SettlementAuthority.Canonical
         && (SettlesEverything || x.Period == _selectedPeriod));
 
@@ -424,6 +499,12 @@
         _rentRequests.Clear();
         _rentAttempted.Clear();
         _monthSource = false;
+        _ahead = null;
+        _aheadUnavailable = false;
+        _payingAhead = false;
+        _aheadCount = "1";
+        _aheadOr = string.Empty;
+        _aheadError = null;
         if (IsNpm)
         {
             var availability = await DailyApi.IsNpmMonthlySettlementAvailableAsync();
@@ -479,6 +560,16 @@
             }
         }
         _totalOutstanding = _unpaid.Sum(h => h.BalanceDue);
+
+        // Only the stall's present account takes rent ahead: a former occupancy or a past period's lessee has no months to come.
+        if (!IsNpm && contractId is null && PeriodYear is null)
+        {
+            var ahead = await PaymentsApi.GetPayAheadOptionsAsync(stallId);
+            if (version != _loadVersion) return;
+            _ahead = ahead?.IsSuccess == true ? ahead.Value : null;
+            _aheadUnavailable = ahead is { IsSuccess: false };
+            _payingAhead = StartAhead && _ahead is { Months.Count: > 0 };
+        }
 
         // Start on the period the caller was looking at, when it is one of the unpaid months — the clerk opened a
         // particular row and that row's month is the one they mean to settle. Otherwise start at the oldest debt.
@@ -686,6 +777,24 @@
         _submitting = false;
         await LoadOutstanding();       // refresh remaining balance (resets to a clean state)
         await OnChanged.InvokeAsync(); // let the host reload its list
+    }
+
+    private async Task SubmitAhead()
+    {
+        var months = AheadMonths;
+        if (_submitting || months.Count == 0 || string.IsNullOrWhiteSpace(_aheadOr)) return;
+        _submitting = true;
+        _aheadError = null;
+        // The server refuses a retry once these months are paid, because the first month named is no longer the first one open.
+        var saved = await PaymentsApi.RecordPayAheadAsync(new RecordPayAheadCommand(StallId, months[0].Year, months[0].Month, months.Count, AheadTotal, _aheadOr.Trim()));
+        _submitting = false;
+        if (!saved.IsSuccess)
+        {
+            _aheadError = saved.Error ?? "Could not record the payment. Please try again.";
+            return;
+        }
+        await LoadOutstanding();
+        await OnChanged.InvokeAsync();
     }
 
     private async Task HandleClose()

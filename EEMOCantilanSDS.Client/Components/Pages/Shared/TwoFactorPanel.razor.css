@@ -206,12 +206,12 @@
 .mfa-btn:disabled { opacity: .6; cursor: not-allowed; }
 
 .mfa-btn-primary {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-color: var(--navy);
     color: #fff;
 }
 
-.mfa-btn-primary:hover:not(:disabled) { background: var(--navy-2); }
+.mfa-btn-primary:hover:not(:disabled) { background: var(--dark-navy-2-fill, var(--navy-2)); }
 
 .mfa-btn-danger {
     border-color: color-mix(in srgb, var(--red) 40%, transparent);

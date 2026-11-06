@@ -2,7 +2,7 @@
     display: grid;
     gap: 8px;
     padding: 12px 0;
-    border-top: 1px solid var(--v3-border, #e3e8ef);
+    border-top: 1px solid var(--v3-border, var(--dark-border, #e3e8ef));
 }
 
 .fcc-head {
@@ -22,11 +22,11 @@
     font-weight: 600;
     padding: 2px 8px;
     border-radius: 999px;
-    border: 1px solid var(--v3-border, #e3e8ef);
+    border: 1px solid var(--v3-border, var(--dark-border, #e3e8ef));
 }
 
 .fcc-state-on {
-    color: var(--v3-accent, #1d4ed8);
+    color: var(--v3-accent, var(--dark-accent-text, #1d4ed8));
     border-color: currentColor;
 }
 
@@ -39,7 +39,7 @@
 }
 
 .fcc-error {
-    color: var(--v3-danger, #b42318);
+    color: var(--v3-danger, var(--dark-red-text, #b42318));
 }
 
 .fcc-actions {

@@ -62,7 +62,7 @@
                     var workspace = service.WorkspaceCode is { } workspaceCode ? ConfiguredFacility(workspaceCode) : null;
                     var href = service.Route ?? (workspace is not null ? FacilityHref(workspace) : null);
                     <li class="ops-item" data-facility-code="@workspace?.Code">
-                        @Line(ServiceLabel(service, workspace), service.Code ?? (workspace is null ? null : Acronym(workspace)), service.Receipts, href,
+                        @Line(ServiceLabel(service, workspace), service.Code ?? (workspace is null ? null : Acronym(workspace)), ReceiptsFor(service), href,
                               workspace is not null ? $"{workspace.Name} ({Acronym(workspace)})" : null,
                               ExtraLinks(service, workspace), Absence(service))
                     </li>
@@ -126,7 +126,7 @@
                 @foreach (var service in SpaceLines)
                 {
                     <li class="ops-item">
-                        @Line(ServiceLabel(service, null), null, service.Receipts, service.Route, null, service.Links ?? NoLinks, NoWorkspace,
+                        @Line(ServiceLabel(service, null), null, ReceiptsFor(service), service.Route, null, service.Links ?? NoLinks, NoWorkspace,
                               SettingFor(service)?.PolicyNotice is null ? null : "Policy confirmation required")
                     </li>
                 }
@@ -184,6 +184,7 @@
     private static readonly Receipt[] OfficialReceipt = [new("OR")];
     private static readonly Receipt[] CashTicket = [new("CT")];
     private static readonly Receipt[] NoReceipt = [];
+    private static readonly Receipt[] ReceiptNotSet = [new("Not set")];
     private static readonly QuickLink[] NoLinks = [];
     private static readonly QuickLink[] ArrearsLinks = [new("Report", "/operations/arrears/report")];
     private static readonly QuickLink[] TerminalLinks = [new("Report", "/operations/terminal/report")];
@@ -370,6 +371,19 @@
         service.OperationCode is null ? null : _settings?.Items.FirstOrDefault(i => i.OperationCode == service.OperationCode);
 
     /// <summary>
+    /// An office on its own configuration sees the receipt type its own policy sets, and "Not set" until it sets one; the
+    /// established receipts above are the rulings of the office whose lines the legacy fallback shows.
+    /// </summary>
+    private IReadOnlyList<Receipt> ReceiptsFor(OperationService service) =>
+        !Adopted || service.OperationCode is null ? service.Receipts
+        : SettingFor(service)?.Instrument switch
+        {
+            RevenueInstrumentType.OfficialReceipt => OfficialReceipt,
+            RevenueInstrumentType.CashTicket => CashTicket,
+            _ => ReceiptNotSet,
+        };
+
+    /// <summary>
     /// The lines this office lists. An independent operation is shown when the office lists it; a facility-backed one (Tabo, Ice
     /// Plant) only when it has that facility. While the configuration is unknown (loading, or it failed) nothing is guessed.
     /// Listing is presentation: it never decides whether anything may be collected, and hiding a line removes no data or history.
@@ -467,12 +481,19 @@
             }
         </span>
         <span class="ops-row-receipts">
-            @foreach (var receipt in receipts)
+            @if (ReferenceEquals(receipts, ReceiptNotSet))
             {
-                <span class="@InstrumentCssClass(receipt.Instrument)">
-                    <span aria-hidden="true">@receipt.Instrument</span>
-                    <span class="ops-sr-only">@(receipt.When is null ? InstrumentName(receipt.Instrument) : $"{receipt.When}: {InstrumentName(receipt.Instrument)}")</span>
-                </span>
+                <span class="ops-receipt-unset">Not set</span>
+            }
+            else
+            {
+                foreach (var receipt in receipts)
+                {
+                    <span class="@InstrumentCssClass(receipt.Instrument)">
+                        <span aria-hidden="true">@receipt.Instrument</span>
+                        <span class="ops-sr-only">@(receipt.When is null ? InstrumentName(receipt.Instrument) : $"{receipt.When}: {InstrumentName(receipt.Instrument)}")</span>
+                    </span>
+                }
             }
         </span>
         <span class="ops-row-pages">

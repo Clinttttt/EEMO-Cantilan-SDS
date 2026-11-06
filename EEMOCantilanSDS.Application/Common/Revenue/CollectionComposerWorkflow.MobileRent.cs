@@ -88,6 +88,11 @@ public sealed partial class CollectionComposerWorkflow
             if (office && rentOptions?.Allows(tenantId, facilityCode) != true)
                 return Result<EcfPostOutcomeDto>.Failure("Office rent receipts remain disabled for this municipality/facility pending source and reporting cutover acceptance.", ResultStatus.Conflict);
 
+            // A collector's post is money already taken (a queued sync, or a session the rules checked at its quote), so only the office's own receipt is checked here.
+            if (office && billingRules is not null
+                && await billingRules.RefusalAsync(request.StallId, request.BillingYear, request.BillingMonth, ct) is { } refusal)
+                return await Reject("OLDER_MONTH_OPEN", refusal);
+
             var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadAsync(tenantId, request.StallId,
                 request.BillingYear, request.BillingMonth, request.BusinessDate,
                 tracked: true, materializeMissingSource: false, actor: actor.Username, ct: ct);

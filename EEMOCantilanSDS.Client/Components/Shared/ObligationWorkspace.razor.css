@@ -164,7 +164,7 @@
     }
 }
 
-.obw-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--civic-panel); border-radius: 8px; background: #eaf1f9; }
+.obw-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 14px; border: 1px solid var(--civic-panel); border-radius: 8px; background: var(--dark-blue-tint, #eaf1f9); }
 .obw-selected-name { color: var(--navy); font-size: .9375rem; font-weight: 600; overflow-wrap: anywhere; }
 .obw-results { margin: 0; padding: 0; list-style: none; max-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .obw-results li + li { border-top: 1px solid var(--border); }

@@ -20,9 +20,27 @@
    (OfficialMonthlyIncomeStructure), with Arrears and Fines under Others. Read-only: a source's identity, policy and history are
    in its details drawer; nothing here creates, changes, retires or switches a source, and a source's status does not control
    collection. Every source the tenant holds is listed, including one outside the official list. The layout owns <main>. *@
-<div class="v3-page rev-page">
-    <WorkspaceHeader Title="Revenue Sources" Parent="Settings" ParentHref="/settings" />
+<header class="topbar">
+    <div class="topbar-left">
+        <h1 class="topbar-title">Revenue Sources</h1>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Revenue Sources</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
 
+<div class="v3-page rev-page">
     @if (_loading)
     {
         <section class="v3-panel rev-group" aria-label="Loading revenue sources" aria-busy="true">
@@ -42,7 +60,7 @@
             <button class="v3-btn v3-btn-primary" type="button" @onclick="LoadAsync">Try again</button>
         </div>
     }
-    else if (_classifications.Count == 0)
+    else if (_classifications.Count == 0 && _setupRequired.Count == 0 && _setup is not { Items.Count: > 0 })
     {
         <div class="v3-panel rev-state">
             <h3>No revenue sources configured yet.</h3>
@@ -142,7 +160,15 @@
                             <span class="rev-source-name">@item.DisplayName@if (item.Gaps.Count > 0) {<small class="v3-block rev-gaps">@string.Join(" · ", item.Gaps)</small>}</span>
                             <span class="rev-row-instrument v3-muted">@GroupLabel(item.GroupKey)</span>
                             <span class="rev-row-status"><span class="rev-status @StateClass(item.State)">@StateLabel(item.State)</span></span>
-                            <span></span>
+                            @if (NeedsReceiptType(item))
+                            {
+                                <button class="v3-btn v3-btn-sm rev-details" type="button" @onclick="() => OpenReceiptType(item)"
+                                        aria-label="@("Set receipt type for " + item.DisplayName)">Set receipt type</button>
+                            }
+                            else
+                            {
+                                <span></span>
+                            }
                         </li>
                     }
                 </ul>
@@ -193,6 +219,42 @@
             <footer class="v3-modal-footer">
                 <button class="v3-btn" type="button" @onclick="CloseAdd" disabled="@_addBusy">Cancel</button>
                 <button class="v3-btn v3-btn-primary" type="button" @onclick="AddAsync" disabled="@_addBusy">@(_addBusy ? "Adding…" : "Add operation")</button>
+            </footer>
+        </section>
+    </div>
+}
+
+@if (_receiptFor is { } receiptFor)
+{
+    <div class="v3-modal-backdrop" role="presentation" @onclick="CloseReceiptType">
+        <section class="v3-modal rev-add-dialog" role="dialog" aria-modal="true" aria-labelledby="rev-receipt-title" @onclick:stopPropagation="true" @onkeydown="OnReceiptKey">
+            <header class="v3-modal-header">
+                <h2 id="rev-receipt-title">Receipt type for @receiptFor.DisplayName</h2>
+            </header>
+            <div class="v3-modal-body">
+                <p class="rev-note rev-note-flush">The receipt collectors issue for this operation, from the date below. It does not assign collectors.</p>
+                <fieldset class="rev-choice">
+                    <legend>Receipt type</legend>
+                    <div class="v3-btn-group">
+                        @foreach (var (type, label) in ReceiptTypes)
+                        {
+                            <button class="v3-btn @(_receiptType == type ? "v3-btn-primary" : null)" type="button"
+                                    aria-pressed="@(_receiptType == type ? "true" : "false")" @onclick="() => _receiptType = type">@label</button>
+                        }
+                    </div>
+                </fieldset>
+                <label class="v3-field">
+                    <span>Effective from</span>
+                    <input type="date" min="@PhilippineTime.Today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)" @bind="_receiptFrom" />
+                </label>
+                @if (!string.IsNullOrEmpty(_receiptError))
+                {
+                    <p class="v3-notice v3-notice-error" role="alert">@_receiptError</p>
+                }
+            </div>
+            <footer class="v3-modal-footer">
+                <button class="v3-btn" type="button" @onclick="CloseReceiptType" disabled="@_receiptBusy">Cancel</button>
+                <button class="v3-btn v3-btn-primary" type="button" @onclick="SaveReceiptTypeAsync" disabled="@_receiptBusy">@(_receiptBusy ? "Saving…" : "Save receipt type")</button>
             </footer>
         </section>
     </div>
@@ -428,6 +490,57 @@
         }
         catch { _addError = "The operation could not be added. Check the connection and try again."; }
         finally { _addBusy = false; }
+    }
+
+    // ── Receipt type: the first policy of an added operation's source, filed through the existing revenue-source API. ──
+    private static readonly (RevenueInstrumentType Type, string Label)[] ReceiptTypes =
+        [(RevenueInstrumentType.OfficialReceipt, "Official Receipt (OR)"), (RevenueInstrumentType.CashTicket, "Cash Ticket (CT)")];
+    private OperationSetupDto? _receiptFor;
+    private RevenueInstrumentType? _receiptType;
+    private DateOnly _receiptFrom;
+    private string _receiptError = string.Empty;
+    private bool _receiptBusy;
+
+    private RevenueClassificationDto? SourceOf(OperationSetupDto item) =>
+        TenantOperationCatalog.Find(item.OperationCode) is { } entry ? _classifications.FirstOrDefault(c => c.SemanticCode == entry.ClassificationCode) : null;
+
+    // Offered only where nothing is filed yet: no source, or an active source with no policy at all. A scheduled policy or a
+    // retired source is left as it is (its details say why), so this never files a second policy over one already chosen.
+    private bool NeedsReceiptType(OperationSetupDto item) =>
+        item.State != OperationSetupState.Available && !item.PolicyEffective && !item.SourceRetired
+        && TenantOperationCatalog.Find(item.OperationCode) is not null
+        && (!item.SourceExists || SourceOf(item) is { IsActive: true, HasPolicyVersions: false });
+
+    private void OpenReceiptType(OperationSetupDto item)
+    {
+        _receiptFor = item; _receiptType = null; _receiptFrom = PhilippineTime.Today; _receiptError = string.Empty; _notice = string.Empty;
+    }
+    private void CloseReceiptType() { if (!_receiptBusy) _receiptFor = null; }
+    private void OnReceiptKey(KeyboardEventArgs args) { if (args.Key == "Escape") CloseReceiptType(); }
+
+    private async Task SaveReceiptTypeAsync()
+    {
+        if (_receiptFor is not { } item || _receiptBusy) return;
+        if (_receiptType is not { } type) { _receiptError = "Choose the receipt collectors issue for it."; return; }
+        if (_receiptFrom < PhilippineTime.Today) { _receiptError = "The receipt type can start today or later."; return; }
+        _receiptBusy = true; _receiptError = string.Empty;
+        const string failed = "The receipt type could not be saved.";
+        try
+        {
+            // No source yet: creating it files its first policy. An existing source with none gets its first policy appended.
+            var source = SourceOf(item);
+            var error = source is null
+                ? Failure(await RevenueApi.CreateClassificationAsync(new(TenantOperationCatalog.Find(item.OperationCode)!.ClassificationCode, item.DisplayName, _receiptFrom, null, type)))
+                : Failure(await RevenueApi.AppendPolicyAsync(source.Id, new(_receiptFrom, item.DisplayName, null, type)));
+            if (error is not null) { _receiptError = error; return; }
+            _notice = $"{item.DisplayName} uses the {InstrumentLabel(type)} from {DateText(_receiptFrom)}.";
+            _receiptFor = null;
+            await LoadAsync();
+        }
+        catch { _receiptError = failed + " Check the connection and try again."; }
+        finally { _receiptBusy = false; }
+
+        static string? Failure<T>(Result<T>? result) => result is { IsSuccess: true } ? null : result is null ? failed : ErrorMessage(result, failed);
     }
 
     private static string GroupLabel(string groupKey) => groupKey == TenantOperationCatalog.SpaceGroup ? "Space Rental" : "Income from Market";

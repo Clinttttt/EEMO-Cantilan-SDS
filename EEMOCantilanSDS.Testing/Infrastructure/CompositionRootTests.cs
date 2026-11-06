@@ -168,6 +168,8 @@ public class CompositionRootTests
         var duplicates = RealRegistrations()
             .Where(d => IsOurs(d.ServiceType) || IsOurs(d.ImplementationType))
             .Where(d => !d.ServiceType.ContainsGenericParameters)
+            // The host runs every hosted service, so none of them can win over another.
+            .Where(d => d.ServiceType != typeof(Microsoft.Extensions.Hosting.IHostedService))
             .GroupBy(d => d.ServiceType)
             .Where(g => g.Count() > 1)
             .Select(g => $"{Name(g.Key)} registered {g.Count()} times")

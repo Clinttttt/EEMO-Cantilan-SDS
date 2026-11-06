@@ -968,7 +968,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal(headers, report.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Equal(headers, overview.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Contains("Revenue source performance — October 2026", report.Find("#rsp-title").TextContent);
-            Assert.Equal("Actual collections and operating activity by revenue source. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
+            Assert.Equal("Money received in this period by revenue source, including rent of earlier months. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
             Assert.DoesNotContain("Targets partially configured", report.Markup);
             Assert.DoesNotContain("Targets partially configured", overview.Markup);
             Assert.Empty(report.FindAll(".rsp-cov"));

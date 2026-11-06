@@ -211,7 +211,7 @@
                         @if (_renewTarget.MonthBasis != NpmMonthBasis.PureDays)
                         {
                             <label>Monthly rental (₱)
-                                <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" />
+                                <input class="ca-renew-rate" type="number" min="0" step="0.01" @bind="_renewMonthlyRate" @bind:event="oninput" />
                             </label>
                         }
                     </div>

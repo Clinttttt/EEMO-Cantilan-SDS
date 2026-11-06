@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Fees;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
@@ -18,9 +19,10 @@ public class InitiateOnlinePaymentCommandHandler(
     IStallRepository stallRepository,
     IPayorRepository payorRepository,
     IPaymentGateway paymentGateway,
+    IPayMongoCheckoutExpiryService checkoutExpiry,
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null, BillingRules? billingRules = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
     public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
@@ -61,6 +63,13 @@ public class InitiateOnlinePaymentCommandHandler(
                 [OutOfScopeCode] = ["Only the month's stall rent can be paid online, as the full balance. Pay this charge at the office or to your collector."]
             });
 
+        // A contract term can run for years, so being inside it does not make a month payable yet. The office's billing rules say which month can be paid now.
+        var refusal = billingRules is null || request.Year < 2000 || request.Month is < 1 or > 12
+            ? MobileBillingMonth.Resolve(request.Year, request.Month, clock.PhilippineToday).Error
+            : await billingRules.RefusalAsync(request.StallId, request.Year, request.Month, cancellationToken);
+        if (refusal is not null)
+            return Result<InitiateOnlinePaymentResultDto>.Failure(refusal, ResultStatus.Conflict);
+
         // The requested period must fall within one of the stall's contract terms. Without this a payor
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
         // expiry, or arbitrary future months), creating obligation rows for uncovered periods.
@@ -86,6 +95,12 @@ public class InitiateOnlinePaymentCommandHandler(
                 stall.MonthlyRentFor(request.Year, request.Month, clock.PhilippineToday), "Online");
             isNewRecord = true;
         }
+
+        // The balance still shows while the office reviews a capture, so this is what stops the payor paying the same period twice.
+        if (!isNewRecord && await onlinePaymentRepository.HasUnresolvedCaptureForRecordAsync(record.Id, cancellationToken))
+            return Result<InitiateOnlinePaymentResultDto>.Failure(
+                "The office is reviewing a payment already received for this period. Please do not pay it again; contact the office if you have questions.",
+                ResultStatus.Conflict);
 
         // A Canonical row is charged its canonical rent outstanding (the figure settlement will post and require); a
         // transitioning row is paused; a Legacy row keeps its legacy balance.
@@ -124,8 +139,16 @@ public class InitiateOnlinePaymentCommandHandler(
                     return Result<InitiateOnlinePaymentResultDto>.Success(
                         new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
 
-                // Retired rather than left Pending, so the old link cannot be paid for the wrong amount afterwards.
+                // The old link can take money until the gateway closes it. If it will not close, a payment may be under way, so no second checkout opens.
+                var closed = await checkoutExpiry.ExpireAndVerifyAsync(resumable.GatewayReference!, cancellationToken);
+                if (!closed.IsSuccess || closed.Value?.Type != PaymentGatewayEventType.Expired)
+                    return Result<InitiateOnlinePaymentResultDto>.Failure(
+                        "A payment for this period may still be in progress. Please wait a few minutes and check your balance before paying again.",
+                        ResultStatus.Conflict);
+
                 resumable.MarkExpired(StaleCheckoutNote(resumable.Amount, amount));
+                // Saved on its own: the one-open-checkout index would reject the new row if EF inserted it before this update.
+                await unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
 

@@ -76,7 +76,7 @@
 .oc-summary > div + div { border-left: 1px solid var(--border); }
 .oc-summary dt { color: var(--text-secondary); font-size: 0.75rem; }
 .oc-summary dd { margin: 0; color: var(--navy); font-weight: 700; font-variant-numeric: tabular-nums; }
-.oc-summary .oc-flag dd { color: var(--danger, #b42318); }
+.oc-summary .oc-flag dd { color: var(--danger, var(--dark-red-text, #b42318)); }
 
 .oc-fields {
     display: grid;
@@ -92,7 +92,7 @@
 .oc-difference {
     margin: 0;
     font-size: 0.8125rem;
-    color: var(--danger, #b42318);
+    color: var(--danger, var(--dark-red-text, #b42318));
 }
 
 .oc-actions {

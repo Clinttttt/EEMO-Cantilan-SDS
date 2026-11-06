@@ -290,7 +290,7 @@
                 </div>
                 <div class="kpi-body">
                     <div class="kpi-value">@Money(Model.Collected)</div>
-                    <div class="kpi-label">Collected — @PeriodLabel</div>
+                    <div class="kpi-label">Collected for @PeriodLabel</div>
                     @if (Model.CollectedPreviousPeriod is decimal prev && Model.PreviousPeriodLabel is not null && prev > 0)
                     {
                         var deltaAbs = Model.Collected - prev;

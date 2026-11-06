@@ -47,7 +47,7 @@
 .far-row-actions { width: 1%; white-space: nowrap; }
 .far-actions { display: inline-flex; gap: 6px; }
 .far-pay { border-color: var(--accent); color: var(--accent); }
-.far-pay:hover { background: var(--accent); color: var(--surface); }
+.far-pay:hover { background: var(--dark-accent-fill, var(--accent)); color: var(--dark-on-fill, var(--surface)); }
 
 /* ── Case detail drawer ── */
 .far-case {
@@ -94,9 +94,12 @@
 .far-mini th:last-child, .far-mini td:last-child { padding-right: 0; }
 .far-src { font-family: ui-monospace, "SFMono-Regular", Consolas, monospace; letter-spacing: .02em; }
 .far-note { margin: 0 0 12px; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.far-adjust { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 20px; align-items: end; margin-bottom: 12px; }
+.far-adjust button { grid-column: 1 / -1; justify-self: end; }
 
 @media (max-width: 600px) {
     .far-search { max-width: none; }
     .far-facts { grid-template-columns: 1fr; }
     .far-amounts { grid-template-columns: 1fr; }
+    .far-adjust { grid-template-columns: 1fr; }
 }

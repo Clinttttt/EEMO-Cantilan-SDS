@@ -1,0 +1,30 @@
+@page "/settings/storage"
+@attribute [Authorize(Roles = "SuperAdmin")]
+@using EEMOCantilanSDS.Domain.Common
+
+<PageTitle>StallTrack — Storage</PageTitle>
+
+@* Its own page so the scan behind it runs when the Head asks for it, not on every visit to Settings. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <h1 class="topbar-title">Storage</h1>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Storage</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <TenantUsagePanel />
+</div>

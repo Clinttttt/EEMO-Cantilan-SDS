@@ -8,7 +8,7 @@
 .ca-preview {
     display: flex; align-items: center; gap: 10px;
     background: rgba(200, 168, 75, .12); border: 1px solid rgba(200, 168, 75, .45);
-    color: #8a6d1b; border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 12.5px;
+    color: var(--dark-amber-text, #8a6d1b); border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: 12.5px;
 }
 .ca-preview svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
 
@@ -59,11 +59,11 @@
    "N accounts · ₱X uncollected" stats. Compact so it reads as a group action, not a page action. */
 .ca-renew-all-btn {
     display: inline-flex; align-items: center; gap: 7px;
-    background: var(--green); color: #fff; border: none; border-radius: 8px;
+    background: var(--dark-green-fill, var(--green)); color: #fff; border: none; border-radius: 8px;
     padding: 7px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer;
     transition: background .15s; white-space: nowrap;
 }
-.ca-renew-all-btn:hover { background: color-mix(in srgb, var(--green) 86%, #000); }
+.ca-renew-all-btn:hover { background: color-mix(in srgb, var(--dark-green-fill, var(--green)) 86%, #000); }
 .ca-renew-all-btn svg { width: 15px; height: 15px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .ca-state { padding: 40px; text-align: center; color: var(--text-subtle); font-size: 14px; }
@@ -177,11 +177,11 @@
 }
 .ca-row-btn:hover { box-shadow: 0 4px 10px rgba(9, 31, 52, .12); }
 .ca-row-reopen { border-color: color-mix(in srgb, var(--navy) 35%, transparent); color: var(--navy); }
-.ca-row-reopen:hover { background: var(--accent-hover); color: #fff; }
+.ca-row-reopen:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); color: #fff; }
 .ca-row-renew { border-color: color-mix(in srgb, var(--green) 40%, transparent); color: var(--green); }
-.ca-row-renew:hover { background: var(--green); color: #fff; }
+.ca-row-renew:hover { background: var(--dark-green-fill, var(--green)); color: #fff; }
 .ca-row-remove { border-color: color-mix(in srgb, var(--red) 40%, transparent); color: var(--red); }
-.ca-row-remove:hover { background: var(--red); color: #fff; }
+.ca-row-remove:hover { background: var(--dark-red-fill, var(--red)); color: #fff; }
 
 /* ── Row actions as icons ──
    The action column carried two or three worded buttons ("Assign new stall", "Remove") and could not hold them at
@@ -389,7 +389,7 @@
     font-size: 11.5px;
     line-height: 1.55;
     color: var(--text-muted);
-    background: #fbfcfd;
+    background: var(--dark-surface-muted, #fbfcfd);
     border: 1px solid var(--border);
     border-radius: 7px;
 }

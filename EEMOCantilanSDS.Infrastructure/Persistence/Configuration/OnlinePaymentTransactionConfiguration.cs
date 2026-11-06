@@ -25,6 +25,12 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .HasConversion<int>()
                 .HasDefaultValue(EEMOCantilanSDS.Domain.Enums.OnlinePaymentTargetKind.MonthlyRecord);
             builder.Property(x => x.PaymentRecordId);   // nullable
+            // Named so EF keeps this foreign-key index: a second index on the same column would otherwise replace it.
+            builder.HasIndex(x => x.PaymentRecordId, "IX_OnlinePaymentTransactions_PaymentRecordId");
+            // One open checkout per period (Initiated, Pending), so two concurrent requests cannot both open a live session.
+            builder.HasIndex(x => x.PaymentRecordId, "UX_OnlinePaymentTransactions_OneOpenCheckoutPerRecord")
+                .IsUnique()
+                .HasFilter("\"PaymentRecordId\" IS NOT NULL AND \"Status\" IN (1, 2) AND \"IsDeleted\" = false");
             builder.Property(x => x.TargetStallId);
             builder.Property(x => x.TargetYear);
             builder.Property(x => x.TargetMonth);
@@ -60,6 +66,13 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(x => x.PaidAt);
             builder.Property(x => x.RawPayload).HasColumnType("jsonb");
             builder.Property(x => x.ORNumber).HasMaxLength(50);
+            builder.Property(x => x.CapturedAmount).HasColumnType("numeric(18,2)");
+            builder.Property(x => x.ReconciliationReason).HasMaxLength(500);
+            builder.Property(x => x.Disposition).HasConversion<int?>();
+            builder.Property(x => x.DispositionReference).HasMaxLength(100);
+            builder.Property(x => x.DispositionNote).HasMaxLength(500);
+            builder.Property(x => x.DispositionBy).HasMaxLength(100);
+            builder.Property(x => x.DispositionAtUtc);
 
             builder.Property(x => x.CreatedAt).IsRequired();
             builder.Property(x => x.CreatedBy).HasMaxLength(100);

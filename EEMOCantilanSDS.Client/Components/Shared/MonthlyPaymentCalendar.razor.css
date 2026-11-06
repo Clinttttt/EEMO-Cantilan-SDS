@@ -69,7 +69,7 @@
     }
 
 .mo-icon-yes {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
 }
 
     .mo-icon-yes svg {
@@ -102,13 +102,13 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    color: #7a8fa5;
+    color: var(--dark-text-tertiary, #7a8fa5);
     pointer-events: none;
     z-index: 1;
 }
 
 .mo-overlay-before {
-    color: #a67676;
+    color: var(--dark-text-tertiary, #a67676);
 }
 
 .mo-cell-paid {
@@ -118,25 +118,25 @@
 }
 
 .mo-cell-partial {
-    background: #fff8e1;
+    background: var(--dark-amber-tint, #fff8e1);
     border-color: #f59e0b;
     border-width: 1.5px;
 }
 
 .mo-cell-miss {
     background: var(--bg);
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .mo-cell-future {
     background: rgba(168, 184, 200, 0.08);
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
     border-width: 1.5px;
 }
 
 .mo-cell-before-contract {
     background: rgba(139, 58, 58, 0.04);
-    border-color: #d4a5a5;
+    border-color: var(--dark-red-border, #d4a5a5);
     border-width: 1.5px;
 }
 
@@ -227,7 +227,7 @@
     gap: 5px;
     padding: 14px 16px 12px;
     border-radius: 10px;
-    border: 1.5px solid #c5d1dc;
+    border: 1.5px solid var(--dark-border, #c5d1dc);
     background: var(--bg);
     min-height: 72px;
 }
@@ -304,7 +304,7 @@
 }
 
 .monthly-stat-gold .monthly-stat-val {
-    color: #c8900a;
+    color: var(--dark-amber-text, #c8900a);
 }
 
 /* ══════════════════════════════════════════
@@ -412,7 +412,7 @@
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-month-name {
@@ -515,14 +515,14 @@
 }
 
 .payment-balance {
-    background: #fff8e1;
+    background: var(--dark-amber-tint, #fff8e1);
     margin: 8px -16px -16px;
     padding: 12px 16px;
     border-radius: 0 0 10px 10px;
 }
 
 .payment-balance-amount {
-    color: #f59e0b;
+    color: var(--dark-amber-text, #f59e0b);
     font-size: 16px;
     font-weight: 700;
 }
@@ -542,8 +542,8 @@
 }
 
 .status-partial {
-    background: #fff8e1;
-    color: #f59e0b;
+    background: var(--dark-amber-tint, #fff8e1);
+    color: var(--dark-amber-text, #f59e0b);
 }
 
 .status-unpaid {
@@ -595,7 +595,7 @@
 
     .payment-status-btn.active {
         border-color: var(--navy);
-        background: var(--navy);
+        background: var(--dark-navy-fill, var(--navy));
         color: #fff;
     }
 
@@ -653,6 +653,6 @@
 
 .payment-status-btn.active {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }

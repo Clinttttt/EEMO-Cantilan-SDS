@@ -11,7 +11,7 @@
     inset: 22%;
     width: 56%;
     height: 56%;
-    color: #6a8aa0;
+    color: var(--dark-text-tertiary, #6a8aa0);
     opacity: .45;
 }
 .municipal-seal-frame img {

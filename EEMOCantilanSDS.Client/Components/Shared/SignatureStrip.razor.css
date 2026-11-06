@@ -59,7 +59,7 @@
     .sig-edit:hover {
         opacity: 1;
         color: var(--navy);
-        background: rgba(15, 35, 55, .06);
+        background: var(--dark-tint, rgba(15, 35, 55, .06));
     }
 
     .sig-edit svg {
@@ -165,7 +165,7 @@
 
 .sig-save {
     color: #fff;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border: 1px solid var(--navy);
 }
 
@@ -287,7 +287,7 @@
 }
 
 .sig-tool:hover:not(:disabled) {
-    background: rgba(255, 255, 255, .7);
+    background: var(--dark-surface-muted, rgba(255, 255, 255, .7));
     border-color: var(--navy, #0d2137);
     color: var(--navy, #0d2137);
 }

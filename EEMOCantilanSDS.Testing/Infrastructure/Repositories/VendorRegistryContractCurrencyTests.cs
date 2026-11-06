@@ -92,4 +92,59 @@ public class VendorRegistryContractCurrencyTests : RepositoryTestBase
         // Outstanding = partial remainder (2,400 − 1,000) + full unpaid (2,400) = 3,800.
         Assert.Equal(3800m, registry.TotalOutstanding);
     }
+
+    /// <summary>
+    /// Rent is owed by whoever holds a space. A vacant space stays listed, but it has no account, so it adds nothing to
+    /// the unpaid count, the outstanding total or the target. The reports read it the same way.
+    /// </summary>
+    [Fact]
+    public async Task Registry_ListsAVacantSpaceButNeverBillsIt()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+
+        var held = Stall.Create(facility.Id, "1", 2400m, ApplicableFees.BaseRental);
+        var heldContract = Contract.Create(held.Id, "Held", "Held", today.AddYears(-1), 3, 2400m);
+
+        var neverLet = Stall.Create(facility.Id, "2", 3600m, ApplicableFees.BaseRental);
+
+        var notStarted = Stall.Create(facility.Id, "3", 3000m, ApplicableFees.BaseRental);
+        var futureContract = Contract.Create(notStarted.Id, "Next", "Next", today.AddMonths(2), 3, 3000m);
+
+        context.AddRange(facility, held, heldContract, neverLet, notStarted, futureContract);
+        await context.SaveChangesAsync();
+
+        var registry = await new VendorRepository(context).GetVendorRegistryAsync(today.Year, today.Month, CancellationToken.None);
+
+        Assert.Equal(3, registry.TotalVendors);
+        Assert.Equal(1, registry.MonthlyBillableVendors);
+        Assert.Equal(1, registry.UnpaidCount);
+        Assert.Equal(2400m, registry.TotalOutstanding);
+        Assert.Equal(2400m, registry.MonthlyTarget);
+        Assert.False(registry.Vendors.Single(v => v.StallNo == "1").Vacant);
+        Assert.True(registry.Vendors.Single(v => v.StallNo == "2").Vacant);
+        Assert.True(registry.Vendors.Single(v => v.StallNo == "3").Vacant);
+    }
+
+    /// <summary>A lessee who left this month still answers for this month, so the month stays billed until it is settled.</summary>
+    [Fact]
+    public async Task Registry_StillBillsTheMonthALesseeLeft()
+    {
+        var context = NewContext();
+        var today = PhilippineTime.Today;
+        var facility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC");
+        var stall = Stall.Create(facility.Id, "1", 2400m, ApplicableFees.BaseRental);
+        var ended = Contract.Create(stall.Id, "Left", "Left", today.AddYears(-1), 3, 2600m);
+        ended.Terminate("test", new DateOnly(today.Year, today.Month, 1));
+
+        context.AddRange(facility, stall, ended);
+        await context.SaveChangesAsync();
+
+        var registry = await new VendorRepository(context).GetVendorRegistryAsync(today.Year, today.Month, CancellationToken.None);
+
+        Assert.Equal(1, registry.UnpaidCount);
+        Assert.Equal(2600m, registry.TotalOutstanding);
+        Assert.False(registry.Vendors.Single().Vacant);
+    }
 }

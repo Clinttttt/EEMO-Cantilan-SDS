@@ -8,7 +8,7 @@
 
    Deliberately minimal, and lighter than App.razor rather than a copy of it. No Blazor script, no circuit, no boot splash, no
    SignalR: this page shows nothing that changes and its only control is a link, so it needs no interactivity and should not pay
-   for any. app.css alone carries everything it uses - .empty-state, .btn-primary and the colour variables all live there - and it
+   for any. Its one script only sets light or dark. app.css alone carries everything it uses - .empty-state, .btn-primary and the colour variables all live there - and it
    is requested through Assets so the fingerprinted, cache-correct URL is used.
 
    The routable /not-found page stays separate and stays a fragment, because when Blazor is already running the document exists
@@ -20,6 +20,14 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        // The same light or dark choice as App.razor's head script, which this document does not load.
+        (function () {
+            var choice = null;
+            try { choice = localStorage.getItem('st-theme'); } catch (e) { /* storage blocked: follow the OS */ }
+            if (choice ? choice === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.setAttribute('data-st-theme', 'dark');
+        })();
+    </script>
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="icon" type="image/png" href="/images/stalltrack-final-logo-transparent.png" />
     <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@400;500;600&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />

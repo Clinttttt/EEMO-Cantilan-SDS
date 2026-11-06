@@ -214,8 +214,8 @@ else
                             }
                             else
                             {
-                                <span class="status-pill @(DetailVendor.IsPaidThisMonth ? "pill-paid" : DetailVendor.IsPartialThisMonth ? "pill-partial" : "pill-unpaid")">
-                                    @(DetailVendor.IsPaidThisMonth ? "Rental paid" : DetailVendor.IsPartialThisMonth ? "Partial" : "Unpaid")
+                                <span class="status-pill @(DetailVendor.IsPaidThisMonth ? "pill-paid" : DetailVendor.IsPartialThisMonth ? "pill-partial" : DetailVendor.IsVacant ? "pill-inactive" : "pill-unpaid")">
+                                    @(DetailVendor.IsPaidThisMonth ? "Rental paid" : DetailVendor.IsPartialThisMonth ? "Partial" : DetailVendor.IsVacant ? "Vacant" : "Unpaid")
                                 </span>
                             }
                         </dd>
@@ -506,7 +506,7 @@ else
     private IEnumerable<EEMOCantilanSDS.Client.Services.RentalTableRow<VendorEntry>> RegistryRows => FilteredVendors.Select(v => new EEMOCantilanSDS.Client.Services.RentalTableRow<VendorEntry>(v,
         SpaceNumber.Display(v.StallNo), v.ActualOccupant, RegistryContract(v), v.ContractDate?.ToString("MMM d, yyyy") ?? "—",
         IsActiveNpmPureDays ? v.ResolvedDailyFee ?? ResolvedRateForSection(v.Section) : v.MonthlyRate,
-        v.FacilityCode == "NPM" ? "Daily" : v.IsPaidThisMonth ? "Paid" : v.IsPartialThisMonth ? "Partial" : "Unpaid",
+        v.FacilityCode == "NPM" ? "Daily" : v.IsPaidThisMonth ? "Paid" : v.IsPartialThisMonth ? "Partial" : v.IsVacant ? "Vacant" : "Unpaid",
         v.IsActive ? "Active" : "Closed", v.Section));
 
     private string RegistryContract(VendorEntry v)
@@ -709,6 +709,7 @@ else
                 IsActive = item.Status == Domain.Enums.StallStatus.Active,
                 IsPaidThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Paid,
                 IsPartialThisMonth = item.PaymentStatus == Domain.Enums.PaymentStatus.Partial,
+                IsVacant = item.Vacant,
                 PaymentHistory = new List<Application.Dtos.Payments.PaymentHistoryDto>(),
                 DailyCollections = new Dictionary<string, bool>(),
                 DailyFishKilos = new Dictionary<string, decimal>()
@@ -718,7 +719,7 @@ else
         // Update facility tabs unpaid counts
         foreach (var tab in FacilityTabs)
         {
-            tab.UnpaidCount = Vendors.Count(v => v.FacilityCode == tab.Code && v.IsActive && !v.IsPaidThisMonth);
+            tab.UnpaidCount = Vendors.Count(v => v.FacilityCode == tab.Code && v.IsActive && !v.IsPaidThisMonth && (v.IsPartialThisMonth || !v.IsVacant));
         }
     }
 
@@ -858,6 +859,7 @@ else
         public bool IsActive { get; set; } = true;
         public bool IsPaidThisMonth { get; set; }
         public bool IsPartialThisMonth { get; set; }
+        public bool IsVacant { get; set; }
         public decimal PartialAmount { get; set; } = 0m;
         public List<Application.Dtos.Payments.PaymentHistoryDto> PaymentHistory { get; set; } = new();
         public Dictionary<string, bool> DailyCollections { get; set; } = new();
@@ -880,7 +882,7 @@ else
         {
             "Paid" => v.IsPaidThisMonth && v.IsActive,
             "Partial" => v.IsPartialThisMonth && v.IsActive,
-            "Unpaid" => !v.IsPaidThisMonth && !v.IsPartialThisMonth && v.IsActive,
+            "Unpaid" => !v.IsPaidThisMonth && !v.IsPartialThisMonth && !v.IsVacant && v.IsActive,
             "Closed" => !v.IsActive,
             _ => true
         };

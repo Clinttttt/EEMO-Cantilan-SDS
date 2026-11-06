@@ -21,6 +21,12 @@ public static class OfficialMonthlyIncomeStructure
     public const string Slaughterhouse = "SLAUGHTERHOUSE";
     public const string Terminal = "TERMINAL";
 
+    /// <summary>
+    /// The office whose confirmed sheet these rows and labels are (IA-050). It is printed exactly for that office; every other
+    /// office sees the lines it holds under its own names (IA-080). Matched by tenant code, as its classifications are seeded.
+    /// </summary>
+    public const string SheetOfficeCode = "CANTILAN";
+
     public static readonly IReadOnlyList<Group> Groups =
     [
         new(Market, "Income From Market"),

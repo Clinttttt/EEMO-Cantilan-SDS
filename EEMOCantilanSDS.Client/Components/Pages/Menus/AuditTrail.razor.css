@@ -30,8 +30,8 @@
 }
 
 .audit-hero-stat:hover { background: rgba(255, 255, 255, 0.10); }
-.audit-hero-stat.is-active { border-bottom-color: #fff; }
-.audit-hero-stat:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.audit-hero-stat.is-active { border-bottom-color: var(--dark-surface, #fff); }
+.audit-hero-stat:focus-visible { outline: 2px solid var(--dark-surface, #fff); outline-offset: 2px; }
 
 .audit-hero-val {
     font-size: 1.375rem;
@@ -211,7 +211,7 @@ select.af-input::-ms-expand { display: none; }
     height: 40px;
     padding: 0 1.05rem;
     border-radius: 9px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     font-size: 0.85rem;
     font-weight: 600;
@@ -219,7 +219,7 @@ select.af-input::-ms-expand { display: none; }
     transition: background 0.15s;
 }
 
-.af-export:hover { background: var(--accent-hover); }
+.af-export:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
 .af-export svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .af-export.is-disabled { opacity: 0.5; pointer-events: none; }
 
@@ -257,7 +257,7 @@ select.af-input::-ms-expand { display: none; }
 }
 
 .audit-daygroup {
-    background: #f6f9fc;
+    background: var(--dark-surface-muted, #f6f9fc);
     padding: 0.5rem 1.25rem;
     font-size: 0.74rem;
     font-weight: 700;

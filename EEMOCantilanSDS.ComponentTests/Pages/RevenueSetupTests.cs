@@ -205,6 +205,7 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Contains("Water Consumption Fees", available.TextContent);
             Assert.DoesNotContain("Market Fees", available.TextContent);
             Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-setup']"));                   // the name-only list is replaced by the verified register
+            Assert.DoesNotContain("No revenue sources configured yet.", cut.Markup);               // the register already says so, row by row
         }, RenderTimeout);
     }
 
@@ -263,6 +264,83 @@ public sealed class RevenueSetupTests : TestContext
     }
 
     [Fact]
+    public void SettingTheReceiptType_ForAnOperationWithNoSource_CreatesItsSourceWithTheChosenType_AndReloads()
+    {
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
+        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+        [
+            new("ECF", "Electricity Fees", "MARKET", OperationSetupState.SetupRequired, false, false, false, 0, 0, ["No revenue source set up"], 3),
+            Setup("MARKET_FEES", "Market Fees", OperationSetupState.Ready),
+        ])));
+        Services.AddSingleton(settings.Object);
+        var (cut, api) = RenderPage([]);
+        CreateRevenueClassificationCommand? sent = null;
+        api.Setup(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()))
+            .Callback<CreateRevenueClassificationCommand>(c => sent = c)
+            .ReturnsAsync(Result<RevenueClassificationDto>.Success(Classification(RevenueClassificationCodes.Ecf, "Electricity Fees", true, true, null)));
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Set receipt type for Electricity Fees']"), RenderTimeout);
+        Assert.Empty(cut.FindAll("button[aria-label='Set receipt type for Market Fees']")); // a ready operation already has one
+
+        cut.Find("button[aria-label='Set receipt type for Electricity Fees']").Click();
+        Assert.Contains("does not assign collectors", cut.Find("[role='dialog']").TextContent);
+        ClickButton(cut, "Save receipt type");
+        Assert.Contains("Choose the receipt", cut.Find("[role='dialog']").TextContent); // nothing is assumed
+        api.Verify(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
+
+        ClickButton(cut, "Cash Ticket (CT)");
+        Assert.Equal("true", cut.FindAll("[role='dialog'] button").Single(b => b.TextContent.Contains("Cash Ticket")).GetAttribute("aria-pressed"));
+        ClickButton(cut, "Save receipt type");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal((RevenueClassificationCodes.Ecf, "Electricity Fees", PhilippineTime.Today, RevenueInstrumentType.CashTicket),
+                (sent!.SemanticCode, sent.DisplayName, sent.EffectiveDate, sent.PermittedInstrumentType));
+            Assert.Empty(cut.FindAll("[role='dialog']"));
+            Assert.Contains("Electricity Fees uses the Cash Ticket", cut.Markup);
+        }, RenderTimeout);
+        settings.Verify(s => s.GetSetupAsync(), Times.Exactly(2));
+        api.Verify(a => a.AppendPolicyAsync(It.IsAny<Guid>(), It.IsAny<AppendRevenueClassificationPolicyRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void SettingTheReceiptType_ForASourceWithNoPolicy_AppendsItsFirstPolicy_AndAFailureStaysOpenWithTheReason()
+    {
+        var weightId = Guid.NewGuid();
+        var settings = new Mock<IOperationSettingsApiClient>();
+        settings.Setup(s => s.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Failure("not needed here", 500));
+        settings.Setup(s => s.GetSetupAsync()).ReturnsAsync(Result<OperationSetupOverviewDto>.Success(new(true,
+        [
+            Setup(CollectorOperationCodes.WeightAndMeasure, "Weight & Measure", OperationSetupState.SetupRequired),
+            Setup(CollectorOperationCodes.MarketFees, "Market Fees", OperationSetupState.SetupRequired),
+        ])));
+        Services.AddSingleton(settings.Object);
+        var (cut, api) = RenderPage(
+        [
+            Classification(RevenueClassificationCodes.WeightAndMeasure, "Weight & Measure", true, false, null, weightId),
+            Classification(RevenueClassificationCodes.MarketFees, "Market Fees", true, true, null), // its policy is scheduled, not missing
+        ]);
+        AppendRevenueClassificationPolicyRequest? sent = null;
+        api.Setup(a => a.AppendPolicyAsync(weightId, It.IsAny<AppendRevenueClassificationPolicyRequest>()))
+            .Callback<Guid, AppendRevenueClassificationPolicyRequest>((_, r) => sent = r)
+            .ReturnsAsync(Result<RevenueClassificationPolicyDto>.Failure("A policy already starts on this date.", 409));
+        cut.WaitForAssertion(() => cut.Find("button[aria-label='Set receipt type for Weight & Measure']"), RenderTimeout);
+        Assert.Empty(cut.FindAll("button[aria-label='Set receipt type for Market Fees']"));
+
+        cut.Find("button[aria-label='Set receipt type for Weight & Measure']").Click();
+        ClickButton(cut, "Official Receipt (OR)");
+        ClickButton(cut, "Save receipt type");
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal((PhilippineTime.Today, "Weight & Measure", RevenueInstrumentType.OfficialReceipt), (sent!.EffectiveDate, sent.DisplayName, sent.PermittedInstrumentType));
+            Assert.Contains("A policy already starts on this date.", cut.Find("[role='dialog']").TextContent);
+        }, RenderTimeout);
+        api.Verify(a => a.CreateClassificationAsync(It.IsAny<CreateRevenueClassificationCommand>()), Times.Never);
+        settings.Verify(s => s.GetSetupAsync(), Times.Once); // nothing changed, so nothing reloads
+    }
+
+    [Fact]
     public void WhenOperationSettingsCannotBeRead_TheDirectoryStillRendersWithoutTheSetupSection()
     {
         var (cut, _) = RenderPage([Classification("MARKET_FEES", "Market Fees", true, true,
@@ -310,7 +388,31 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Empty(revenueLinks);
             Assert.Contains("Managed by the MEEDO Head", cut.Markup);
             Assert.Contains("aria-disabled=\"true\"", cut.Markup);
+            Assert.Contains("Head only", cut.Markup);
         }
+
+        // The rules page is open to both: an Administrator reads it, only the Head changes it.
+        Assert.Single(cut.FindAll("a[href='/settings/billing-policy']"));
+    }
+
+    [Fact]
+    public void Settings_IsOneGroupedList_WithNothingAnOfficeCannotActOn()
+    {
+        RegisterSettingsPageServices();
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
+        var cut = RenderComponent<Settings>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(["Office", "Revenue", "People", "Data", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
+            string[] destinations = ["/office-profile", "/settings/report-signatories", "/settings/facilities", "/settings/operations", "/settings/revenue",
+                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
+            Assert.Equal(destinations, cut.FindAll("a.set-item").Select(a => a.GetAttribute("href")).ToArray());
+        }, RenderTimeout);
+
+        // Server internals and figures that belong on other pages are not stated here.
+        foreach (var internalDetail in new[] { "Environment", "Sign-in session", "Account lockout", "Roles", "Delinquency window", "Server month", "Database health", "Storage usage" })
+            Assert.DoesNotContain(internalDetail, cut.Markup);
     }
 
     [Fact]
@@ -330,10 +432,7 @@ public sealed class RevenueSetupTests : TestContext
         {
             Assert.Contains("Coastal Enterprise Office", cut.Markup);
             Assert.Contains("Test Municipality", cut.Markup);
-            var figures = cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray();
-            Assert.Equal(new[] { "Feb 2027", "v9.8.7" }, figures);
-            Assert.Contains("4 failed attempts · 25 minutes", cut.Find(".set-grid").TextContent);
-            Assert.DoesNotContain("System configuration · read-only", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.V3Hero>().Markup);
+            Assert.Contains("v9.8.7", cut.Find(".set-foot").TextContent);
             Assert.DoesNotContain("Collection Period", cut.Markup);
             Assert.Empty(cut.FindAll(".pill-ok"));
             Assert.DoesNotContain("Contract expiry", cut.Markup);
@@ -350,15 +449,18 @@ public sealed class RevenueSetupTests : TestContext
         RegisterSettingsPageServices(response.Task);
         this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
         var cut = RenderComponent<Settings>();
-        cut.WaitForAssertion(() => Assert.Equal(new[] { "—", "—" },
-            cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray()), RenderTimeout);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".set-item-desc .skeleton"));
+            Assert.Empty(cut.FindAll(".set-foot"));
+        }, RenderTimeout);
 
         response.SetResult(Result<SystemSettingsDto>.Failure("Unavailable", 500));
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Couldn't load settings", cut.Markup);
-            Assert.Equal(new[] { "—", "—" },
-                cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray());
+            Assert.Contains("Details could not be loaded", cut.Markup);
+            Assert.Empty(cut.FindAll(".set-foot"));
             Assert.Single(cut.FindAll(".set-retry"));
         }, RenderTimeout);
     }
@@ -445,10 +547,6 @@ public sealed class RevenueSetupTests : TestContext
         mfa.Setup(api => api.GetMfaStatusAsync()).ReturnsAsync(Result<MfaStatusDto>.Success(
             new MfaStatusDto(false, false, null, 0)));
         Services.AddSingleton(mfa.Object);
-        Services.AddSingleton<ITenantUsageApiClient>(Mock.Of<ITenantUsageApiClient>(api =>
-            api.GetUsageAsync() == Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.SystemHealth.TenantUsageDto>.Failure("Unavailable", 500))));
-        Services.AddSingleton<IDatabaseHealthApiClient>(Mock.Of<IDatabaseHealthApiClient>(api =>
-            api.GetHealthAsync() == Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.SystemHealth.DatabaseHealthDto>.Failure("Unavailable", 500))));
 
         Services.AddLogging();
         Services.AddSingleton<AuthService>(provider => new AuthService(

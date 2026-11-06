@@ -52,4 +52,8 @@ public sealed record OfficialMonthlyIncomeDto(
     IReadOnlyList<string> Notes,
     DateTime GeneratedAtUtc, TargetCoverageDto? TargetCoverage = null,
     IReadOnlyList<OfficialMonthlyIncomeSectionDto>? Sections = null,
-    IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? Signatories = null);
+    IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? Signatories = null,
+    IReadOnlyList<RecoveredArrearsDto>? RecoveredArrears = null);
+
+/// <summary>What a facility's old rent added to the Arrears row in the period read. The row states one figure; this keeps where it came from.</summary>
+public sealed record RecoveredArrearsDto(EEMOCantilanSDS.Domain.Enums.FacilityCode Facility, decimal Amount);

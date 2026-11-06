@@ -200,15 +200,15 @@
     }
 
 .btn-primary {
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
     border-color: var(--accent);
 }
 
     .btn-primary:hover {
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
         border-color: var(--accent-hover);
-        color: var(--surface);
+        color: var(--dark-on-fill, var(--surface));
     }
 
 @media (prefers-reduced-motion: reduce) {

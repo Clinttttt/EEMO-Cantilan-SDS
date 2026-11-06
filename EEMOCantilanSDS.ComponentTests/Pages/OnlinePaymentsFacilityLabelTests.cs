@@ -37,6 +37,7 @@ public sealed class OnlinePaymentsFacilityLabelTests : TestContext
         var online = new Mock<IOnlinePaymentsApiClient>();
         online.Setup(a => a.GetAwaitingOrAsync()).ReturnsAsync(Result<IReadOnlyList<OnlinePaymentAwaitingOrDto>>.Success(awaiting));
         online.Setup(a => a.GetDashboardAsync()).ReturnsAsync(Result<OnlinePaymentDashboardDto>.Failure("not needed here", 500));
+        online.Setup(a => a.GetExceptionsAsync()).ReturnsAsync(Result<IReadOnlyList<OnlinePaymentExceptionDto>>.Success([]));
         Services.AddSingleton(online.Object);
         var facilities = new Mock<IFacilitiesApiClient>();
         facilities.Setup(a => a.GetFacilitySummariesAsync(It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Success(

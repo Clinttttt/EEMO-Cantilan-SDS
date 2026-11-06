@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Common.Tenancy;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -85,7 +86,10 @@ public class HandlePaymentWebhookCommandHandler(
                 // that as success (the winner already settled) so a payment is never double-settled.
                 try
                 {
-                    return await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                    var settled = await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                    // A capture held for the office is durably stored and a retry cannot change it, so acknowledge it:
+                    // answering with an error only pushes the provider toward disabling this LGU's webhook.
+                    return transaction.Status == OnlinePaymentStatus.ReconciliationRequired ? Result<bool>.Success(true) : settled;
                 }
                 catch (DbUpdateConcurrencyException)
                 {

@@ -67,7 +67,8 @@ internal sealed class CollectorApiHost(WebApplication app, HttpClient client) : 
         builder.ConfigureServices(); // Real JWT validation, not a test authentication scheme.
         if (clock is not null) builder.Services.AddSingleton(clock);
         foreach (var service in builder.Services.Where(x => x.ServiceType == typeof(IHostedService)
-            && x.ImplementationType == typeof(DailyTenantBackupService)).ToArray()) builder.Services.Remove(service);
+            && (x.ImplementationType == typeof(DailyTenantBackupService)
+                || x.ImplementationType == typeof(OnlinePaymentReconciliationService))).ToArray()) builder.Services.Remove(service);
         if (fault is not null) builder.Services.AddDbContext<AppDbContext>((_, options) => options.AddInterceptors(fault));
         var app = builder.Build();
         app.UseRouting(); app.UseRateLimiter(); app.UseCors("AllowClient");

@@ -33,6 +33,15 @@ public static class TenantOperationSettingsStore
                 .Select(g => new { Code = g.Key, Count = g.Count() })
                 .ToListAsync(ct))
             .ToDictionary(x => x.Code, x => x.Count, StringComparer.Ordinal);
+        // The receipt type each active source's newest policy in effect today sets, so a screen states the office's own choice.
+        var today = EEMOCantilanSDS.Domain.Common.PhilippineTime.Today;
+        var instruments = (await (
+                from policy in context.RevenueClassificationPolicies.AsNoTracking()
+                join source in context.RevenueClassifications.AsNoTracking() on policy.RevenueClassificationId equals source.Id
+                where policy.MunicipalityId == municipalityId && source.MunicipalityId == municipalityId && source.IsActive && policy.EffectiveDate <= today
+                select new { source.SemanticCode, policy.EffectiveDate, policy.PermittedInstrumentType }).ToListAsync(ct))
+            .GroupBy(x => x.SemanticCode, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.MaxBy(x => x.EffectiveDate)!.PermittedInstrumentType, StringComparer.Ordinal);
 
         var items = TenantOperationCatalog.All.Select(entry =>
         {
@@ -44,7 +53,7 @@ public static class TenantOperationSettingsStore
                 entry.Code, entry.DefaultLabel, entry.GroupKey, label, display, listed, row?.Version ?? 0,
                 row?.Origin ?? (adopted ? "Head" : "Legacy"), withActivity.Contains(entry.ClassificationCode),
                 isDefaultMunicipality ? null : entry.PolicyNotice,
-                assigned.GetValueOrDefault(entry.Code));
+                assigned.GetValueOrDefault(entry.Code), instruments.GetValueOrDefault(entry.ClassificationCode));
         }).ToList();
 
         return new TenantOperationSettingsDto(adopted, items);

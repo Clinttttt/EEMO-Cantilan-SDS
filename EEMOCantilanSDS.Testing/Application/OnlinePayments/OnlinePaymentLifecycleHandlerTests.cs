@@ -37,7 +37,9 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Mock<IOnlinePaymentRepository>? onlineRepoOut = null,
         Mock<IPaymentRepository>? paymentRepoOut = null,
         Result<CheckoutSessionResult>? gatewayResult = null,
-        Mock<IPaymentGateway>? gatewayOut = null)
+        Mock<IPaymentGateway>? gatewayOut = null,
+        Mock<IPayMongoCheckoutExpiryService>? expiryOut = null,
+        Mock<IUnitOfWork>? uowOut = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -75,11 +77,12 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.UserId).Returns(payorId);
 
-        var uow = new Mock<IUnitOfWork>();
+        var uow = uowOut ?? new Mock<IUnitOfWork>();
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
-            gateway.Object, urlBuilder.Object, currentUser.Object, uow.Object, new FixedClock(DateTime.UtcNow));
+            gateway.Object, (expiryOut ?? new Mock<IPayMongoCheckoutExpiryService>()).Object,
+            urlBuilder.Object, currentUser.Object, uow.Object, new FixedClock(DateTime.UtcNow));
     }
 
     [Fact]
@@ -220,7 +223,7 @@ public class InitiateOnlinePaymentCommandHandlerTests
         var other = new InitiateOnlinePaymentCommandHandler(
             new Mock<IOnlinePaymentRepository>().Object, new Mock<IPaymentRepository>().Object, stallRepo.Object,
             Mock.Of<IPayorRepository>(p => p.LinkExistsAsync(It.IsAny<Guid>(), It.IsAny<Guid>(), It.IsAny<CancellationToken>()) == Task.FromResult(true)),
-            gateway.Object, new Mock<IOnlinePaymentUrlBuilder>().Object,
+            gateway.Object, new Mock<IPayMongoCheckoutExpiryService>().Object, new Mock<IOnlinePaymentUrlBuilder>().Object,
             Mock.Of<ICurrentUserService>(c => c.UserId == Guid.NewGuid()),
             new Mock<IUnitOfWork>().Object, new FixedClock(DateTime.UtcNow));
 
@@ -328,6 +331,108 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal("https://resume.test/checkout", result.Value!.CheckoutUrl);
         // Resuming must NOT open a new gateway session / persist a new transaction.
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    private static (OnlinePaymentTransaction stale, Stall stall, PaymentRecord record, Mock<IOnlinePaymentRepository> onlineRepo) RepricedCheckout()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var record = PaymentRecord.Create(stall.Id, 2026, 6, 2400m);
+        // Opened when the balance was lower, so the link asks for the wrong money.
+        var stale = OnlinePaymentTransaction.Create("EEMO-OP-20260613-STALE001", Guid.NewGuid(), record.Id, 2000m, "PayMongo");
+        stale.SetPending("cs_stale", "https://stale.test/checkout");
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.GetResumableTransactionForRecordAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(stale);
+        return (stale, stall, record, onlineRepo);
+    }
+
+    private static Mock<IPayMongoCheckoutExpiryService> ClosingReturns(Result<PaymentGatewayEvent> result)
+    {
+        var expiry = new Mock<IPayMongoCheckoutExpiryService>();
+        expiry.Setup(e => e.ExpireAndVerifyAsync("cs_stale", It.IsAny<CancellationToken>())).ReturnsAsync(result);
+        return expiry;
+    }
+
+    private static Result<PaymentGatewayEvent> Closing(PaymentGatewayEventType type) =>
+        Result<PaymentGatewayEvent>.Success(new PaymentGatewayEvent(type, "cs_stale", 2000m, null, null, null, "{}"));
+
+    [Fact]
+    public async Task ARepricedCheckout_IsClosedAtTheGateway_AndSavedAsExpired_BeforeANewOneIsAdded()
+    {
+        var (stale, stall, record, onlineRepo) = RepricedCheckout();
+        var order = new List<string>();
+        var uow = new Mock<IUnitOfWork>();
+        uow.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).Callback(() => order.Add("save:" + stale.Status));
+        onlineRepo.Setup(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>())).Callback(() => order.Add("add"));
+        var expiry = ClosingReturns(Closing(PaymentGatewayEventType.Expired));
+        var handler = Build(stall, record, Guid.NewGuid(), linked: true, onlineRepo, expiryOut: expiry, uowOut: uow);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        expiry.Verify(e => e.ExpireAndVerifyAsync("cs_stale", It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(OnlinePaymentStatus.Expired, stale.Status);
+        // The one-open-checkout index would reject the new row if the old one were still Pending when it was inserted.
+        Assert.Equal(["save:Expired", "add", "save:Expired"], order);
+    }
+
+    public static TheoryData<string> CheckoutsThatDidNotClose => new() { "paid", "ongoing", "unreachable" };
+
+    [Theory]
+    [MemberData(nameof(CheckoutsThatDidNotClose))]
+    public async Task ARepricedCheckoutThatDidNotClose_StopsASecondCheckout(string outcome)
+    {
+        var (stale, stall, record, onlineRepo) = RepricedCheckout();
+        var gateway = new Mock<IPaymentGateway>();
+        var expiry = ClosingReturns(outcome switch
+        {
+            "paid" => Closing(PaymentGatewayEventType.Paid),
+            "ongoing" => Closing(PaymentGatewayEventType.Unknown),
+            _ => Result<PaymentGatewayEvent>.Failure("unavailable", ResultStatus.UpstreamFailed),
+        });
+        var handler = Build(stall, record, Guid.NewGuid(), linked: true, onlineRepo, gatewayOut: gateway, expiryOut: expiry);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        Assert.Equal(OnlinePaymentStatus.Pending, stale.Status);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AMonthThatHasNotBegun_IsRefused_AndNothingIsCharged()
+    {
+        // Only the contract term was checked, so any later month of a long contract could be charged and created as an obligation.
+        var stall = StallInFacility(FacilityCode.TCC);
+        var gateway = new Mock<IPaymentGateway>();
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        var paymentRepo = new Mock<IPaymentRepository>();
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, onlineRepo, paymentRepo, gatewayOut: gateway);
+        var next = DateTime.UtcNow.AddMonths(2);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, next.Year, next.Month), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
+        paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task APeriodWithACaptureUnderReview_IsRefused_AndNothingIsCharged()
+    {
+        // The balance still shows, so without this the payor is invited to pay the same period a second time.
+        var stall = StallInFacility(FacilityCode.TCC);
+        var record = PaymentRecord.Create(stall.Id, 2026, 6, 2400m);
+        var gateway = new Mock<IPaymentGateway>();
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.HasUnresolvedCaptureForRecordAsync(record.Id, It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        var handler = Build(stall, record, Guid.NewGuid(), linked: true, onlineRepo, gatewayOut: gateway);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Conflict, result.Status);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(It.IsAny<CreateCheckoutSessionRequest>(), It.IsAny<CancellationToken>()), Times.Never);
         onlineRepo.Verify(r => r.AddAsync(It.IsAny<OnlinePaymentTransaction>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 

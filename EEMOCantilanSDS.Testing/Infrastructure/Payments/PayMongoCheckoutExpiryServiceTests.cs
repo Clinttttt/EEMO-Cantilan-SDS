@@ -74,12 +74,27 @@ public class PayMongoCheckoutExpiryServiceTests
     }
 
     [Fact]
-    public async Task LiveKeyAndFailedProviderRequest_DoNotAuthorizeExpiry()
+    public async Task LiveKey_ClosesASingleCheckout()
     {
-        var (liveService, liveGateway, livePosts) = Create(key: "sk_live_no_cleanup");
-        Assert.False((await liveService.ExpireAndVerifyAsync(CheckoutId)).IsSuccess);
-        Assert.Empty(livePosts);
-        liveGateway.VerifyNoOtherCalls();
+        var (service, gateway, posts) = Create(key: "sk_live_office");
+        gateway.Setup(x => x.RetrievePaymentStatusAsync(CheckoutId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PaymentGatewayEvent>.Success(
+                new PaymentGatewayEvent(PaymentGatewayEventType.Expired, CheckoutId,
+                    0m, null, null, null, "{}")));
+
+        var result = await service.ExpireAndVerifyAsync(CheckoutId);
+
+        Assert.Equal(PaymentGatewayEventType.Expired, result.Value!.Type);
+        Assert.Single(posts);
+    }
+
+    [Fact]
+    public async Task NoAccountAndFailedProviderRequest_DoNotAuthorizeExpiry()
+    {
+        var (noAccount, noAccountGateway, noAccountPosts) = Create(key: "");
+        Assert.False((await noAccount.ExpireAndVerifyAsync(CheckoutId)).IsSuccess);
+        Assert.Empty(noAccountPosts);
+        noAccountGateway.VerifyNoOtherCalls();
 
         var (failedService, failedGateway, failedPosts) = Create(HttpStatusCode.ServiceUnavailable);
         Assert.False((await failedService.ExpireAndVerifyAsync(CheckoutId)).IsSuccess);

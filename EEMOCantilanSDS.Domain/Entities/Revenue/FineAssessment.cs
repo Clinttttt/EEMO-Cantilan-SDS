@@ -60,12 +60,36 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
     public string? IncidentReference { get; private set; }
     public string Description { get; private set; } = "";
     public decimal AssessedAmount { get; private set; }
+    /// <summary>The Head's update of a late penalty (IA-072). <see cref="AssessedAmount"/> stays the original evidence; null means it was never updated.</summary>
+    public decimal? AdjustedAmount { get; private set; }
+    /// <summary>What this assessment now asks for. Every balance reads this, never <see cref="AssessedAmount"/>.</summary>
+    public decimal AmountDue => AdjustedAmount ?? AssessedAmount;
+    public bool IsLatePenalty => PenaltyCode == LatePaymentCode;
     public Guid ClientOperationId { get; private set; }
     public string RequestFingerprint { get; private set; } = "";
     public Guid ActorId { get; private set; }
     public DateTime RecordedAtUtc { get; private set; }
     public long Version { get; private set; } = 1;
+    public const string LatePaymentCode = "LATE_PAYMENT";
     private FineAssessment() { }
+    /// <summary>
+    /// The Head updates or waives a late penalty the system assessed. It never falls below money already collected, and it moves the version so a quote
+    /// taken on the old figure cannot post. A fine the Head assessed by hand stays immutable: nobody has ruled how correcting one should work.
+    /// </summary>
+    public FineAssessmentEvent Adjust(decimal amount, decimal settled, string reason, Guid actor, DateTime now)
+    {
+        if (!IsLatePenalty) throw new ArgumentException("Only an automatic late penalty can be updated.");
+        if (actor == Guid.Empty || now.Kind != DateTimeKind.Utc) throw new ArgumentException("A valid Head and UTC timestamp are required.");
+        if (amount < 0m || amount > Collection.MaximumMoneyAmount || decimal.Round(amount, 2, MidpointRounding.ToZero) != amount)
+            throw new ArgumentException("Enter an amount of zero or more with centavo precision.");
+        if (amount < settled) throw new ArgumentException("The penalty cannot go below what has already been collected on it.");
+        if (amount == AmountDue) throw new ArgumentException("The penalty already stands at this amount.");
+        var evidence = Required(reason, 1000, "Reason");
+        var previous = AmountDue;
+        AdjustedAmount = amount;
+        Version = checked(Version + 1);
+        return FineAssessmentEvent.Adjusted(this, previous, evidence, actor, now);
+    }
     /// <summary>Serializes canonical settlement claims; this is a concurrency token, not an amount-paid counter.</summary>
     public void ClaimSettlement(long expectedVersion)
     {
@@ -108,7 +132,7 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
         ? value.Trim() : throw new ArgumentException($"{field} is required and must not exceed {limit} characters.");
 }
 
-/// <summary>Append-only assessment evidence. Adjustments remain disabled until their cash/obligation contract is verified.</summary>
+/// <summary>Append-only assessment evidence. Only an automatic late penalty can be adjusted; other fines stay as assessed.</summary>
 public sealed class FineAssessmentEvent : BaseEntity, IMunicipalityOwned
 {
     public Guid MunicipalityId { get; private set; }
@@ -123,4 +147,7 @@ public sealed class FineAssessmentEvent : BaseEntity, IMunicipalityOwned
     public static FineAssessmentEvent Created(FineAssessment assessment) => new() { Id = Guid.NewGuid(),
         MunicipalityId = assessment.MunicipalityId, AssessmentId = assessment.Id, ResultingAmount = assessment.AssessedAmount,
         ActorId = assessment.ActorId, RecordedAtUtc = assessment.RecordedAtUtc, Evidence = assessment.AuthoritySnapshot };
+    internal static FineAssessmentEvent Adjusted(FineAssessment assessment, decimal previous, string reason, Guid actor, DateTime now) => new() { Id = Guid.NewGuid(),
+        MunicipalityId = assessment.MunicipalityId, AssessmentId = assessment.Id, EventKind = assessment.AmountDue == 0m ? "Waived" : "Adjusted",
+        PreviousAmount = previous, ResultingAmount = assessment.AmountDue, ActorId = actor, RecordedAtUtc = now, Evidence = reason };
 }

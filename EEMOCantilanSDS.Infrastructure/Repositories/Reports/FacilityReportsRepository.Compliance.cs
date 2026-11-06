@@ -6,6 +6,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -32,7 +33,7 @@ public partial class FacilityReportsRepository
         CancellationToken ct,
         // Where the missed-month count starts. The report's All Stalls column counts this year (null → January),
         // while the arrears source counts a rolling twelve months and says so.
-        DateOnly? countMissedFrom = null, DateOnly? balanceAsOf = null)
+        DateOnly? countMissedFrom = null, DateOnly? balanceAsOf = null, Guid? onlyStallId = null)
     {
         var stalls = (await _context.Stalls
             .AsNoTracking()
@@ -40,7 +41,8 @@ public partial class FacilityReportsRepository
             // stall since handed to a new lessee must still report that period under the lessee who was there.
             .Include(s => s.Contracts)
             .Where(s => s.FacilityId == facilityId
-                && s.Contracts.Any())
+                && s.Contracts.Any()
+                && (onlyStallId == null || s.Id == onlyStallId))
             .ToListAsync(ct))
             // Only stalls whose contract was actually effective during the selected period.
             // Without this, a stall whose contract starts after the period (or expired before it)
@@ -316,7 +318,7 @@ public partial class FacilityReportsRepository
                 contract?.NameOnContract ?? string.Empty,
                 s.Section.HasValue ? SectionLabel(s.Section) : (s.CustomSectionName ?? s.AreaLocation?.ToString() ?? string.Empty),
                 s.Type.ToString(),
-                s.MonthlyRate,
+                s.MonthlyRentFor(complianceEnd.Year, complianceEnd.Month, _clock.PhilippineToday),
                 // NPM bills per day through Stall.ResolveDailyFee, so report the fee this stall is actually
                 // charged: a custom section its own rate, a canonical stall the tenant's resolved rate (which
                 // fixes legacy NPM stalls that stored the old ₱30 default). Non-NPM keeps its stored per-stall
@@ -381,6 +383,80 @@ public partial class FacilityReportsRepository
     /// </summary>
     public async Task<IReadOnlyList<DelinquentStallDto>> GetDelinquentStallsAsync(
         FacilityCode? facility, int year, int month, bool includeClosed, bool wholeAccount, CancellationToken ct)
+        => (await AccountsBehindAsync(facility, onlyStallId: null, year, month, wholeAccount, ct))
+            .Select(a => a.Account)
+            .OrderByDescending(d => d.MonthsUnpaid)
+            .ThenByDescending(d => d.OutstandingBalance)
+            .ToList();
+
+    public async Task<StallStatementDto?> GetStallStatementAsync(Guid stallId, CancellationToken ct)
+    {
+        var stall = await _context.Stalls.AsNoTracking()
+            .Include(s => s.Facility)
+            .Include(s => s.Contracts)
+            .FirstOrDefaultAsync(s => s.Id == stallId, ct);
+        if (stall?.Facility is null) return null;
+
+        var today = _clock.PhilippineToday;
+        var code = stall.Facility.Code;
+        var (behind, months) = (await AccountsBehindAsync(code, stallId, today.Year, today.Month, wholeAccount: true, ct)).FirstOrDefault();
+
+        // The month in progress, the way the month's reports read it.
+        var (monthStart, monthEnd) = CalculateDateRange(ReportPeriod.Monthly, today.Year, today.Month, null);
+        await LoadNpmRatesAsync(monthEnd, ct);
+        var thisMonth = (await GenerateStallComplianceAsync(code, stall.FacilityId, monthStart, monthEnd, ct, onlyStallId: stallId)).FirstOrDefault();
+        var rules = BillingPolicyVersion.InForce(await _context.BillingPolicyVersions.AsNoTracking().ToListAsync(ct), today)?.Rules ?? BillingPolicy.StallTrackDefaults;
+
+        return new StallStatementDto(
+            today,
+            behind?.ArrearsMonths ?? 0,
+            behind?.ArrearsAmount ?? 0m,
+            behind?.DelinquentMonths ?? 0,
+            behind?.DelinquentAmount ?? 0m,
+            thisMonth?.AccountAssessment ?? 0m,
+            thisMonth?.AmountPaid ?? 0m,
+            thisMonth?.Balance ?? 0m,
+            months ?? [],
+            await UnpaidUtilitiesAsync(stall, today, ct),
+            await FinesDueAsync(stall, today, ct),
+            IsDailyMarket(code) ? null : rules.DueDate(today.Year, today.Month),
+            rules.CountsMonthsFrom);
+    }
+
+    /// <summary>Fines and late penalties still owed on the present account, less what has been collected on them. An earlier occupant's are that account's.</summary>
+    private async Task<decimal> FinesDueAsync(Stall stall, DateOnly today, CancellationToken ct)
+    {
+        if (stall.Occupancies(today).LastOrDefault()?.Contract.Id is not { } contract) return 0m;
+        var fines = await _context.FineAssessments.AsNoTracking().Where(a => a.ContractId == contract)
+            .Select(a => new { a.Id, a.MunicipalityId, Due = a.AdjustedAmount ?? a.AssessedAmount }).ToListAsync(ct);
+        if (fines.Count == 0) return 0m;
+        var settled = await new EEMOCantilanSDS.Application.Common.Revenue.FineAssessmentCollectionSource(_context)
+            .SettledAsync(fines[0].MunicipalityId, fines.Select(f => f.Id).ToArray(), ct);
+        return fines.Sum(f => Math.Max(0m, f.Due - settled.GetValueOrDefault(f.Id)));
+    }
+
+    /// <summary>
+    /// The space's metered bills from where the present account began; an earlier occupant's bill is not this account's. Owed is tested per
+    /// utility, as Follow-up does, so electricity over-collected by a mistaken partial cannot hide water still owed on the same bill.
+    /// </summary>
+    private async Task<IReadOnlyList<UnpaidMonthDto>> UnpaidUtilitiesAsync(Stall stall, DateOnly today, CancellationToken ct)
+    {
+        if (NewestOccupancyStart(stall, today) is not { } start)
+            return [];
+
+        var bills = await _context.UtilityBills.AsNoTracking()
+            .Where(b => b.StallId == stall.Id && (b.BillingYear > start.Year || (b.BillingYear == start.Year && b.BillingMonth >= start.Month)))
+            .ToListAsync(ct);
+
+        return bills
+            .Select(b => new UnpaidMonthDto(b.BillingYear, b.BillingMonth, Math.Max(0m, b.ElecBalanceDue) + Math.Max(0m, b.WaterBalanceDue)))
+            .Where(m => m.Unpaid > 0m)
+            .OrderBy(m => m.Year).ThenBy(m => m.Month)
+            .ToList();
+    }
+
+    private async Task<List<(DelinquentStallDto Account, IReadOnlyList<UnpaidMonthDto>? Months)>> AccountsBehindAsync(
+        FacilityCode? facility, Guid? onlyStallId, int year, int month, bool wholeAccount, CancellationToken ct)
     {
         await ResolveNpmModeAsync(ct);
         var facilities = await _context.Facilities
@@ -393,7 +469,7 @@ public partial class FacilityReportsRepository
             : facilities;
 
         if (targets.Count == 0)
-            return Array.Empty<DelinquentStallDto>();
+            return [];
 
         // The span the count is about: every month of each account that has already closed. A month still underway
         // is never "missed" — a payor is not in arrears for a month they can still pay — and neither is a month that
@@ -415,7 +491,7 @@ public partial class FacilityReportsRepository
             // A rolling twelve months, crossing the year boundary. Counting from January of the end year would say a
             // payor who last paid in October was one month behind on the first of February.
             : new DateOnly(end.Year, end.Month, 1).AddMonths(-11);
-        if (end < start) return Array.Empty<DelinquentStallDto>();
+        if (end < start) return [];
 
         // The tenant's own NPM rates. Every other entry point loads them; this one relied on a sibling report
         // having run first on the same scoped instance, which held only because Cantilan's rates are the
@@ -426,7 +502,7 @@ public partial class FacilityReportsRepository
         // flag is honoured only in that it never widens the list. Kept explicit so the intent is not mistaken for
         // an oversight.
         var closedStallIds = (await _context.Stalls.AsNoTracking()
-                .Where(s => s.Status != StallStatus.Active)
+                .Where(s => s.Status != StallStatus.Active && (onlyStallId == null || s.Id == onlyStallId))
                 .Select(s => s.Id)
                 .ToListAsync(ct))
             .ToHashSet();
@@ -443,7 +519,7 @@ public partial class FacilityReportsRepository
         var lapsedStallIds = (await _context.Stalls
                 .AsNoTracking()
                 .Include(s => s.Contracts)
-                .Where(s => s.Status == StallStatus.Active && s.Contracts.Any())
+                .Where(s => s.Status == StallStatus.Active && s.Contracts.Any() && (onlyStallId == null || s.Id == onlyStallId))
                 .ToListAsync(ct))
             .Where(s => s.Occupancies(reference).LastOrDefault() is { } newest
                 && !newest.IsCurrent
@@ -451,26 +527,23 @@ public partial class FacilityReportsRepository
             .Select(s => s.Id)
             .ToHashSet();
 
-        var results = new List<DelinquentStallDto>();
+        var results = new List<(DelinquentStallDto Account, IReadOnlyList<UnpaidMonthDto>? Months)>();
         foreach (var target in targets)
         {
-            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct, countMissedFrom: start, balanceAsOf: today);
+            var compliance = await GenerateStallComplianceAsync(target.Code, target.Id, start, end, ct, countMissedFrom: start, balanceAsOf: today, onlyStallId: onlyStallId);
 
             results.AddRange(compliance
                 .Where(r => r.MissedMonths >= 1 && !closedStallIds.Contains(r.StallId))
-                .Select(r => ClassifyAccount(new DelinquentStallDto(
+                .Select(r => (ClassifyAccount(new DelinquentStallDto(
                     target.Code, r.StallNo, r.Occupant, r.MissedMonths, r.Balance, r.StallId,
                     TermLapsed: lapsedStallIds.Contains(r.StallId),
                     // The market numbers its spaces per section, so "Stall 1" exists in the Vegetable Area, the
                     // Fish Section and the Meat Section at once — three different payors. Without the section the
                     // office cannot tell which space a row is about.
-                    Section: r.Section), r.UnpaidMonths, reference)));
+                    Section: r.Section), r.UnpaidMonths, reference), r.UnpaidMonths)));
         }
 
-        return results
-            .OrderByDescending(d => d.MonthsUnpaid)
-            .ThenByDescending(d => d.OutstandingBalance)
-            .ToList();
+        return results;
     }
 
     /// <summary>

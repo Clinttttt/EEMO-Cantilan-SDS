@@ -353,8 +353,8 @@ public partial class PaymentRepository
                 continue;
             }
 
-            // Monthly-billed facility with no record this month → full rent owed.
-            totalOutstanding += stall.MonthlyRate;
+            // Monthly-billed facility with no record this month → the full rent this occupancy agreed to, as the list below bills it.
+            totalOutstanding += occupancy.Contract.MonthlyRentalRate > 0 ? occupancy.Contract.MonthlyRentalRate : stall.MonthlyRate;
             monthsUnpaid++;
         }
 

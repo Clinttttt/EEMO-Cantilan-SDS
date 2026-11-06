@@ -1,514 +1,143 @@
-/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-   Settings — system configuration overview. Government-restrained: neutral
-   white cards, navy headers, gold accent. Reuses the app design tokens and the
-   shared vs-hero stat strip (vs-hero is defined per page, so it lives here too).
-   â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+/* Settings: one grouped list of what the office configures. Registers over cards (STALLTRACK_UI_V3_DIRECTION). */
+.set-page { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.set-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.set-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-/* ── Hero banner + KPI strip ── */
-.vs-hero {
-    position: relative;
-    background: var(--navy);
-    border-radius: 14px;
-    padding: 24px 28px 18px;
-    margin-bottom: 18px;
+/* ── Rows ── */
+.set-list { list-style: none; margin: 0; padding: 0; }
+.set-list > li + li { border-top: 1px solid var(--border); }
+.set-item {
     display: flex;
     align-items: center;
-    gap: 28px;
-    overflow: hidden;
-    flex-wrap: wrap;
-}
-.vs-hero::before {
-    content: "";
-    position: absolute;
-    top: -40px;
-    right: -40px;
-    width: 220px;
-    height: 220px;
-    background: radial-gradient(circle, rgba(200, 168, 75, .15) 0%, transparent 70%);
-    pointer-events: none;
-}
-.vs-hero-left { display: flex; align-items: center; gap: 18px; flex: 0 0 auto; min-width: 240px; }
-.vs-hero-stats { flex: 1; display: flex; align-items: center; gap: 0; flex-wrap: wrap; }
-.vs-hero-icon {
-    width: 54px;
-    height: 54px;
-    border-radius: 12px;
-    background: rgba(200, 168, 75, .18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.vs-hero-icon svg {
-    width: 26px;
-    height: 26px;
-    stroke: var(--gold);
-    fill: none;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-.vs-hero-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
-.vs-hero-title { font-size: 22px; font-weight: 700; color: #fff; line-height: 1.2; }
-.vs-hero-sub { font-size: 13px; color: rgba(255, 255, 255, .55); margin-top: 3px; }
-.vs-hero-stat { padding: 0 18px; text-align: center; flex: 1; min-width: 140px; }
-.vs-hero-stat:first-child { padding-left: 0; }
-.vs-hero-val { font-size: 20px; font-weight: 700; color: #fff; line-height: 1.1; }
-.vs-hero-key { font-size: 11px; color: rgba(255, 255, 255, .5); margin-top: 2px; text-transform: uppercase; letter-spacing: .05em; line-height: 1.2; }
-.vs-hero-sub2 { font-size: 11px; color: rgba(255, 255, 255, .35); margin-top: 1px; line-height: 1.2; }
-.vs-hero-divider { width: 1px; height: 50px; background: rgba(255, 255, 255, .12); flex-shrink: 0; margin: 0 6px; }
-@media (max-width: 1100px) {
-    .vs-hero-title { font-size: 18px; }
-    .vs-hero-val { font-size: 18px; }
-    .vs-hero-stat { padding: 0 14px; }
-}
-@media (max-width: 900px) { .vs-hero { padding: 20px; gap: 16px; } }
-@media (max-width: 600px) { .vs-hero { padding: 16px; gap: 12px; } .vs-hero-title { font-size: 16px; } }
-
-/* ── Cards ── */
-.set-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 18px;
-    margin-bottom: 18px;
-}
-.set-card {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 18px 20px 16px;
-    box-shadow: 0 1px 2px rgba(13, 33, 55, .04);
-    margin-bottom: 18px;
-}
-.set-grid .set-card { margin-bottom: 0; }
-
-.set-card-head {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding-bottom: 14px;
-    margin-bottom: 14px;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
-}
-.set-card-icon {
-    flex-shrink: 0;
-    width: 38px;
-    height: 38px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-icon);
-    color: var(--navy);
-}
-.set-card-icon svg { width: 19px; height: 19px; }
-.set-card-titles { flex: 1; min-width: 0; }
-.set-card-title { font-size: 14.5px; font-weight: 700; color: var(--navy); }
-.set-card-sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
-
-/* ── Facility rules table ── */
-.set-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.set-table thead th {
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    min-height: 56px;
+    padding: 10px 20px;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
     text-align: left;
-    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
-    color: var(--text-subtle);
-    padding: 8px 12px;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
+    text-decoration: none;
 }
-.set-table th.set-th-r, .set-table td.set-td-r { text-align: right; }
-.set-table td { padding: 11px 12px; border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent); color: var(--text); }
-.set-table tbody tr:last-child td { border-bottom: none; }
-.set-table tbody tr:hover { background: var(--bg); }
-.set-fac { font-weight: 700; color: var(--navy); }
-.set-code {
-    margin-left: 8px;
-    font-size: 11px; font-weight: 700; letter-spacing: .04em;
-    color: var(--text-subtle);
-    background: var(--bg-icon);
-    border-radius: 5px; padding: 2px 6px;
-    vertical-align: middle;
+.set-list > li:last-child > .set-item { border-radius: 0 0 9px 9px; }
+a.set-item, button.set-item { cursor: pointer; transition: background .15s ease; }
+a.set-item:hover, button.set-item:hover { background: var(--surface-muted); }
+a.set-item:focus-visible, button.set-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.set-item-text { flex: 1 1 auto; min-width: 0; }
+.set-item-name { color: var(--navy); font-size: .875rem; font-weight: 600; line-height: 1.4; }
+.set-item-desc { margin-top: 2px; color: var(--text-tertiary); font-size: .8125rem; line-height: 1.4; overflow-wrap: anywhere; }
+.set-item-arrow { flex-shrink: 0; color: var(--text-tertiary); transition: transform .15s ease; }
+a.set-item:hover .set-item-arrow { transform: translateX(3px); }
+.set-item.is-locked .set-item-name { color: var(--text-secondary); }
+.set-item-lock { flex-shrink: 0; color: var(--text-tertiary); font-size: .75rem; font-weight: 500; white-space: nowrap; }
+
+.set-2fa-state {
+    flex-shrink: 0;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
 }
-.set-td-r { color: var(--text-muted); font-weight: 600; }
+.set-2fa-state.is-on { background: var(--green-bg); color: var(--green); }
+.set-2fa-state.is-off { background: var(--surface-muted); color: var(--text-secondary); }
 
-/* ── Key/value rows ── */
-.set-rows { display: flex; flex-direction: column; }
-.set-row {
-    display: flex; align-items: center; justify-content: space-between; gap: 14px;
-    padding: 9px 0;
-    border-bottom: 1px solid color-mix(in srgb, var(--border) 45%, transparent);
-    font-size: 13px;
-}
-.set-row:last-child { border-bottom: none; }
-.set-key { color: var(--text-muted); flex-shrink: 0; }
-.set-val { color: var(--text); font-weight: 600; text-align: right; display: inline-flex; align-items: center; gap: 7px; justify-content: flex-end; }
-.set-val.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-.set-val.set-val-wrap { flex-wrap: wrap; white-space: normal; text-align: right; }
-
-/* Status pills */
-.set-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; letter-spacing: .02em; }
-.pill-ok { background: var(--green-bg); color: var(--green); }
-
-/* Notes + cross-links */
-.set-note {
-    margin-top: 12px;
-    font-size: 11.5px; line-height: 1.5; color: var(--text-muted);
-    background: var(--bg); border: 1px dashed var(--border); border-radius: 9px; padding: 9px 11px;
-}
-.set-links { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
-.set-card-head .set-link { flex-shrink: 0; margin-left: auto; padding-top: 0; border: none; }
-.set-link { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 650; color: var(--navy); text-decoration: none; }
-.set-link:hover { color: var(--accent); }
-.set-link-arrow { transition: transform .14s ease; }
-.set-link:hover .set-link-arrow { transform: translateX(3px); }
-
-/* ── Footer ── */
-.set-foot { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--border); font-size: 11.5px; line-height: 1.9; color: var(--text-subtle); }
-
-/* ── Loading / error states ── */
-.set-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    text-align: center;
-    min-height: 320px;
-    padding: 40px 20px;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    /* Same gap the card grid leaves, so the state never sits flush against the Session card below it. */
-    margin-bottom: 18px;
-}
-.set-state-title { font-size: 15px; font-weight: 700; color: var(--navy); }
-.set-state-text { font-size: 13px; color: var(--text-muted); max-width: 420px; line-height: 1.5; }
-.set-spinner {
-    width: 34px; height: 34px;
-    border: 3px solid var(--border);
-    border-top-color: var(--gold);
-    border-radius: 50%;
-    animation: setSpin .8s linear infinite;
-}
-@keyframes setSpin { to { transform: rotate(360deg); } }
-.set-retry {
-    margin-top: 4px;
-    font-size: 13px; font-weight: 650;
-    color: #fff; background: var(--accent);
-    border: none; border-radius: 9px;
-    padding: 9px 18px; cursor: pointer;
-    transition: background .14s ease;
-}
-.set-retry:hover { background: var(--accent-hover); }
-
-@media (max-width: 900px) { .set-grid { grid-template-columns: 1fr; } }
-
-
-/* ── Session / sign out ─────────────────────────────────── */
+/* ── Sign out ── */
 .set-session {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 1rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.25rem;
+    gap: 16px;
+    min-height: 56px;
+    padding: 10px 20px;
 }
-
-.set-session-left { display: flex; align-items: center; gap: 0.85rem; }
-
-.set-session-icon {
-    display: grid;
-    place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 10px;
-    background: var(--bg-icon);
-    color: var(--navy);
-}
-
-.set-session-icon svg { width: 1.25rem; height: 1.25rem; }
-.set-session-title { font-weight: 700; color: var(--text); font-size: 0.95rem; }
-.set-session-sub { color: var(--text-subtle); font-size: 0.8rem; }
-
-.set-session-right { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
-.set-session-ask { color: var(--text); font-size: 0.85rem; font-weight: 600; }
-
+.set-session-right { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.set-session-ask { color: var(--text); font-size: .8125rem; font-weight: 600; }
 .set-signout,
 .set-signout-yes,
 .set-signout-no {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-    border-radius: 10px;
-    padding: 0.55rem 0.95rem;
-    font-size: 0.85rem;
+    min-height: 36px;
+    padding: 0 14px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font: inherit;
+    font-size: .8125rem;
     font-weight: 600;
     cursor: pointer;
-    border: 1px solid transparent;
-    transition: filter 0.12s, background 0.12s, border-color 0.12s, color 0.12s;
+    transition: filter .12s, background .12s, border-color .12s, color .12s;
 }
-
-.set-signout svg { width: 1.05rem; height: 1.05rem; }
-.set-signout { background: var(--red-bg); color: var(--red); border-color: #e6c4c4; }
-.set-signout:hover { filter: brightness(0.97); }
-
-.set-signout-yes { background: var(--red); color: #fff; }
+.set-signout { background: var(--red-bg); border-color: var(--dark-red-border, #e6c4c4); color: var(--red); }
+.set-signout:hover { filter: brightness(.97); }
+.set-signout-yes { background: var(--dark-red-fill, var(--red)); color: #fff; }
 .set-signout-yes:hover:not(:disabled) { filter: brightness(1.05); }
-
-.set-signout-no { background: transparent; color: var(--text-subtle); border-color: var(--border); }
+.set-signout-no { background: transparent; border-color: var(--border); color: var(--text-secondary); }
 .set-signout-no:hover:not(:disabled) { border-color: var(--accent); color: var(--navy); }
-
+.set-signout:focus-visible,
+.set-signout-yes:focus-visible,
+.set-signout-no:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .set-signout-yes:disabled,
-.set-signout-no:disabled { opacity: 0.6; cursor: not-allowed; }
+.set-signout-no:disabled { opacity: .6; cursor: not-allowed; }
 
-@media (max-width: 560px) {
-    .set-session { flex-direction: column; align-items: stretch; }
-    .set-session-right { justify-content: flex-end; }
-}
+.set-foot { margin: 0; color: var(--text-tertiary); font-size: .75rem; }
 
-
-/* ── Skeleton helpers ───────────────────────────────────────
-   The page keeps its shell (topbar + hero + card frames/headers) visible at all
-   times; only the data regions swap in the shared <Skeleton> shimmer while loading.
-   These helpers center hero-stat placeholders and right-align table-cell ones. */
-.set-sk-center { margin-left: auto; margin-right: auto; }
-.set-sk-gap { margin-top: 6px; }
-.set-sk-right { margin-left: auto; }
-
-/* ── Responsive hero (mobile/tablet <=768px). Desktop untouched. ── */
-@media (max-width: 768px) {
-    .vs-hero { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 18px; padding: 16px 16px 18px; }
-    .vs-hero-left { flex: none; min-width: 0; gap: 14px; }
-    .vs-hero-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; width: 100%; flex: none; }
-    .vs-hero-stat { min-width: 0; padding: 0; text-align: left; }
-    .vs-hero-divider { display: none; }
-    .vs-hero-icon { display: none; }
-    .vs-hero-sub2 { display: none; }
-}
-
-
-/* ── Two-factor entry point (bottom-right of the Security & Access Policy card) ──
-   The security card lists read-only policy rows; two-factor is an ACTION on your own account, so it sits
-   here as a button that opens a dialog instead of occupying a card of its own. */
-.set-links-split {
-    align-items: center;
-    justify-content: space-between;
-}
-
-.set-links-group {
+/* ── Failure ── */
+.set-state {
     display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    min-width: 0;
-}
-
-.set-2fa-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: auto;
-    padding: 7px 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--bg-card);
-    color: var(--navy);
-    font: inherit;
-    font-size: 12.5px;
-    font-weight: 650;
-    cursor: pointer;
-    transition: background .15s, border-color .15s, box-shadow .15s;
-}
-
-.set-2fa-btn:hover {
-    background: var(--bg-icon);
-    box-shadow: 0 3px 10px rgba(13, 33, 55, .08);
-}
-
-.set-2fa-btn:focus-visible {
-    outline: 2px solid var(--navy-3);
-    outline-offset: 2px;
-}
-
-.set-2fa-btn svg {
-    width: 15px;
-    height: 15px;
-    flex-shrink: 0;
-}
-
-.set-2fa-state {
-    padding: 2px 8px;
-    border-radius: 999px;
-    font-size: 10.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: .4px;
-}
-
-.set-2fa-state.is-on { background: var(--green-bg); color: var(--green); }
-.set-2fa-state.is-off { background: var(--bg-icon); color: var(--text-subtle); }
-
-@media (max-width: 768px) {
-    .set-links-split { align-items: flex-start; }
-    .set-2fa-btn { margin-left: 0; width: 100%; justify-content: center; }
-}
-
-
-/* ── Two-factor dialog header (shield mark + titles, government-formal) ── */
-.set-2fa-modal-head {
-    display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    gap: 14px;
+    gap: 8px;
+    padding: 16px 20px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
 }
+.set-state-title { color: var(--navy); font-size: .9375rem; font-weight: 700; }
+.set-state-text { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.set-retry {
+    min-height: 36px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--dark-accent-fill, var(--accent));
+    color: #fff;
+    font: inherit;
+    font-size: .8125rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .15s ease;
+}
+.set-retry:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
+.set-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* ── Two-factor dialog header ── */
+.set-2fa-modal-head { display: flex; align-items: flex-start; gap: 14px; }
 .set-2fa-modal-icon {
     flex-shrink: 0;
     display: grid;
     place-items: center;
-    width: 50px;
-    height: 50px;
-    border-radius: 13px;
+    width: 48px;
+    height: 48px;
     border: 1px solid color-mix(in srgb, var(--navy) 14%, transparent);
+    border-radius: 12px;
     background: var(--bg-icon);
     color: var(--navy);
 }
-
 .set-2fa-modal-icon svg { width: 26px; height: 26px; }
-
-.set-2fa-modal-titles { min-width: 0; flex: 1; }
-
-/* Separates the shared explanatory rows above from the panel's own controls. */
+.set-2fa-modal-titles { flex: 1; min-width: 0; }
 .set-2fa-modal-panel { margin-top: 16px; }
 
+@media (max-width: 900px) {
+    .set-cols { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 768px) {
-    .set-2fa-modal-icon { width: 38px; height: 38px; }
+    .set-2fa-modal-icon { width: 40px; height: 40px; }
     .set-2fa-modal-icon svg { width: 20px; height: 20px; }
 }
-
-/* A policy row an Administrator cannot act on: stated, but plainly not a link — no pointer, no hover, no
-   arrow, and announced as disabled to assistive technology. */
-.set-link-disabled {
-    color: var(--text-muted);
-    cursor: default;
-    pointer-events: none;
-    text-decoration: none;
-    opacity: .75;
+@media (max-width: 560px) {
+    .set-session { flex-direction: column; align-items: stretch; }
 }
-
-
-/* ══════════════════════════════════════════════════════════════
-   V3 ALIGNMENT (docs/interface/STALLTRACK_UI_V3_DIRECTION.md) — presentation only.
-   Light identity band / drawer headers; civic-blue interaction; readable secondary text.
-   ══════════════════════════════════════════════════════════════ */
-.vs-hero {
-    padding: 20px 24px 22px;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    background: var(--surface);
-    box-shadow: var(--elevation-1);
-}
-
-    .vs-hero::before,
-    .vs-hero::after {
-        display: none;
-    }
-
-.vs-hero-icon {
-    border-color: transparent;
-    background: var(--accent-soft);
-}
-
-    .vs-hero-icon svg {
-        stroke: var(--navy) !important;
-    }
-
-.vs-hero-eyebrow {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-title,
-.vs-hero-val {
-    color: var(--navy);
-}
-
-.vs-hero-val {
-    font-variant-numeric: tabular-nums;
-}
-
-.vs-hero-sub,
-.vs-hero-sub2 {
-    color: var(--text-tertiary);
-}
-
-.vs-hero-key {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    font-weight: 500;
-    letter-spacing: 0;
-    text-transform: none;
-}
-
-.vs-hero-divider {
-    background: var(--border);
-}
-
-.vs-hero-progress {
-    height: 3px;
-    background: var(--surface-muted);
-}
-
-.vs-hero-progress-fill {
-    background: var(--accent);
-}
-
-/* V3 consistency: one quiet civic-blue icon tile for every settings card (status colour stays on the status itself). */
-.set-card-icon {
-    background: var(--accent-soft);
-    color: var(--civic-panel);
-}
-
-/* ── Manage: one list of configuration destinations ── */
-h2.set-card-title { margin: 0; }
-.set-manage .set-card-head { margin-bottom: 4px; }
-.set-note-inline { margin: 0 0 0 auto; padding: 0; border: 0; font-size: 12px; }
-.set-manage-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    border-top: 1px solid var(--border);
-}
-.set-manage-list li { border-bottom: 1px solid var(--border); }
-.set-manage-list li:not(:nth-child(4n)) { border-right: 1px solid var(--border); }
-.set-manage-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    min-height: 52px;
-    padding: 12px 16px;
-    color: var(--navy);
-    font-size: 13.5px;
-    font-weight: 600;
-    text-decoration: none;
-    transition: background .15s ease;
-}
-a.set-manage-item:hover { background: var(--bg); color: var(--accent); }
-a.set-manage-item:hover .set-link-arrow { transform: translateX(3px); }
-a.set-manage-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.set-manage-item.is-disabled { color: var(--text-muted); cursor: not-allowed; }
-.set-manage-item .set-link-arrow { color: var(--text-muted); }
-
-@media (max-width: 1100px) {
-    .set-manage-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .set-manage-list li:not(:nth-child(4n)) { border-right: 0; }
-    .set-manage-list li:nth-child(odd) { border-right: 1px solid var(--border); }
-}
-@media (max-width: 600px) {
-    .set-manage-list { grid-template-columns: minmax(0, 1fr); }
-    .set-manage-list li:nth-child(odd) { border-right: 0; }
-    .set-note-inline { margin-left: 0; }
+@media (prefers-reduced-motion: reduce) {
+    a.set-item, button.set-item, .set-item-arrow { transition: none; }
+    a.set-item:hover .set-item-arrow { transform: none; }
 }

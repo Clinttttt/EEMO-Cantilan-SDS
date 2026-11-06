@@ -42,7 +42,7 @@ public class AuditSaveChangesInterceptor(ICurrentUserService currentUser) : Save
         // Account / payor / stall management
         typeof(AdminUser), typeof(CollectorUser), typeof(PayorUser),
         typeof(Stall), typeof(PayorActivationCode), typeof(PayorStallLink), typeof(PayorHistoricalAccessCode), typeof(PayorLiabilityLink),
-        typeof(CollectorOperationAssignment), typeof(GovernedService), typeof(GovernedServiceSetting), typeof(PenaltyDefinition),
+        typeof(CollectorOperationAssignment), typeof(GovernedService), typeof(GovernedServiceSetting), typeof(PenaltyDefinition), typeof(BillingPolicyVersion),
         typeof(ObligationAccount), typeof(ObligationRate), typeof(ObligationPeriod),
         typeof(VehicleClass), typeof(VehicleClassRate), typeof(GovernedServiceFeeOption), typeof(GovernedServiceFeeOptionRate),
         typeof(CollectionRemittance), typeof(CollectionRemittanceCoverage), typeof(OfficeCashTurnover), typeof(OfficeCashTurnoverCoverage), typeof(AccountableFormSpoilage), typeof(AccountableFormLossReport), typeof(AccountableFormReference),

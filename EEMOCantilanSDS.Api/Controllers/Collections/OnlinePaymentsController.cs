@@ -3,9 +3,12 @@ using EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.HandleWebhook;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.IssueOrNumber;
+using EEMOCantilanSDS.Application.Command.OnlinePayments.ResolveException;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetAwaitingOr;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetDashboard;
+using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetExceptions;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -94,6 +97,24 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
         return HandleResponse(result);
     }
 
+    /// <summary>The office's work list of online payments that did not simply complete. Both the Head and Admins can see it.</summary>
+    [HttpGet("exceptions")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<IReadOnlyList<OnlinePaymentExceptionDto>>> ExceptionsAsync()
+    {
+        var result = await Sender.Send(new GetOnlinePaymentExceptionsQuery());
+        return HandleResponse(result);
+    }
+
+    /// <summary>The Head records what became of a held capture. Admins can view and verify, not decide.</summary>
+    [HttpPost("{id:guid}/resolution")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> ResolveExceptionAsync(Guid id, [FromBody] ResolveOnlinePaymentExceptionRequest request)
+    {
+        var result = await Sender.Send(new ResolveOnlinePaymentExceptionCommand(id, request.Disposition, request.Reference, request.Note));
+        return HandleResponse(result);
+    }
+
     /// <summary>Treasury overview + recent settled history for the admin Online Payments page (current LGU).</summary>
     [HttpGet("dashboard")]
     [Authorize(Roles = "SuperAdmin,Admin")]
@@ -116,3 +137,6 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
 
 /// <summary>Request body for OR encoding (the transaction id comes from the route).</summary>
 public record IssueOnlinePaymentOrNumberRequest(string ORNumber);
+
+/// <summary>Request body for a Head's decision (the transaction id comes from the route).</summary>
+public record ResolveOnlinePaymentExceptionRequest(OnlinePaymentDisposition Disposition, string Reference, string? Note);

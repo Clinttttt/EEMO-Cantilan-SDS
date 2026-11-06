@@ -38,9 +38,27 @@
 @* Scope: the office's own facilities — their identity, market sections and fixed ordinance rates. The accountable
    instrument and effective-dated policy of each revenue source (facility or not) live in Revenue Sources. The layout owns
    the <main> landmark. *@
-<div class="v3-page fac-page">
-    <WorkspaceHeader Title="Facility Configuration" Parent="Settings" ParentHref="/settings" />
+<header class="topbar">
+    <div class="topbar-left">
+        <h1 class="topbar-title">Facility Configuration</h1>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Facility Configuration</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @EEMOCantilanSDS.Domain.Common.PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
 
+<div class="v3-page fac-page">
     @if (_error is not null)
     {
         <div class="set-state" role="alert">

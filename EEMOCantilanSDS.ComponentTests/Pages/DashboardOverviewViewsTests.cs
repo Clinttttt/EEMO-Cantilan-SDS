@@ -449,7 +449,7 @@ public sealed class DashboardOverviewViewsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Single(cut.FindAll("table.rsp-table")), Timeout);
         Assert.Empty(cut.FindAll(".rsp-head-actions"));
-        Assert.Contains("Actual collections and operating activity", cut.Find(".rsp-sub").TextContent);
+        Assert.Contains("Money received in this period", cut.Find(".rsp-sub").TextContent);
         Assert.DoesNotContain("v3-sr-only", cut.Find(".rsp-head-copy").ClassName);
     }
 }

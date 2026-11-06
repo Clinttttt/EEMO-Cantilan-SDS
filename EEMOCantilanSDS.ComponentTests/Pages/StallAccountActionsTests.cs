@@ -83,7 +83,8 @@ public sealed class StallAccountActionsTests : TestContext
     {
         var cut = Render(ExpiredAccount(), StallAccountAction.Renew);
         cut.WaitForElement(".ca-renew-edit", RenderTimeout).Click();
-        cut.Find(".ca-renew-rate").Change("1800");
+        cut.Find(".ca-renew-rate").Input("1800");
+        Assert.Contains("21,600", cut.Find(".ca-renew-note").TextContent); // the whole-year figure follows as the rent is typed
         cut.Find(".eemo-modal-footer .btn-primary").Click();
 
         var req = Assert.Single(_renewals);

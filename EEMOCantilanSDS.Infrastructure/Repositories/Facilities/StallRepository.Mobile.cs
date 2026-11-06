@@ -236,7 +236,8 @@ public partial class StallRepository
             var status = record?.Status ?? PaymentStatus.Unpaid;
             // Monthly-rental facilities carry no utilities, so the bill is the flat monthly rate.
             var amountPaid = record?.AmountPaid ?? 0m;
-            var balance = record is not null ? record.BalanceDue : s.MonthlyRate;
+            var rent = s.MonthlyRentFor(year, month, collectionDate);
+            var balance = record is not null ? record.BalanceDue : rent;
 
             var paidOnline = record is not null && onlinePaidRecordIds.Contains(record.Id);
             // Paid online but the staff have not yet encoded the Official Receipt (no OR on the record).
@@ -251,7 +252,7 @@ public partial class StallRepository
                 string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
                 contract?.NameOnContract ?? contract?.ActualOccupant ?? string.Empty,
                 GetMonthlyAreaLabel(s),
-                s.MonthlyRate,
+                rent,
                 status,
                 amountPaid,
                 balance,

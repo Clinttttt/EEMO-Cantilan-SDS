@@ -77,7 +77,7 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
             "A source paid on service has no assessment, so it never shows an unpaid amount or a collection rate.",
         };
         return Result<RevenueSourcePerformanceDto>.Success(new RevenueSourcePerformanceDto(
-            request.Year, request.Month, groups, rows, rows.Sum(r => r.Collected), notes, income.Value.GeneratedAtUtc, income.Value.TargetCoverage));
+            request.Year, request.Month, groups, rows, rows.Sum(r => r.Collected), notes, income.Value.GeneratedAtUtc, income.Value.TargetCoverage, income.Value.RecoveredArrears));
     }
 
     private async Task<List<CanonicalFact>> CanonicalFactsAsync(Guid tenantId, DateOnly start, DateOnly end, CancellationToken ct)
@@ -91,31 +91,18 @@ public sealed class GetRevenueSourcePerformanceQueryHandler(
             select new { line.Id, line.CollectionId, line.RevenueClassificationId, collection.CollectorId }).ToListAsync(ct);
         if (lines.Count == 0) return [];
 
-        var collectionIds = lines.Select(x => x.CollectionId).Distinct().ToArray();
-
-        // Stall rent is placed by the facility of the rent source, as the statement places it.
+        // Stall rent is placed as the statement places it, so a row's count describes the money on it. One line can reach two rows when one receipt pays old and current rent.
         var rentLineIds = lines.Where(x => codes.GetValueOrDefault(x.RevenueClassificationId) == RevenueClassificationCodes.PermanentStallRent)
             .Select(x => x.Id).ToArray();
-        var rentFacility = new Dictionary<Guid, FacilityCode?>();
-        if (rentLineIds.Length > 0)
-        {
-            var placed = await (
-                from allocation in db.CollectionAllocations.AsNoTracking()
-                join record in db.PaymentRecords.AsNoTracking() on allocation.SourceId equals record.Id
-                join stall in db.Stalls.AsNoTracking() on record.StallId equals stall.Id
-                join facility in db.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
-                where allocation.MunicipalityId == tenantId && rentLineIds.Contains(allocation.CollectionLineId)
-                    && allocation.SourceKind == CollectionSourceKind.PaymentRecord
-                select new { allocation.CollectionLineId, facility.Code }).ToListAsync(ct);
-            foreach (var p in placed) rentFacility.TryAdd(p.CollectionLineId, p.Code);
-        }
+        var placed = (await RecoveredArrears.PlaceAsync(db, tenantId, rentLineIds, ct)).ToLookup(p => p.LineId);
 
-        return lines.Select(line =>
+        return lines.SelectMany(line =>
         {
             var code = codes.GetValueOrDefault(line.RevenueClassificationId, "UNKNOWN_CLASSIFICATION");
-            var facility = code == RevenueClassificationCodes.PermanentStallRent ? rentFacility.GetValueOrDefault(line.Id) : null;
-            return new CanonicalFact(OfficialMonthlyIncomeStructure.RowKeyFor(code, facility), line.CollectionId,
-                null, line.CollectorId);
+            var rows = placed[line.Id].Any()
+                ? placed[line.Id].Select(p => OfficialMonthlyIncomeStructure.RowKeyFor(p.ClassificationCode, p.Facility)).Distinct()
+                : [OfficialMonthlyIncomeStructure.RowKeyFor(code, null)];
+            return rows.Select(row => new CanonicalFact(row, line.CollectionId, null, line.CollectorId));
         }).ToList();
     }
 

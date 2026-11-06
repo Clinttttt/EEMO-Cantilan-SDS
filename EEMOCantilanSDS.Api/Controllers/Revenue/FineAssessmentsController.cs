@@ -33,6 +33,9 @@ public sealed class FineAssessmentsController(ISender sender, FineAssessmentWork
     [HttpPost, Authorize(Roles = "SuperAdmin")]
     public async Task<ActionResult<FineAssessmentDto>> Create(CreateFineAssessmentRequest request, CancellationToken ct)
         => HandleResponse(await workflow.CreateAsync(request, ct));
+    [HttpPost("{id:guid}/adjust"), Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<FineAssessmentDto>> Adjust(Guid id, AdjustFineAssessmentRequest request, CancellationToken ct)
+        => HandleResponse(await workflow.AdjustAsync(id, request, ct));
     [HttpGet("{id:guid}/history")] public async Task<ActionResult<IReadOnlyList<FineAssessmentEventDto>>> History(Guid id, CancellationToken ct)
         => HandleResponse(await workflow.HistoryAsync(id, ct));
 }

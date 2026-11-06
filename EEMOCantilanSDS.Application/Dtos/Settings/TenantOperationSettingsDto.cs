@@ -18,6 +18,7 @@ public sealed record TenantOperationSettingsDto(bool UsesConfiguration, IReadOnl
 /// <param name="PolicyNotice">Set for a municipality OTHER than the default (Cantilan) where the platform applies a rule accepted only for Cantilan's office; the Head must confirm it. Informational: it does not change what is enforced.</param>
 /// <param name="AssignedCollectors">How many Collectors the Head has assigned to the operation. A FACT, not a readiness verdict: an operation collected at the office needs none, and an assigned one may still lack its source, rate or documents.</param>
 /// <param name="HasRecordedActivity">Collections already recorded under the operation's classification. Hiding it never removes them.</param>
+/// <param name="Instrument">The receipt type the office's own policy for the operation's active source sets today, or null when none is in effect. Read, never assumed.</param>
 public sealed record TenantOperationSettingDto(
     string OperationCode,
     string DefaultLabel,
@@ -29,4 +30,5 @@ public sealed record TenantOperationSettingDto(
     string Origin,
     bool HasRecordedActivity,
     string? PolicyNotice = null,
-    int AssignedCollectors = 0);
+    int AssignedCollectors = 0,
+    EEMOCantilanSDS.Domain.Enums.RevenueInstrumentType? Instrument = null);
