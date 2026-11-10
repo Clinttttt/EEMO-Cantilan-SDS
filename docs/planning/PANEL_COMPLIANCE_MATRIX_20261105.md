@@ -1,6 +1,6 @@
 # Panel compliance matrix
 
-**Source:** INF-4D minutes of 2026-10-28, Group 4 (StallTrack). **Branch:** `feat/panel-compliance-20261104`, not yet committed or deployed. **Evidence and limits:** [PANEL_RECOMMENDATIONS_20261104.md](PANEL_RECOMMENDATIONS_20261104.md), section 8.
+**Source:** INF-4D minutes of 2026-10-28, Group 4 (StallTrack). **Branch:** `feat/panel-compliance-20261104`, committed and up to date with `master`, not yet deployed. **Evidence and limits:** [PANEL_RECOMMENDATIONS_20261104.md](PANEL_RECOMMENDATIONS_20261104.md), section 8.
 
 "StallTrack Rule" means the project owner's ruling, changeable by each office's Head. It is not a MEEDO or Treasury confirmation.
 
@@ -42,14 +42,14 @@ Point the API at the same database through `ConnectionStrings__DefaultConnection
 | Panel comment | Panelist | Status |
 |---|---|---|
 | Chapter 4, formatting, objectives, SDLC | Dahonog | Manuscript work, outside this repository |
-| "Please refer to the document for compliance" | Bucalon, Maligsa, Dahonog, Flores | The annotated manuscript was not provided |
-| Consult the concerned office before implementation | Duero | Not yet done. See below |
+| "Please refer to the document for compliance" | Bucalon, Maligsa, Dahonog, Flores | The manuscript on file is dated 27 October, the day before the panel, so it carries none of the panel's written marks. System compliance follows the minutes |
+| Consult the concerned office before implementation | Duero | Done before implementation. The Cantilan MEEDO Head and office staff were consulted on 27 September and 4, 6, 9 and 14 October 2026. They confirmed the rates in use and their basis in the office's records, when an account is Delinquent or in Arrears, that unpaid balances carry forward, that rent may be paid in installments with an OR for each, which receipt (OR or Cash Ticket) each collection uses, and that fines are itemized on the OR and reported on their own line. Recorded in the [operational rulebook](../business/EEMO_OPERATIONAL_RULEBOOK.md) and the [evidence notes](../evidence/). No interest or penalty rate is hard-coded: none is charged until the Head enters the approved rate and its legal basis |
 
 ## What the panel may ask about
 
-1. **MEEDO has not confirmed these rules.** They run as StallTrack Rules under the owner's direction, each changeable by the Head. Seven questions are listed for MEEDO in section 7 of the tracking document.
+1. **What MEEDO confirmed, and what is a StallTrack Rule.** MEEDO confirmed the existing rules before implementation (see Duero's row below). The rules added for the panel, such as oldest-first, the pay-ahead limit, automatic late penalties and due dates, run as StallTrack Rules under the owner's direction, each changeable by the Head. Seven follow-up questions for MEEDO are listed in section 7 of the tracking document.
 2. **No penalty rate is invented.** The demo office's rate and ordinance are labelled illustrative. Cantilan charges nothing until its Head sets a rate.
 3. **Not deployed.** This is on a branch. Production needs the owner's explicit authorization, and the office should be told first that portal balances may rise and old payment links will stop working.
 4. **Decided by the developer, as the owner directed:** where oldest-first starts (IA-075), recovered old rent on the Arrears line (IA-076), and the term's rate winning (IA-077). These are StallTrack Rules a Head or MEEDO can change. On the local Cantilan copy the Arrears placement moves about ₱27,900 of 2026's collections between rows with no change to the total, so a sheet printed earlier differs in placement.
 5. **Also decided by the developer, after the end-to-end test:** a fine that can be assessed can be collected (IA-078), and a month with a recorded payment cannot be excused (IA-079).
-6. **Known and not yet fixed:** finishing a partial month reports the whole rent in the month it was finished. The all-time total is right; the month is not. See the open findings in section 8 of the tracking document.
+6. **Fixed on 2026-11-06 (IA-081):** finishing a partial month used to report the whole rent in the month it was finished. Each receipt is now kept and reported in its own month. Months finished before the fix keep their single receipt; there is no backfill.
