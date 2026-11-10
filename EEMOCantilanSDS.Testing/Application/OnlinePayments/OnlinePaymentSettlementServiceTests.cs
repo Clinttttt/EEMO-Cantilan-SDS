@@ -113,22 +113,126 @@ public class OnlinePaymentSettlementServiceTests
     }
 
     [Fact]
-    public async Task AlreadyPaidByAnotherChannel_RecordsTxn_ButPreservesOriginalAttribution()
+    public async Task AlreadyPaidByAnotherChannel_GoesToTheOffice_AndPreservesOriginalAttribution()
     {
+        // The duplicate used to stay Paid with the period's OR already set, which hid it from every office queue: the payor's
+        // money was at the gateway with nothing telling anyone to refund or apply it.
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
         record.RecordPayment("OR-OFFLINE-123", collectorId: Guid.NewGuid(), PaymentStatus.Paid);   // settled offline
-        var (svc, payRepo, _) = Build(record);
+        var (svc, payRepo, uow) = Build(record);
         var txn = PendingTxn(record.Id);
 
         var result = await svc.SettleAsync(txn, PaidEvent());
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);   // money is still recorded (for refund/audit)
+        Assert.Contains("RECONCILIATION_REQUIRED", result.Error);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.NotNull(txn.ReconciliationReason);
         // Original offline attribution is NOT overwritten.
         Assert.Equal("OR-OFFLINE-123", record.ORNumber);
         Assert.NotNull(record.CollectorId);
         Assert.Equal(PaymentStatus.Paid, record.Status);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PartiallyPaidWithAnOfficialReceipt_KeepsItsEvidence_AndTheCaptureGoesToTheOffice()
+    {
+        // MarkPaidOnline clears the OR and the collector, so settling here would erase the record of cash a collector took.
+        var collector = Guid.NewGuid();
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount + 40m);
+        record.RecordPayment("OR-PART-7", collector, PaymentStatus.Partial, partialAmount: 40m);
+        var (svc, payRepo, _) = Build(record);
+        var txn = PendingTxn(record.Id);   // Amount 100 == the remaining balance
+
+        await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal(PaymentStatus.Partial, record.Status);
+        Assert.Equal("OR-PART-7", record.ORNumber);
+        Assert.Equal(collector, record.CollectorId);
+        Assert.Equal(40m, record.PartialAmount);
+        payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task PartialWhoseBalanceGrewPastTheCapture_IsNotClearedInFull()
+    {
+        // An earlier online part carries no receipt. The balance has grown past this capture, so clearing it would mark money paid
+        // that nobody paid, and MarkPartiallyPaidOnline is not cumulative, so it would forget the earlier part.
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, 300m);
+        record.MarkPartiallyPaidOnline(50m, "earlier part");
+        var (svc, _, _) = Build(record);
+        var txn = PendingTxn(record.Id);   // Amount 100 < balance 250
+
+        await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal(PaymentStatus.Partial, record.Status);
+        Assert.Equal(50m, record.PartialAmount);
+    }
+
+    [Fact]
+    public async Task ReceiptlessPart_WhenTheCaptureIsExactlyTheBalance_StillClears()
+    {
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, 150m);
+        record.MarkPartiallyPaidOnline(50m, "earlier part");
+        var (svc, _, _) = Build(record);
+        var txn = PendingTxn(record.Id);   // Amount 100 == balance 100
+
+        var result = await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+    }
+
+    [Fact]
+    public async Task CaptureAboveAShrunkenBalance_IsNotSwallowed()
+    {
+        // The rate was corrected down while the checkout was open. Clearing the row would make the excess vanish from every book.
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, 80m);
+        var (svc, _, _) = Build(record);
+        var txn = PendingTxn(record.Id);   // Amount 100 > balance 80
+
+        await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status);
+    }
+
+    [Fact]
+    public async Task LinkedRecordMissing_PreservesTheCapture()
+    {
+        // Saving nothing here would leave a captured payment looking unpaid, retried forever by the provider.
+        var payRepo = new Mock<IPaymentRepository>();   // finds nothing
+        var uow = new Mock<IUnitOfWork>();
+        var svc = new OnlinePaymentSettlementService(payRepo.Object, new Mock<IStallRepository>().Object,
+            new Mock<INpmMonthSettlementService>().Object, new Mock<IUtilityBillRepository>().Object,
+            new Mock<IOnlinePaymentNotifier>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var txn = PendingTxn(Guid.NewGuid());
+
+        await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal("pay_1", txn.PaymentId);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task NpmStallMissing_PreservesTheCapture()
+    {
+        var uow = new Mock<IUnitOfWork>();
+        var svc = new OnlinePaymentSettlementService(new Mock<IPaymentRepository>().Object, new Mock<IStallRepository>().Object,
+            new Mock<INpmMonthSettlementService>().Object, new Mock<IUtilityBillRepository>().Object,
+            new Mock<IOnlinePaymentNotifier>().Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant);
+        var txn = OnlinePaymentTransaction.CreateForNpmMonth("EEMO-OP-NPM", Guid.NewGuid(), Guid.NewGuid(), 2026, 6, Amount, "PayMongo");
+        txn.SetPending("cs_1", "https://checkout");
+
+        await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -147,10 +251,10 @@ public class OnlinePaymentSettlementServiceTests
     }
 
     [Fact]
-    public async Task AmountMismatch_DoesNotSettle()
+    public async Task AmountMismatch_DoesNotSettle_ButTheCaptureIsKept_AndRetryIsSafe()
     {
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount);
-        var (svc, payRepo, _) = Build(record);
+        var (svc, payRepo, uow) = Build(record);
         var txn = PendingTxn(record.Id);
 
         var result = await svc.SettleAsync(txn, PaidEvent(amount: 50m));   // underpaid
@@ -159,6 +263,17 @@ public class OnlinePaymentSettlementServiceTests
         Assert.Equal(ResultStatus.Conflict, result.Status);
         Assert.NotEqual(OnlinePaymentStatus.Paid, txn.Status);
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+
+        // The gateway has the money, so the evidence has to survive even though nothing is applied.
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal(50m, txn.CapturedAmount);
+        Assert.Equal(Amount, txn.Amount);
+        Assert.Equal("pay_1", txn.PaymentId);
+        Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+
+        Assert.True((await svc.SettleAsync(txn, PaidEvent(amount: 50m))).IsSuccess);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

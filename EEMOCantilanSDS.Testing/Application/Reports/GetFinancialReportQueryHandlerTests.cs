@@ -183,6 +183,58 @@ public class GetFinancialReportQueryHandlerTests
     }
 
 
+    /// <summary>A stall facility's report for a month, with the six-month trend the repository states beside it.</summary>
+    private static FacilityReportsDto MonthReport(int year, int month, Func<int, int, decimal> revenue) =>
+        Report(revenue(year, month), 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>()) with
+        {
+            RevenueTrend = Enumerable.Range(0, 6).Reverse()
+                .Select(i => new DateTime(year, month, 1).AddMonths(-i))
+                .Select(d => new RevenueTrendDto(d.ToString("MMM yyyy"), revenue(d.Year, d.Month), 0m, d.Month == month))
+                .ToArray(),
+        };
+
+    [Theory]
+    [InlineData(11, 6_600)]   // January to November. The chart's six months alone said 5,100.
+    [InlineData(7, 2_800)]    // January to July. The chart said 2,700.
+    [InlineData(3, 600)]      // January to March. The chart reached into last year and said 3,600.
+    public async Task YearToDate_RunsFromJanuaryThroughTheSelectedMonth_NotAcrossTheChartsWindow(int month, double expected)
+    {
+        var (handler, reports, _) = Build();
+        decimal Revenue(int y, int m) => y == 2026 ? m * 100m : 1_000m;
+        reports.Setup(r => r.GetFacilityReportsAsync(FacilityCode.TCC, ReportPeriod.Monthly, 2026, It.IsAny<int?>(), null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((FacilityCode _, ReportPeriod _, int _, int? m, int? _, CancellationToken _) => MonthReport(2026, m!.Value, Revenue));
+
+        var report = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, month, FacilityCode.TCC), CancellationToken.None)).Value!;
+
+        Assert.Equal((decimal)expected, report.YtdCollected);
+        Assert.Equal(6, report.Trend.Count);   // the chart itself stays six months
+    }
+
+    [Fact]
+    public async Task OnAnAnnualReport_YearToDateIsThatYear_NotTheFiveYearsOfTheChart()
+    {
+        var (handler, reports, _) = Build();
+        reports.Setup(r => r.GetFacilityReportsAsync(FacilityCode.TCC, ReportPeriod.Yearly, 2026, null, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Report(5_000m, 0m, 0m, 0, 0, 0, Array.Empty<StallComplianceDto>()) with
+            {
+                RevenueTrend = Enumerable.Range(2022, 5).Select(y => new RevenueTrendDto(y.ToString(), y == 2026 ? 5_000m : 1_000m, 0m, y == 2026)).ToArray(),
+            });
+
+        var report = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Yearly, 2026, null, FacilityCode.TCC), CancellationToken.None)).Value!;
+
+        Assert.Equal(5_000m, report.YtdCollected);
+    }
+
+    [Fact]
+    public async Task YearToDate_CountsPaidOnServiceMoney_InTheMonthsBeforeTheChart()
+    {
+        var (handler, _, _) = Build();   // the terminal stub takes ₱60 in every month
+
+        var report = (await handler.Handle(new GetFinancialReportQuery(ReportPeriod.Monthly, 2026, 8, FacilityCode.TRM), CancellationToken.None)).Value!;
+
+        Assert.Equal(480m, report.YtdCollected);
+    }
+
     [Fact]
     public async Task TheFollowUpTotalsCountEveryAccount_EvenWhenTheListsAreCapped()
     {

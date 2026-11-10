@@ -171,13 +171,13 @@ public partial class FacilityReportsRepository
             return (compliance.Count(s => s.Balance > 0m), compliance.Sum(s => s.Balance));
         }
 
-        // Get all OCCUPIED stalls (with active contracts) including their MonthlyRate
+        // Get all OCCUPIED stalls (with active contracts) and their terms
         var occupiedStalls = await _context.Stalls
             .AsNoTracking()
-            .Where(s => s.FacilityId == facilityId 
-               
+            .Include(s => s.Contracts)
+            .Where(s => s.FacilityId == facilityId
+
                 && s.Contracts.Any(c => c.IsActive))
-            .Select(s => new { s.Id, s.MonthlyRate })
             .ToListAsync(ct);
 
         if (occupiedStalls.Count == 0)
@@ -247,8 +247,8 @@ public partial class FacilityReportsRepository
             }
             else
             {
-                // No payment record: use the stall's MonthlyRate as the expected bill
-                totalBill = stall.MonthlyRate;
+                // No payment record: the term's rate is the expected bill (IA-077)
+                totalBill = stall.MonthlyRentFor(endDate.Year, endDate.Month, _clock.PhilippineToday);
                 amountPaid = 0m;
             }
 

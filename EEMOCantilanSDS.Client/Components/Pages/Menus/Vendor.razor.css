@@ -34,7 +34,7 @@
 
 .vs-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -105,7 +105,7 @@
 }
 
     .vs-hero.vegetables-hero .vs-hero-icon svg {
-        stroke: #22c55e;
+        stroke: var(--dark-green-text, #22c55e);
     }
 
 .vs-hero.meat-hero .vs-hero-icon {
@@ -113,7 +113,7 @@
 }
 
     .vs-hero.meat-hero .vs-hero-icon svg {
-        stroke: #ef4444;
+        stroke: var(--dark-red-text, #ef4444);
     }
 
 .vs-hero-eyebrow {
@@ -126,7 +126,7 @@
 }
 
 .vs-hero.vegetables-hero .vs-hero-eyebrow {
-    color: #86efac;
+    color: var(--dark-green-text, #86efac);
 }
 
 .vs-hero.meat-hero .vs-hero-eyebrow {
@@ -210,7 +210,7 @@
 }
 
 .vs-hero.meat-hero .vs-hero-progress-fill {
-    background: linear-gradient(90deg, #ef4444, #fca5a5);
+    background: linear-gradient(90deg, #ef4444, var(--dark-red-tint, #fca5a5));
 }
 
 /* ══════════════════════════════════════════
@@ -270,7 +270,7 @@ TABLE
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     font-size: 13px;
     font-weight: 700;
@@ -329,7 +329,7 @@ TABLE
 
 /* Daily-collection marker (NPM has no monthly payment status) */
 .pill-daily {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     border: 1px solid var(--accent);
 }
@@ -340,7 +340,7 @@ TABLE
 .contract-term { font-size: 12.5px; font-weight: 700; color: var(--navy); }
 .contract-exp { font-size: 11px; font-weight: 600; margin-top: 2px; }
 .contract-exp.exp-ok { color: var(--text-muted); }
-.contract-exp.exp-soon { color: #9a6b18; }
+.contract-exp.exp-soon { color: var(--dark-amber-text, #9a6b18); }
 .contract-exp.exp-bad { color: var(--red); }
 
 
@@ -637,7 +637,7 @@ TABLE
 .detail-modal ::deep .cal-cell {
     padding: 4px;
     border-width: 1.5px;
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .detail-modal ::deep .cal-cell.cal-paid {
@@ -646,18 +646,18 @@ TABLE
 }
 
 .detail-modal ::deep .cal-cell.cal-miss {
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .detail-modal ::deep .cal-cell.cal-future {
     border-width: 1.5px;
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
     background: rgba(168, 184, 200, 0.08);
 }
 
 .detail-modal ::deep .cal-cell.cal-before-contract {
     border-width: 1.5px;
-    border-color: #d4a5a5;
+    border-color: var(--dark-red-border, #d4a5a5);
     background: rgba(139, 58, 58, 0.04);
 }
 
@@ -701,7 +701,7 @@ TABLE
     font-size: 7px;
     padding: 1px 4px;
     border-width: 1.5px;
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .detail-modal ::deep .cal-footer-stats {
@@ -714,7 +714,7 @@ TABLE
     padding: 10px 12px;
     min-height: 60px;
     border-width: 1.5px;
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .detail-modal ::deep .cal-sum-val {
@@ -731,7 +731,7 @@ TABLE
 
 .detail-modal ::deep .cal-nav-btn {
     border-width: 1.5px;
-    border-color: #c5d1dc;
+    border-color: var(--dark-border, #c5d1dc);
 }
 
 .detail-modal ::deep .cal-month-label {
@@ -785,13 +785,13 @@ TABLE
 }
 
 .util-partial-paid {
-    background: #fff3cd;
+    background: var(--dark-amber-tint, #fff3cd);
     border-color: #ffc107;
 }
 
 .util-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .util-month-name {
@@ -828,7 +828,7 @@ TABLE
 }
 
 .util-partial-paid .util-indicator {
-    color: #d39e00;
+    color: var(--dark-amber-text, #d39e00);
 }
 
 .util-unpaid .util-indicator {
@@ -919,7 +919,7 @@ TABLE
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-month-name {
@@ -1065,7 +1065,7 @@ TABLE
 }
 
 .fac-checkbox.checked .fac-check-box {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border-color: var(--accent);
 }
 
@@ -1102,8 +1102,8 @@ TABLE
     width: 36px;
     height: 36px;
     border-radius: 9px;
-    background: #fff8e0;
-    border: 1px solid #f0d080;
+    background: var(--dark-amber-tint, #fff8e0);
+    border: 1px solid var(--dark-amber-border, #f0d080);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1113,7 +1113,7 @@ TABLE
     .form-rental-icon svg {
         width: 17px;
         height: 17px;
-        stroke: #c07c00;
+        stroke: var(--dark-amber-text, #c07c00);
         fill: none;
         stroke-width: 2;
         stroke-linecap: round;
@@ -1299,44 +1299,44 @@ TABLE
     }
 
 .form-fee-toggle.active {
-    background: #fffbeb;
+    background: var(--dark-amber-tint, #fffbeb);
     border-color: #f59e0b;
 }
 
     .form-fee-toggle.active .form-fee-toggle-icon {
-        background: #fff8e0;
+        background: var(--dark-amber-tint, #fff8e0);
     }
 
         .form-fee-toggle.active .form-fee-toggle-icon svg {
-            stroke: #d4920a;
+            stroke: var(--dark-amber-text, #d4920a);
         }
 
     .form-fee-toggle.active .form-fee-toggle-checkbox {
         border-color: var(--accent);
-        background: var(--accent);
+        background: var(--dark-accent-fill, var(--accent));
     }
 
 .form-fee-toggle-water {
-    background: #eff8ff;
+    background: var(--dark-blue-tint, #eff8ff);
     border-color: #3b82f688;
 }
 
     .form-fee-toggle-water .form-fee-toggle-icon {
-        background: #e8f4fb;
+        background: var(--dark-blue-tint, #e8f4fb);
     }
 
         .form-fee-toggle-water .form-fee-toggle-icon svg {
-            stroke: #1a7ab5;
+            stroke: var(--dark-accent-text, #1a7ab5);
         }
 
     .form-fee-toggle-water.active {
-        background: #eff8ff;
+        background: var(--dark-blue-tint, #eff8ff);
         border-color: #3b82f688;
     }
 
         .form-fee-toggle-water.active .form-fee-toggle-checkbox {
             border-color: var(--accent);
-            background: var(--accent);
+            background: var(--dark-accent-fill, var(--accent));
         }
 
 .form-fish-fee-section {
@@ -1354,7 +1354,7 @@ TABLE
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    background: #e6f4f0;
+    background: var(--dark-green-tint, #e6f4f0);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1364,7 +1364,7 @@ TABLE
     .form-fish-fee-icon svg {
         width: 16px;
         height: 16px;
-        stroke: #0d7b5e;
+        stroke: var(--dark-text, #0d7b5e);
         fill: none;
         stroke-width: 1.8;
         stroke-linecap: round;
@@ -1390,11 +1390,11 @@ TABLE
 .form-fish-fee-badge {
     font-size: 11px;
     font-weight: 600;
-    color: #0a6b47;
-    background: #dff4eb;
+    color: var(--dark-text, #0a6b47);
+    background: var(--dark-green-tint, #dff4eb);
     padding: 3px 10px;
     border-radius: 20px;
-    border: 0.5px solid #a3dac0;
+    border: 0.5px solid var(--dark-green-border, #a3dac0);
 }
 
 .form-section-note {
@@ -1651,7 +1651,7 @@ TABLE
 }
 
 .vs-hero-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 .vs-hero.vegetables-hero,

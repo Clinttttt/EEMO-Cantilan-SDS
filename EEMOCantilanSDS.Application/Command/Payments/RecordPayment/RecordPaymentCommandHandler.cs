@@ -18,7 +18,8 @@ public class RecordPaymentCommandHandler(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext, IClock clock,
-    Common.Revenue.LegacyRentPayloadReconciliation? lateLegacyPayloads = null) : IRequestHandler<RecordPaymentCommand, Result<bool>>
+    Common.Revenue.LegacyRentPayloadReconciliation? lateLegacyPayloads = null,
+    Common.Revenue.BillingRules? billingRules = null) : IRequestHandler<RecordPaymentCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(RecordPaymentCommand request, CancellationToken ct)
     {
@@ -51,6 +52,11 @@ public class RecordPaymentCommandHandler(
                 return Result<bool>.Forbidden();
             }
         }
+
+        // Only the offline sync sends an operation id, and that money was already taken in the field, so it is recorded whatever month it finds open.
+        if (billingRules is not null && request.Status != PaymentStatus.Unpaid && request.ClientOperationId is null
+            && await billingRules.RefusalAsync(request.StallId, request.Year, request.Month, ct) is { } refusal)
+            return Result<bool>.Failure(refusal, ResultStatus.Conflict);
 
         var collectorId = currentUser.CollectorId;
         var recordedBy = currentUser.Username ?? "Admin";

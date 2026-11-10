@@ -42,7 +42,7 @@
 /* ── Hero Banner ─────────────────────────────────────────── */
 .tcc-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -246,7 +246,7 @@
 }
 
 .tcc-mini-stat.partial-stat .tcc-mini-val {
-    color: #b07d2b;
+    color: var(--dark-amber-text, #b07d2b);
 }
 
 
@@ -303,9 +303,9 @@
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 20px;
-    background: #fff8e1;
-    color: #7a5500;
-    border: 1px solid #e8d48a;
+    background: var(--dark-amber-tint, #fff8e1);
+    color: var(--dark-text, #7a5500);
+    border: 1px solid var(--dark-amber-border, #e8d48a);
     white-space: nowrap;
 }
 
@@ -397,8 +397,8 @@
 
 .pay-opt-partial {
     border-color: #b07d2b;
-    background: #fffbea;
-    color: #7a5500;
+    background: var(--dark-amber-tint, #fffbea);
+    color: var(--dark-text, #7a5500);
 }
 
 .pay-opt-unpaid {
@@ -439,7 +439,7 @@
     align-items: center;
     padding: 12px 16px;
     border-radius: 10px;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     margin-top: 12px;
 }
 
@@ -554,7 +554,7 @@
 }
 
 .total-unpaid {
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
 }
 
 .total-partial {
@@ -614,8 +614,8 @@
 }
 
 .pill-partial {
-    background: #fff8e1;
-    color: #7a5c00;
+    background: var(--dark-amber-tint, #fff8e1);
+    color: var(--dark-text, #7a5c00);
 }
 
 
@@ -650,7 +650,7 @@
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-month-name {
@@ -725,7 +725,7 @@
 }
 
     .action-btn:hover {
-        background: var(--navy);
+        background: var(--dark-navy-fill, var(--navy));
         color: var(--gold-light);
         border-color: var(--navy);
     }
@@ -865,7 +865,7 @@
 }
 
 .tcc-mini-stat.partial-stat .tcc-mini-val {
-    color: #9a6a1f;
+    color: var(--dark-amber-text, #9a6a1f);
 }
 
 @media (max-width: 768px) {

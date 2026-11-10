@@ -90,6 +90,56 @@ public sealed class SidebarNavigationTests : TestContext
     }
 
     [Fact]
+    public void TheThemeToggle_IsAButton_WithANameThatSurvivesCollapsing()
+    {
+        var cut = RenderComponent<Sidebar>();
+
+        var toggle = cut.Find("button[data-st-theme-toggle]");
+
+        Assert.Equal("button", toggle.GetAttribute("type"));
+        Assert.Equal("Switch between light and dark", toggle.GetAttribute("aria-label"));
+        Assert.Contains("Dark mode", toggle.TextContent);
+        Assert.Contains("Light mode", toggle.TextContent);
+    }
+
+    [Fact]
+    public void TheInboxBadge_ShowsWhatIsUnread_AndIsAskedAgainOnLeavingTheInbox()
+    {
+        var inbox = new Mock<IInboxApiClient>();
+        inbox.Setup(api => api.GetAsync()).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Notifications.InboxPageDto>.Success(new([], 4)));
+        Services.AddSingleton(inbox.Object);
+        var nav = Services.GetRequiredService<NavigationManager>();
+        nav.NavigateTo("/notifications");
+
+        var cut = RenderComponent<Sidebar>();
+        var link = () => cut.Find(".sidebar-nav a[href='/notifications']");
+
+        cut.WaitForAssertion(() => Assert.Equal("4", link().QuerySelector(".nav-badge")?.TextContent));
+        inbox.Verify(api => api.GetAsync(), Times.Once);
+
+        inbox.Setup(api => api.GetAsync()).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Notifications.InboxPageDto>.Success(new([], 0)));
+        nav.NavigateTo("/reports");
+
+        cut.WaitForAssertion(() => Assert.Null(link().QuerySelector(".nav-badge")));
+        inbox.Verify(api => api.GetAsync(), Times.Exactly(2));
+
+        nav.NavigateTo("/settings");
+        inbox.Verify(api => api.GetAsync(), Times.Exactly(2));
+    }
+
+    [Fact]
+    public void AFailedInboxCount_ShowsNoBadge_AndTheShellStillRenders()
+    {
+        var inbox = new Mock<IInboxApiClient>();
+        inbox.Setup(api => api.GetAsync()).ThrowsAsync(new HttpRequestException("down"));
+        Services.AddSingleton(inbox.Object);
+
+        var cut = RenderComponent<Sidebar>();
+
+        cut.WaitForAssertion(() => Assert.Null(cut.Find(".sidebar-nav a[href='/notifications']").QuerySelector(".nav-badge")));
+    }
+
+    [Fact]
     public void HeadSeesTheCuratedDestinationsInOrder()
     {
         var cut = RenderComponent<Sidebar>();
@@ -108,6 +158,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "/collectors",
                 "/audit-trail",
                 "/settings",
+                "/notifications",
             ],
             links.Select(link => link.GetAttribute("href") ?? string.Empty).ToArray());
 
@@ -124,6 +175,7 @@ public sealed class SidebarNavigationTests : TestContext
                 "Collectors",
                 "Audit Trail",
                 "Settings",
+                "Notifications",
             ],
             links.Select(link => link.QuerySelector("span:not(.nav-badge)")?.TextContent.Trim() ?? string.Empty).ToArray());
 
@@ -201,6 +253,8 @@ public sealed class SidebarNavigationTests : TestContext
     [InlineData("/settings", "/settings")]
     [InlineData("/settings/facilities", "/settings")]
     [InlineData("/admin", "/settings")]
+    [InlineData("/office-profile", "/settings")]
+    [InlineData("/accounts", "/settings")]
     public void CurrentAndLegacyPathsActivateTheirOwningDestination(string route, string destination)
     {
         Services.GetRequiredService<NavigationManager>().NavigateTo(route);

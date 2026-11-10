@@ -61,7 +61,8 @@
     private IReadOnlyList<SummaryStrip.SummaryItem> Items =>
     [
         new("Collected", Money(Collected)),
-        new("Year to date", Money(YtdCollected)),
+        // Rent of this year's months, so it differs from Monthly Income's year to date, which is money received by paid date.
+        new("Year to date, by billing month", Money(YtdCollected)),
         new("Outstanding obligations", Money(Outstanding)),
         new("Unremitted collections", _position is null ? "—" : Money(_position.Unremitted), Emphasis: _position is { Unremitted: not 0m }),
         new("Accountability exceptions", _position is null ? "—" : _position.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),

@@ -56,15 +56,88 @@
     --elevation-1: 0 1px 2px rgba(13, 33, 55, .04);
 }
 
+/* ── Dark theme ──
+   On when <html data-st-theme="dark">, set by the script in App.razor: saved per browser, and a first visit follows the OS.
+   Screen only, so printing always uses the light values. Off on the payor pages, which keep their own look.
+   A colour written as var(--dark-role, X) is X unless this block applies, so the light theme cannot change.
+   Most uses of --navy, --accent, --green and --red are text, so they lighten here; a fill that must stay solid asks for --dark-*-fill.
+   Text pairs are checked for AA by DarkThemeTests. A new pair belongs in that test. */
+@media screen {
+    html[data-st-theme="dark"]:not(:has(.pp-shell)) {
+        color-scheme: dark;
+
+        --bg: #0f1722;
+        --canvas: #0f1722;
+        --bg-card: #172230;
+        --surface: #172230;
+        --surface-muted: #1c2939;
+        --surface-hover: #223145;
+        --bg-icon: #223145;
+        --border: #2e3f54;
+        --border-strong: #40546c;
+        --navy: #e7edf4;
+        --navy-2: #d5dfe9;
+        --navy-3: #bccad8;
+        --text: #e7edf4;
+        --text-secondary: #bccad8;
+        --text-subtle: #bccad8;
+        --text-tertiary: #9db0c3;
+        --text-muted: #9db0c3;
+        --text-disabled: #71839a;
+        --green: #6fcf9f;
+        --green-bg: #16302a;
+        --red: #f19a9a;
+        --red-bg: #3a1f24;
+        --accent: #7fb0f5;
+        --accent-hover: #a3c7f8;
+        --accent-soft: #1c3350;
+        --surface-blue-subtle: #18283b;
+        --border-blue-subtle: #2a405c;
+        --accent-ring: rgba(127, 176, 245, .45);
+        --elevation-1: 0 1px 2px rgba(0, 0, 0, .35);
+
+        --dark-surface: #172230;
+        --dark-surface-muted: #1c2939;
+        --dark-surface-sunken: #223145;
+        --dark-tint: rgba(255, 255, 255, .04);
+        --dark-none: transparent;
+        --dark-text: #e7edf4;
+        --dark-text-secondary: #bccad8;
+        --dark-text-tertiary: #9db0c3;
+        --dark-border: #2e3f54;
+        --dark-border-strong: #40546c;
+        --dark-accent-text: #7fb0f5;
+        --dark-red-text: #f19a9a;
+        --dark-red-tint: #3a1f24;
+        --dark-red-border: #6b3238;
+        --dark-green-text: #6fcf9f;
+        --dark-green-tint: #16302a;
+        --dark-green-border: #2a5a48;
+        --dark-amber-text: #e3bf6a;
+        --dark-amber-tint: #33291a;
+        --dark-amber-border: #665228;
+        --dark-blue-tint: #1c3350;
+        --dark-blue-border: #2f4f78;
+        --dark-navy-fill: #24405f;
+        --dark-navy-2-fill: #223c59;
+        --dark-navy-3-fill: #2a4a6e;
+        --dark-accent-fill: #1f5fbf;
+        --dark-accent-hover-fill: #2a6fd6;
+        --dark-green-fill: #2d7a5f;
+        --dark-red-fill: #a04747;
+        --dark-on-fill: #ffffff;
+    }
+}
+
 *, *::before, *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
 }
 
-/* The portal is a light interface. The bundled site.min.css (DaisyUI) switches the root to a dark
-   color-scheme when the OS prefers dark, which painted a dark canvas below any page shorter than the
-   window. Pin the canvas and form-control scheme to the light design. */
+/* The bundled site.min.css (DaisyUI) switches the root to a dark color-scheme when the OS prefers dark, which
+   painted a dark canvas below any page shorter than the window. Pin the canvas and form-control scheme to the
+   portal's own theme: light here, dark in the block above. */
 html {
     background: var(--bg);
     color-scheme: light;
@@ -307,7 +380,7 @@ a.topbar-admin.account-chip {
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: var(--gold-light);
     font-family: 'EB Garamond', serif;
     font-size: 14px;
@@ -381,7 +454,7 @@ a.topbar-admin.account-chip {
     }
 
 .kpi-icon-blue {
-    background: rgba(13,33,55,0.07);
+    background: var(--dark-tint, rgba(13,33,55,0.07));
 }
 
     .kpi-icon-blue svg {
@@ -525,7 +598,7 @@ a.topbar-admin.account-chip {
     font-weight: 700;
     padding: 2px 7px;
     border-radius: 4px;
-    background: rgba(13,33,55,0.07);
+    background: var(--dark-tint, rgba(13,33,55,0.07));
     color: var(--navy);
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -563,7 +636,7 @@ a.topbar-admin.account-chip {
 
 .pill-partial {
     background: rgba(200,168,75,0.15);
-    color: #7a5c10;
+    color: var(--dark-amber-text, #7a5c10);
 }
 
 .mono {
@@ -624,7 +697,7 @@ a.topbar-admin.account-chip {
     gap: 7px;
     padding: 9px 18px;
     border-radius: 9px;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border: none;
     font-family: 'DM Sans', sans-serif;
     font-size: 12.5px;
@@ -670,7 +743,7 @@ a.topbar-admin.account-chip {
     padding: 9px 18px;
     border-radius: 9px;
     border: none;
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
     font-family: 'DM Sans', sans-serif;
     font-size: 12.5px;
     font-weight: 600;
@@ -1078,7 +1151,7 @@ a.topbar-admin.account-chip {
 }
 
     .filter-tab.active {
-        background: var(--navy);
+        background: var(--dark-navy-fill, var(--navy));
         color: var(--gold-light);
         border-color: var(--navy);
     }
@@ -1129,7 +1202,7 @@ a.topbar-admin.account-chip {
     }
 
     .action-danger:hover {
-        background: #f5c6c6;
+        background: var(--dark-red-tint, #f5c6c6);
     }
 
 .action-success {
@@ -1183,7 +1256,7 @@ a.topbar-admin.account-chip {
 }
 
 .fac-checkbox.checked .fac-check-box {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
     border-color: var(--green);
 }
 
@@ -1286,7 +1359,7 @@ a.topbar-admin.account-chip {
     justify-content: space-between;
     padding: 10px 0;
     font-size: 13px;
-    border-bottom: 1px solid rgba(13, 33, 55, 0.08);
+    border-bottom: 1px solid var(--dark-border, rgba(13, 33, 55, 0.08));
 }
 
     .pay-record-row:last-child {
@@ -1309,7 +1382,7 @@ a.topbar-admin.account-chip {
     }
 
     .pay-record-val.partial {
-        color: #b87333;
+        color: var(--dark-amber-text, #b87333);
     }
 
     .pay-record-val.unpaid {
@@ -1429,7 +1502,7 @@ a.topbar-admin.account-chip {
 .setup-left {
     width: 360px;
     height: 100vh;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1589,7 +1662,7 @@ a.topbar-admin.account-chip {
 }
 
 .setup-step.active .step-dot {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-color: var(--navy);
     box-shadow: 0 0 0 3px rgba(13, 33, 55, 0.12);
 }
@@ -1648,8 +1721,8 @@ a.topbar-admin.account-chip {
     align-items: flex-start;
     gap: 10px;
     padding: 12px 14px;
-    background: rgba(13, 33, 55, 0.04);
-    border: 1px solid rgba(13, 33, 55, 0.12);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.04));
+    border: 1px solid var(--dark-border, rgba(13, 33, 55, 0.12));
     border-left: 3px solid var(--navy);
     border-radius: 6px;
     margin-bottom: 28px;
@@ -1772,7 +1845,7 @@ a.topbar-admin.account-chip {
 }
 
 .pw-bar-fill.pw-weak {
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
 }
 
 .pw-bar-fill.pw-fair {
@@ -1784,7 +1857,7 @@ a.topbar-admin.account-chip {
 }
 
 .pw-bar-fill.pw-strong {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
 }
 
 .pw-strength-label {
@@ -1800,11 +1873,11 @@ a.topbar-admin.account-chip {
     }
 
     .pw-strength-label.pw-fair {
-        color: #b87333;
+        color: var(--dark-amber-text, #b87333);
     }
 
     .pw-strength-label.pw-good {
-        color: #4a7c59;
+        color: var(--dark-text-secondary, #4a7c59);
     }
 
     .pw-strength-label.pw-strong {
@@ -1839,7 +1912,7 @@ a.topbar-admin.account-chip {
     gap: 10px;
     width: 100%;
     padding: 13px 24px;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: white;
     border: none;
     border-radius: 8px;
@@ -1952,7 +2025,7 @@ a.topbar-admin.account-chip {
 ══════════════════════════════════════════════════════════════════════ */
 
 .eemo-modal-header.trm-record-header {
-    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    background: linear-gradient(135deg, var(--dark-navy-fill, var(--navy)) 0%, var(--dark-navy-2-fill, var(--navy-2)) 100%);
     border-bottom: 1px solid rgba(200, 168, 75, 0.2);
 }
 
@@ -2056,7 +2129,7 @@ a.topbar-admin.account-chip {
     width: 240px;
     height: 4px;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--navy, #0d2137) 12%, transparent);
+    background: color-mix(in srgb, var(--dark-navy-fill, var(--navy, #0d2137)) 12%, transparent);
     overflow: hidden;
 }
 .st-splash-bar span {
@@ -2119,12 +2192,12 @@ a.topbar-admin.account-chip {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: color-mix(in srgb, var(--navy) 22%, transparent);
+    background: color-mix(in srgb, var(--dark-navy-fill, var(--navy)) 22%, transparent);
     border-radius: 999px;
 }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: color-mix(in srgb, var(--navy) 38%, transparent);
+        background: color-mix(in srgb, var(--dark-navy-fill, var(--navy)) 38%, transparent);
     }
 
 ::-webkit-scrollbar-corner {
@@ -2482,14 +2555,14 @@ a.topbar-admin.account-chip {
 
 .v3-btn-primary {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .v3-btn-primary:hover {
     border-color: var(--accent-hover);
-    background: var(--accent-hover);
-    color: var(--surface);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .v3-btn-sm {
@@ -3048,6 +3121,8 @@ a.topbar-admin.account-chip {
     letter-spacing: -0.005em;
 }
 
+h1.topbar-title { margin: 0; line-height: inherit; }
+
 .topbar-breadcrumb {
     color: var(--text-tertiary);
     font-size: 12px;
@@ -3084,8 +3159,8 @@ a.topbar-admin.account-chip {
 }
 
 .admin-avatar {
-    background: var(--navy);
-    color: var(--surface);
+    background: var(--dark-navy-fill, var(--navy));
+    color: var(--dark-on-fill, var(--surface));
     font-family: 'DM Sans', sans-serif;
     font-size: 12px;
     font-weight: 700;
@@ -3237,20 +3312,20 @@ a.topbar-admin.account-chip {
 .btn-primary {
     border: 1px solid var(--accent);
     border-radius: 6px;
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
     font-size: 13px;
     transition: background-color .15s ease, border-color .15s ease;
 }
 
     .btn-primary:hover {
         border-color: var(--accent-hover);
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
         opacity: 1;
     }
 
     .btn-primary svg {
-        stroke: var(--surface);
+        stroke: var(--dark-on-fill, var(--surface));
     }
 
 .btn-ghost,
@@ -3463,7 +3538,7 @@ a.topbar-admin.account-chip {
 
 /* Gold text fails contrast on white; the severity meaning is kept in the readable amber used for partial states. */
 .text-gold {
-    color: #8a6d1b;
+    color: var(--dark-amber-text, #8a6d1b);
 }
 
 /* NPM section tabs: the active icon follows the civic-blue active state. */
@@ -3494,7 +3569,7 @@ body .setup-root {
 /* Identity panel: a flat, light civic-blue field — no photograph, no overlay pattern. */
 body .setup-root .setup-left,
 body .setup-root .setup-left--neutral {
-    background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+    background: color-mix(in srgb, var(--dark-accent-fill, var(--accent)) 7%, var(--surface));
     background-image: none;
     border-right: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
 }
@@ -3605,14 +3680,14 @@ body .setup-root .form-input-wrap:focus-within .form-input-icon {
 body .setup-root .setup-submit {
     border: 1px solid var(--accent);
     border-radius: 8px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     box-shadow: none;
-    color: var(--surface);
+    color: var(--dark-on-fill, var(--surface));
 }
 
 body .setup-root .setup-submit:hover:not(:disabled) {
     border-color: var(--accent-hover);
-    background: var(--accent-hover);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
     box-shadow: none;
 }
 
@@ -3627,7 +3702,7 @@ body .setup-root .login-forgot {
 
 body .setup-root .setup-step.completed .step-dot,
 body .setup-root .setup-step.active .step-dot {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border-color: var(--accent);
 }
 
@@ -3683,13 +3758,13 @@ h1[tabindex="-1"]:focus {
 }
 
     .admin-main .rpt-topbar .rpt-back-btn:hover {
-        border-color: #ffffff;
+        border-color: var(--dark-surface, #ffffff);
         background: rgba(255, 255, 255, 0.2);
         color: #ffffff;
     }
 
     .admin-main .rpt-topbar .rpt-back-btn:focus-visible {
-        outline: 2px solid #ffffff;
+        outline: 2px solid var(--dark-surface, #ffffff);
         outline-offset: 2px;
     }
 
@@ -3738,7 +3813,7 @@ h1[tabindex="-1"]:focus {
 }
 
 .admin-main .rpt-topbar .rpt-header-progress-fill {
-    background: #ffffff;
+    background: var(--dark-surface, #ffffff);
 }
 
 /* Report tabs: one joined rail with hairline dividers; the active tab is civic blue. */
@@ -3773,7 +3848,7 @@ h1[tabindex="-1"]:focus {
 
     .admin-main .rpt-period-bar .rpt-period-tab.active {
         border-color: var(--accent);
-        background: var(--accent);
+        background: var(--dark-accent-fill, var(--accent));
         color: #ffffff;
         box-shadow: none;
     }
@@ -3810,8 +3885,8 @@ h1[tabindex="-1"]:focus {
 /* The active button in a segmented group keeps its white-on-blue label (the group's own colour rule would turn it blue). */
 .v3-btn-group > .v3-btn.v3-btn-primary,
 .v3-btn-group > .v3-btn.v3-btn-primary:hover {
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 /* Paper carries the report, not the screen's period controls. The facility report pages hide their own tab strip, but the shared

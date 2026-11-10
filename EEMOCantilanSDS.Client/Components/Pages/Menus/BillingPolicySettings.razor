@@ -1,0 +1,262 @@
+@page "/settings/billing-policy"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Entities.Revenue
+@inject IBillingPolicyApiClient BillingPolicyApi
+@inject ISettingsApiClient SettingsApi
+
+<PageTitle>StallTrack — Billing Policy</PageTitle>
+
+@* The rules this office bills monthly rent by. StallTrack Rules (IA-071, IA-072) the Head can change, not rulings of any one office. The server validates and applies them; nothing is calculated here. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Billing Policy</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Billing Policy</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="v3-page bp-page">
+        @if (_loading)
+        {
+            <p class="v3-notice" role="status">Loading billing policy…</p>
+        }
+        else if (_page is null)
+        {
+            <div class="v3-notice v3-notice-error" role="alert">
+                <p>The billing policy couldn't be loaded.</p>
+                <button type="button" class="v3-btn" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        else
+        {
+            <section class="v3-panel" aria-labelledby="bp-now">
+                <header class="v3-panel-header">
+                    <h2 id="bp-now">In force today</h2>
+                    <span class="v3-panel-meta">@(_page.InForce is { } version ? $"Since {version.EffectiveFrom:MMM d, yyyy}" : "StallTrack defaults")</span>
+                </header>
+                <dl class="bp-facts">
+                    <div><dt>Due date</dt><dd>@DueLabel(_page.Current)</dd></div>
+                    <div><dt>Grace period</dt><dd>@Days(_page.Current.GraceDays)</dd></div>
+                    <div><dt>Payment order</dt><dd>@(_page.Current.OldestMonthFirst ? "Oldest unpaid month first" : "Any open month")</dd></div>
+                    <div><dt>Months counted from</dt><dd>@_page.Current.CountsMonthsFrom.ToString("MMMM yyyy")</dd></div>
+                    <div><dt>Paying ahead</dt><dd>@(_page.Current.MaxAdvanceMonths == 0 ? "Not taken" : $"Up to {_page.Current.MaxAdvanceMonths} months")</dd></div>
+                    <div><dt>Annual payment</dt><dd>@(_page.Current.AnnualPaymentAllowed ? "Allowed" : "Not allowed")</dd></div>
+                    <div><dt>Late penalty</dt><dd>@PenaltyLabel(_page.Current)</dd></div>
+                </dl>
+                @if (!_page.Current.ChargesPenalty)
+                {
+                    <p class="bp-note" role="note">No late penalty is charged until the Head sets a rate.</p>
+                }
+            </section>
+
+            <section class="v3-panel" aria-labelledby="bp-standing">
+                <header class="v3-panel-header"><h2 id="bp-standing">How accounts are classified</h2></header>
+                @if (_definitions is { } definitions)
+                {
+                    <dl class="bp-facts">
+                        <div><dt>Delinquent</dt><dd>@definitions.DelinquentThresholdMonths or more fully elapsed unpaid months of the current year</dd></div>
+                        <div><dt>Arrears</dt><dd>Previous-year rent, expired contracts and ended occupancies, per obligation</dd></div>
+                    </dl>
+                }
+                else
+                {
+                    <p class="bp-note bp-note-alone" role="status">These definitions could not be loaded.</p>
+                }
+            </section>
+
+            <AuthorizeView Roles="SuperAdmin">
+                <Authorized>
+                    <section class="v3-panel" aria-labelledby="bp-change">
+                        <header class="v3-panel-header"><h2 id="bp-change">Change the rules</h2></header>
+                        <form class="bp-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                            <label class="v3-field"><span>Due day of the month <small>(blank is the last day)</small></span><input type="number" min="1" max="31" @bind="_dueDay" /></label>
+                            <label class="v3-field"><span>Grace days</span><input type="number" min="0" max="90" @bind="_graceDays" /></label>
+                            <label class="v3-field"><span>Months payable ahead</span><input type="number" min="0" max="12" @bind="_maxAdvance" /></label>
+                            <label class="v3-field"><span>Applies from</span><input type="date" min="@_page.Today.ToString("yyyy-MM-dd")" @bind="_effectiveFrom" /></label>
+                            <label class="v3-field"><span>Count unpaid months from</span><input type="month" required @bind="_countsFrom" /></label>
+                            <p class="bp-note bp-wide">Older months stay on the office's statement and can still be paid. They don't hold up later rent or earn a penalty, and a payor sees one only if it has a record.</p>
+                            <label class="bp-check"><input type="checkbox" @bind="_oldestFirst" /><span>Take the oldest unpaid month first</span></label>
+                            <label class="bp-check"><input type="checkbox" @bind="_annual" /><span>Allow a whole year's rent in one payment</span></label>
+
+                            <h3 class="bp-subhead">Late penalty</h3>
+                            <div class="bp-wide">
+                                <span id="bp-basis" class="bp-label">How it is worked out</span>
+                                <div class="bp-seg" role="group" aria-labelledby="bp-basis">
+                                    @foreach (var (basis, label) in Bases)
+                                    {
+                                        <button type="button" class="bp-seg-btn @(_basis == basis ? "on" : "")" aria-pressed="@(_basis == basis ? "true" : "false")" @onclick="() => _basis = basis">@label</button>
+                                    }
+                                </div>
+                            </div>
+                            @if (_basis != LatePenaltyBasis.None)
+                            {
+                                <label class="v3-field"><span>@(_basis == LatePenaltyBasis.PercentOfUnpaid ? "Percent" : "Amount")</span><input type="number" min="0.01" step="0.01" @bind="_penaltyValue" /></label>
+                                <label class="v3-field"><span>Ceiling for one month <small>(optional)</small></span><input type="number" min="0.01" step="0.01" @bind="_cap" /></label>
+                                <label class="bp-check"><input type="checkbox" @bind="_repeats" /><span>Charge again each month it stays unpaid</span></label>
+                                <label class="v3-field bp-wide"><span>Ordinance or authority for this rate</span><input type="text" maxlength="200" @bind="_reference" /></label>
+                            }
+                            @if (_error is not null) { <p class="v3-notice v3-notice-error bp-wide" role="alert">@_error</p> }
+                            @if (_saved) { <p class="v3-notice bp-wide" role="status">The billing policy was recorded.</p> }
+                            <div class="bp-actions bp-wide"><button type="submit" class="v3-btn v3-btn-primary" disabled="@_saving">Record these rules</button></div>
+                        </form>
+                    </section>
+                </Authorized>
+            </AuthorizeView>
+
+            <section class="v3-panel" aria-labelledby="bp-history">
+                <header class="v3-panel-header"><h2 id="bp-history">History</h2></header>
+                @if (_page.Versions.Count == 0)
+                {
+                    <p class="bp-note">This office has not changed the defaults.</p>
+                }
+                else
+                {
+                    <div class="v3-table-wrap" tabindex="0">
+                        <table class="v3-table">
+                            <thead><tr><th>Applies from</th><th>Due date</th><th>Grace</th><th>Order</th><th>Counted from</th><th>Ahead</th><th>Late penalty</th><th>Authority</th></tr></thead>
+                            <tbody>
+                                @foreach (var v in _page.Versions)
+                                {
+                                    <tr>
+                                        <td>@v.EffectiveFrom.ToString("MMM d, yyyy")</td>
+                                        <td>@DueLabel(v.Rules)</td>
+                                        <td>@Days(v.Rules.GraceDays)</td>
+                                        <td>@(v.Rules.OldestMonthFirst ? "Oldest first" : "Any")</td>
+                                        <td>@v.Rules.CountsMonthsFrom.ToString("MMM yyyy")</td>
+                                        <td>@v.Rules.MaxAdvanceMonths</td>
+                                        <td>@PenaltyLabel(v.Rules)</td>
+                                        <td>@(v.GoverningReference ?? "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <div class="bp-footer"><a class="v3-btn" href="/settings">Back to Settings</a></div>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly (LatePenaltyBasis Basis, string Label)[] Bases =
+        [(LatePenaltyBasis.None, "No late penalty"), (LatePenaltyBasis.PercentOfUnpaid, "Percent of the unpaid rent"), (LatePenaltyBasis.FixedAmount, "Fixed amount")];
+
+    private BillingPolicyPageDto? _page;
+    private EEMOCantilanSDS.Application.Dtos.Settings.CollectionRulesDto? _definitions;
+    private bool _loading = true, _saving, _saved;
+    private string? _error;
+    private int? _dueDay;
+    private int _graceDays, _maxAdvance;
+    private bool _oldestFirst, _annual, _repeats;
+    private LatePenaltyBasis _basis;
+    private decimal? _penaltyValue, _cap;
+    private string? _reference;
+    private DateOnly _effectiveFrom, _countsFrom;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await BillingPolicyApi.GetAsync();
+            Show(result.IsSuccess ? result.Value : null);
+            await LoadDefinitionsAsync();
+        }
+        catch
+        {
+            _page = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    // Best-effort: the rules above stay usable if these cannot be read, and the panel says so.
+    private async Task LoadDefinitionsAsync()
+    {
+        try
+        {
+            var settings = await SettingsApi.GetSystemSettingsAsync();
+            _definitions = settings?.IsSuccess == true ? settings.Value?.Collection : null;
+        }
+        catch { _definitions = null; }
+    }
+
+    private void Show(BillingPolicyPageDto? page)
+    {
+        _page = page;
+        if (page is null) return;
+        var rules = page.Current;
+        (_dueDay, _graceDays, _maxAdvance, _oldestFirst, _annual) = (rules.DueDay, rules.GraceDays, rules.MaxAdvanceMonths, rules.OldestMonthFirst, rules.AnnualPaymentAllowed);
+        (_basis, _penaltyValue, _cap, _repeats) = (rules.PenaltyBasis, rules.PenaltyValue, rules.PenaltyMonthCap, rules.PenaltyRepeatsMonthly);
+        _reference = page.InForce?.GoverningReference;
+        _effectiveFrom = page.Today;
+        _countsFrom = rules.CountsMonthsFrom;
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _saved = false;
+        _error = null;
+        try
+        {
+            var penalised = _basis != LatePenaltyBasis.None;
+            var rules = new BillingPolicy(_dueDay, _graceDays, _oldestFirst, _maxAdvance, _annual, _basis,
+                penalised ? _penaltyValue : null, penalised && _repeats, penalised ? _cap : null, _countsFrom);
+            var result = await BillingPolicyApi.RecordAsync(new(_effectiveFrom, rules, penalised ? _reference : null));
+            if (result.IsSuccess && result.Value is not null)
+            {
+                Show(result.Value);
+                _saved = true;
+            }
+            else
+            {
+                _error = result.Error ?? "The billing policy could not be recorded.";
+            }
+        }
+        catch
+        {
+            _error = "The billing policy could not be recorded. Check your connection and try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string DueLabel(BillingPolicy rules) => rules.DueDay is { } day ? $"Day {day} of the month" : "Last day of the month";
+
+    private static string Days(int days) => days == 0 ? "None" : days == 1 ? "1 day" : $"{days} days";
+
+    private static string PenaltyLabel(BillingPolicy rules)
+    {
+        if (!rules.ChargesPenalty) return "Not configured";
+        var rate = rules.PenaltyBasis == LatePenaltyBasis.PercentOfUnpaid ? $"{rules.PenaltyValue:0.##}% of the unpaid rent" : $"₱{rules.PenaltyValue:N2}";
+        var repeats = rules.PenaltyRepeatsMonthly ? ", each month unpaid" : ", once";
+        return rules.PenaltyMonthCap is { } cap ? $"{rate}{repeats}, at most ₱{cap:N2} a month" : rate + repeats;
+    }
+}

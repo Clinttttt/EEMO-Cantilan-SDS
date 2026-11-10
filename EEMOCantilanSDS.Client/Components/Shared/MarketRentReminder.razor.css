@@ -79,7 +79,7 @@
     font-size: 12px;
     font-weight: 650;
     line-height: 1.5;
-    color: var(--danger, #b3261e);
+    color: var(--danger, var(--dark-red-text, #b3261e));
 }
 
 .rent-confirm-actions {
@@ -123,12 +123,12 @@
 
 .rent-confirm-go {
     color: #fff;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border: 1px solid var(--accent);
 }
 
     .rent-confirm-go:hover {
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
     }
 
 .rent-confirm-later:disabled,

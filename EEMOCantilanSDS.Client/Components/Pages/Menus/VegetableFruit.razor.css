@@ -10,4 +10,4 @@
 #vf-daily ::deep .v3h-actions .vf-mode { background: rgba(255, 255, 255, 0.1); border-color: rgba(255, 255, 255, 0.4); }
 #vf-daily ::deep .v3h-actions .vf-mode button { min-height: 30px; padding: 5px 12px; border: 1px solid transparent; background: transparent; color: #ffffff; }
 #vf-daily ::deep .v3h-actions .vf-mode button:hover { background: rgba(255, 255, 255, 0.18); }
-#vf-daily ::deep .v3h-actions .vf-mode button.selected { background: #ffffff; color: var(--accent); }
+#vf-daily ::deep .v3h-actions .vf-mode button.selected { background: var(--dark-surface, #ffffff); color: var(--accent); }

@@ -116,7 +116,7 @@
     margin: 0;
     padding: 12px 20px 10px;
     border-bottom: 1px solid var(--border);
-    background: color-mix(in srgb, var(--navy) 3%, var(--surface));
+    background: color-mix(in srgb, var(--dark-navy-fill, var(--navy)) 3%, var(--surface));
     color: var(--navy);
     font-size: 0.8125rem;
     font-weight: 700;
@@ -192,6 +192,12 @@
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+/* An office's operation with no receipt type in effect yet: stated in words, not as a chip. */
+.ops-receipt-unset {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
 }
 
 .ops-row-pages {
@@ -388,8 +394,8 @@
 
 .ops-card-links a:first-child {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .ops-card-links a:hover {
@@ -398,7 +404,7 @@
 }
 
 .ops-card-links a:first-child:hover {
-    background: var(--accent-hover);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
 }
 
 /* ── Focus ── */

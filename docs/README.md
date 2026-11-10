@@ -84,8 +84,15 @@ Before changing StallTrack code, read:
 - `operations/PRODUCTION_VERIFICATION.md` — production release verification checklist.
 - Existing detailed operational procedures may also live as reusable skills under `.agents/skills/`.
 
+### Manual
+
+- `manual/STALLTRACK_USER_MANUAL.md` — role-based user manual for Head, Admin, Collector and Payor.
+- `manual/BILLING_FLOW.md` — billing and online-payment flowcharts drawn from the implemented system.
+
 ### Planning and evidence
 
+- `planning/PANEL_COMPLIANCE_MATRIX_20261105.md` — INF-4D panel comments against what was done and where to show it.
+- `planning/PANEL_RECOMMENDATIONS_20261104.md` — panel compliance findings, sequence, owner rulings, verification and limits. A branch record, not a production activation checkpoint.
 - `planning/NPM_MONTHLY_BILLING_STANDARD_REVIEW_20261016.md` — Task 1 monthly-obligation architecture audit, local read-only compatibility evidence, characterization tests and proposed rollout; no production billing change or PureDays retirement authorized.
 - `planning/CURRENT_RELEASE_STATE.md` — single current implementation-status checkpoint. Prefer this over old dated audits/handoffs when asking what is live, canonical, legacy, pending or blocked.
 - `planning/MOBILE_ITEMIZED_COLLECTION_BACKEND.md` — bounded backend feature-branch contract, actual supported/deferred sources, atomic checkout boundaries and Mobile.Core UI handoff; not a production activation checkpoint.

@@ -91,6 +91,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<PayorUser> PayorUsers { get; }
         DbSet<PayorActivationCode> PayorActivationCodes { get; }
         DbSet<PayorStallLink> PayorStallLinks { get; }
+        DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.InboxNotification> InboxNotifications { get; }
         DbSet<PayorHistoricalAccessCode> PayorHistoricalAccessCodes { get; }
         DbSet<PayorLiabilityLink> PayorLiabilityLinks { get; }
         DbSet<CollectorFacilityAssignment> CollectorFacilityAssignments { get; }
@@ -102,6 +103,7 @@ namespace EEMOCantilanSDS.Application.Common.Interface.Persistence
         DbSet<DirectFineAuthority> DirectFineAuthorities { get; }
         DbSet<FineAssessment> FineAssessments { get; }
         DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; }
+        DbSet<BillingPolicyVersion> BillingPolicyVersions { get; }
         DbSet<FineAssessmentEvent> FineAssessmentEvents { get; }
         DbSet<ObligationAccount> ObligationAccounts { get; }
         DbSet<ObligationRate> ObligationRates { get; }

@@ -423,7 +423,8 @@ public sealed class SettlementCutoverWorkflow(
         IQueryable<OnlinePaymentTransaction> query = db.OnlinePaymentTransactions.AsNoTracking()
             .Where(x => x.MunicipalityId == tenantId
                 && (x.Status == OnlinePaymentStatus.Initiated || x.Status == OnlinePaymentStatus.Pending
-                    || x.Status == OnlinePaymentStatus.Paid || x.Status == OnlinePaymentStatus.ReconciliationRequired));
+                    || x.Status == OnlinePaymentStatus.Paid
+                    || (x.Status == OnlinePaymentStatus.ReconciliationRequired && x.Disposition == null)));
         if (source.Record is { } record)
             query = query.Where(x => x.TargetKind == OnlinePaymentTargetKind.MonthlyRecord && x.PaymentRecordId == record.Id);
         else if (source.Bill is { } bill)

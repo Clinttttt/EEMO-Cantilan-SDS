@@ -127,14 +127,16 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         const decimal fishRate = 0m;
         var rows = await context.PaymentRecords.AsNoTracking()
             .Where(p => p.MunicipalityId == w.TenantId && p.Status != PaymentStatus.Unpaid
-                && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= w.StartUtc && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < w.EndUtc)
+                && ((p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= w.StartUtc && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < w.EndUtc
+                    || p.Instalments.Any(i => i.Amount > 0m && i.ReceivedAt >= w.StartUtc && i.ReceivedAt < w.EndUtc)))
             .Select(p => new
             {
                 p.Id, p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos, p.ORNumber, p.BillingYear, p.BillingMonth,
                 p.SettlementAuthorityState, p.CollectorId, p.CreatedBy, p.Stall!.StallNo, Code = p.Stall.Facility!.Code,
                 Occupant = p.Stall.Contracts.OrderByDescending(c => c.IsActive).ThenByDescending(c => c.EffectivityDate)
                     .Select(c => c.ActualOccupant).FirstOrDefault(),
-                When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt
+                When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt,
+                Receipts = p.Instalments.OrderBy(i => i.ReceivedAt).Select(i => new { i.Id, i.ReceivedAt, i.Amount, i.ORNumber, i.CollectorId }).ToList()
             }).ToListAsync(ct);
 
         var events = new List<CollectionActivityEventDto>();
@@ -143,20 +145,29 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             if (!CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.PaymentRecord, p.SettlementAuthorityState))
                 continue;
             var portion = CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, fishRate);
-            var rent = Math.Min(portion, p.BaseRentalAmount);
             var code = p.Code == FacilityCode.ICE ? RevenueClassificationCodes.IcePlant : RevenueClassificationCodes.PermanentStallRent;
-            var lines = new List<CollectionActivityLineDto>
+            // One event per receipt (IA-081): a month paid in parts lists each receipt on its own day with its own OR and collector.
+            var receipts = p.Receipts.Any(r => r.Amount > 0m)
+                ? CollectorFeeMoney.PlaceReceipts(portion, p.BaseRentalAmount, p.Receipts.Select(r => (r, r.Amount)))
+                    .Select(x => (Key: $"PaymentRecord:{p.Id}:{x.Receipt.Id}", x.Receipt.ReceivedAt, x.Receipt.ORNumber, x.Receipt.CollectorId, x.Rent, x.Weighing))
+                    .Where(x => x.ReceivedAt >= w.StartUtc && x.ReceivedAt < w.EndUtc).ToList()
+                : [(Key: $"PaymentRecord:{p.Id}", ReceivedAt: p.When, p.ORNumber, p.CollectorId,
+                    Rent: Math.Min(portion, p.BaseRentalAmount), Weighing: portion - Math.Min(portion, p.BaseRentalAmount))];
+            foreach (var r in receipts)
             {
-                LegacyLine(names, code, rent, CollectionSourceKind.PaymentRecord, null, p.Id, p.BillingYear, p.BillingMonth, $"Stall {p.StallNo}")
-            };
-            if (portion - rent > 0m)
-                lines.Add(LegacyLine(names, RevenueClassificationCodes.WeightAndMeasure, portion - rent, CollectionSourceKind.PaymentRecord,
-                    null, p.Id, p.BillingYear, p.BillingMonth, "Weighing"));
-            if (lines.Sum(l => l.Amount) == 0m) continue;
-            events.Add(LegacyEvent($"PaymentRecord:{p.Id}", CollectionSourceKind.PaymentRecord, PhDate(p.When), p.When, p.ORNumber,
-                p.Occupant, p.CollectorId, p.CreatedBy, collectors, p.Code,
-                $"Stall {p.StallNo} · for {new DateOnly(p.BillingYear, p.BillingMonth, 1):MMM yyyy}",
-                p.Status.ToString(), lines));
+                var lines = new List<CollectionActivityLineDto>
+                {
+                    LegacyLine(names, code, r.Rent, CollectionSourceKind.PaymentRecord, null, p.Id, p.BillingYear, p.BillingMonth, $"Stall {p.StallNo}")
+                };
+                if (r.Weighing > 0m)
+                    lines.Add(LegacyLine(names, RevenueClassificationCodes.WeightAndMeasure, r.Weighing, CollectionSourceKind.PaymentRecord,
+                        null, p.Id, p.BillingYear, p.BillingMonth, "Weighing"));
+                if (lines.Sum(l => l.Amount) == 0m) continue;
+                events.Add(LegacyEvent(r.Key, CollectionSourceKind.PaymentRecord, PhDate(r.ReceivedAt), r.ReceivedAt, r.ORNumber,
+                    p.Occupant, r.CollectorId, p.CreatedBy, collectors, p.Code,
+                    $"Stall {p.StallNo} · for {new DateOnly(p.BillingYear, p.BillingMonth, 1):MMM yyyy}",
+                    p.Status.ToString(), lines));
+            }
         }
         return events;
     }

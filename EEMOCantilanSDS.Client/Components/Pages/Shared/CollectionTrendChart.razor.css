@@ -144,9 +144,9 @@
 
 /* Zero period — a low muted platform so the month still reads */
 .rpt-bar-group.is-zero .bar3d { height: 8px !important; filter: none; }
-.rpt-bar-group.is-zero .seg-rent { background: color-mix(in srgb, var(--border) 85%, #fff); }
+.rpt-bar-group.is-zero .seg-rent { background: color-mix(in srgb, var(--border) 85%, var(--dark-surface, #fff)); }
 .rpt-bar-group.is-zero .seg-rent .face-side { background: color-mix(in srgb, var(--border) 70%, #9aa7b3); }
-.rpt-bar-group.is-zero .seg-rent .face-top { background: color-mix(in srgb, var(--border) 92%, #fff); }
+.rpt-bar-group.is-zero .seg-rent .face-top { background: color-mix(in srgb, var(--border) 92%, var(--dark-surface, #fff)); }
 
 /* Current period — named by its label, not by another colour */
 .rpt-bar-group.current .rpt-bar-label { color: var(--accent); font-weight: 700; }

@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -28,17 +29,20 @@ public class ConfirmOnlinePaymentCommandHandler(
         if (!isStaff && currentUser.UserId != transaction.PayorUserId)
             return Result<ConfirmOnlinePaymentResultDto>.Forbidden();
 
+        // IsSettled also covers this state, but it only means "do not settle again". The money is not on the payor's balance until the Head decides.
+        if (transaction.IsAwaitingOfficeDecision)
+            return UnderReview();
+        if (transaction.Disposition == OnlinePaymentDisposition.Refunded)
+            return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Refunded", false));
+
         // Already settled (this confirm raced the webhook, or it's a repeat return) — idempotent success.
         if (transaction.IsSettled)
             return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Paid", true));
 
-        // Terminal non-paid states (Failed/Cancelled/Expired) are not re-verified.
-        if (transaction.IsTerminal)
-            return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto(transaction.Status.ToString(), false));
-
         // No gateway hand-off recorded yet — nothing to verify; report pending.
         if (string.IsNullOrWhiteSpace(transaction.GatewayReference))
-            return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Pending", false));
+            return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto(
+                transaction.IsTerminal ? transaction.Status.ToString() : "Pending", false));
 
         // Verify the real status directly with the provider (server secret key).
         var statusResult = await paymentGateway.RetrievePaymentStatusAsync(transaction.GatewayReference, cancellationToken);
@@ -51,18 +55,21 @@ public class ConfirmOnlinePaymentCommandHandler(
         {
             case PaymentGatewayEventType.Paid:
                 // Single, idempotent settle path shared with the webhook handler. If a concurrent webhook
-                // is settling the SAME transaction, xmin optimistic concurrency rejects the loser's write;
-                // treat that as already-settled (Paid) so the payor still sees success and nothing double-settles.
+                // is settling the SAME transaction, xmin optimistic concurrency rejects the loser's write
+                // and nothing double-settles.
                 try
                 {
                     var settle = await settlementService.SettleAsync(transaction, evt, cancellationToken);
+                    if (transaction.Status == OnlinePaymentStatus.ReconciliationRequired)
+                        return UnderReview();
                     if (!settle.IsSuccess)
                         return Result<ConfirmOnlinePaymentResultDto>.Failure(
                             settle.Error ?? "Could not settle the payment.", settle.StatusCode ?? 500);
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    // Concurrent webhook already settled this transaction — fall through to the Paid result.
+                    // The winner may have stored a reconciliation rather than a settlement, so this is unread, not Paid. The next confirm reads it.
+                    return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Pending", false));
                 }
 
                 return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Paid", true));
@@ -73,13 +80,17 @@ public class ConfirmOnlinePaymentCommandHandler(
                 return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Expired", false));
 
             case PaymentGatewayEventType.Failed:
-                transaction.MarkFailed(evt.RawPayload);
-                await unitOfWork.SaveChangesAsync(cancellationToken);
+                // The attempt failed but the checkout is still open and the payor can retry in it, so the row stays resumable.
+                // Marking it Failed here would let Initiate open a second session while this one can still take money.
                 return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Failed", false));
 
             default:
-                // Still pending/unpaid at the provider — leave as-is; the payor can retry shortly.
-                return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("Pending", false));
+                // Nothing paid at the provider. A Failed or Expired row stays what it is; only a live checkout is still pending.
+                return Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto(
+                    transaction.IsTerminal ? transaction.Status.ToString() : "Pending", false));
         }
     }
+
+    private static Result<ConfirmOnlinePaymentResultDto> UnderReview() =>
+        Result<ConfirmOnlinePaymentResultDto>.Success(new ConfirmOnlinePaymentResultDto("UnderReview", false));
 }

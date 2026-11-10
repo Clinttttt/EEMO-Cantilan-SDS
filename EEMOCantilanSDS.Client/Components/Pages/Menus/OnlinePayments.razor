@@ -214,8 +214,9 @@
                         @* Updating a connected account's keys: Cancel returns to its profile, where Disconnect also lives. *@
                         <button class="btn-ghost" disabled="@_paySaving" type="button" @onclick="() => { _editKeys = false; _payError = null; }">Cancel</button>
                     }
-                    else if (_payment?.HasOwnAccount == true || _isDefaultTenant)
+                    else if (_payment?.HasOwnAccount == true || _isDefaultTenant || _exceptions.Count > 0 || Items.Count > 0)
                     {
+                        @* An office that disconnected its gateway may still hold money only the Head can decide on. *@
                         <button class="btn-ghost" disabled="@_paySaving" type="button" @onclick="() => _showSetup = false">Back to payments</button>
                     }
                 </div>
@@ -310,6 +311,115 @@
                     </div>
                 }
             </div>
+        }
+
+        @* Money the system would not apply by itself comes before routine receipting. A failed load says so: an empty list would read as "nothing is wrong". *@
+        @if (_exceptionsFailed)
+        {
+            <div class="op-banner op-banner-error op-exc-failed" role="alert">
+                <span>Couldn't load the payments that need attention. This does not mean there are none.</span>
+                <button class="btn-ghost" type="button" @onclick="LoadExceptionsAsync">Try again</button>
+            </div>
+        }
+        else if (_exceptions.Count > 0)
+        {
+            <section class="op-exceptions" aria-labelledby="op-exc-title">
+                <div class="op-intro op-intro-row">
+                    <div>
+                        <h2 class="op-intro-title op-exc-title" id="op-exc-title">Needs attention</h2>
+                        <div class="op-intro-sub">@ExceptionsSummary</div>
+                    </div>
+                    @if (DecidedCount > 0)
+                    {
+                        <div class="op-intro-actions">
+                            <button class="btn-ghost op-or-toggle" type="button" aria-pressed="@_showDecided" @onclick="() => _showDecided = !_showDecided">
+                                @(_showDecided ? "Hide decided" : $"Show decided ({DecidedCount})")
+                            </button>
+                        </div>
+                    }
+                </div>
+
+                @if (!string.IsNullOrEmpty(_exceptionMsg))
+                {
+                    <div class="op-banner @(_exceptionMsgIsError ? "op-banner-error" : "op-banner-ok")" role="@(_exceptionMsgIsError ? "alert" : "status")">@_exceptionMsg</div>
+                }
+
+                @if (VisibleExceptions.Any())
+                {
+                    <div class="section-card">
+                        <div class="op-table-wrap">
+                            <table class="op-table">
+                                <thead>
+                                    <tr>
+                                        <th>Payment</th>
+                                        <th>Payor</th>
+                                        <th>Stall / Period</th>
+                                        <th class="op-amt">Amount</th>
+                                        <th>What happened</th>
+                                        <th><span class="v3-sr-only">Action</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in VisibleExceptions)
+                                    {
+                                        <tr @key="row.TransactionId">
+                                            <td>
+                                                <div class="op-mono">@row.Reference</div>
+                                                <div class="op-muted">@PhilippineTime.ToPhilippineTime(row.PaidAt ?? row.CreatedAt).ToString("MMM d, yyyy h:mm tt")</div>
+                                            </td>
+                                            <td>
+                                                <div class="op-strong">@row.PayorName</div>
+                                                <div class="op-muted">@MethodLabel(row.Method)</div>
+                                            </td>
+                                            <td>
+                                                <div class="op-strong">@row.Facility</div>
+                                                <div class="op-muted">@(row.StallNo == "—" ? "—" : SpaceNumber.Describe(row.StallNo)) · @row.Period</div>
+                                            </td>
+                                            <td class="op-amt">
+                                                @if (row.CapturedAmount is { } captured)
+                                                {
+                                                    <div class="op-strong">₱@captured.ToString("N2") received</div>
+                                                    <div class="op-muted">₱@row.Amount.ToString("N2") asked</div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="op-strong">₱@row.Amount.ToString("N2")</div>
+                                                }
+                                            </td>
+                                            <td class="op-exc-what">
+                                                <span class="op-status @ExceptionTone(row)">@ExceptionLabel(row)</span>
+                                                @if (!string.IsNullOrEmpty(ExceptionDetail(row)))
+                                                {
+                                                    <div class="op-muted op-exc-detail">@ExceptionDetail(row)</div>
+                                                }
+                                            </td>
+                                            <td class="op-exc-action">
+                                                @if (row.Kind == OnlinePaymentExceptionKind.NeedsDecision)
+                                                {
+                                                    @if (_isHead)
+                                                    {
+                                                        <button class="op-btn" type="button" @onclick="() => OpenDecision(row)">Record decision</button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="op-muted">Waiting for the Head</span>
+                                                    }
+                                                }
+                                                else if (row.Kind != OnlinePaymentExceptionKind.Resolved)
+                                                {
+                                                    <button class="btn-ghost" type="button" disabled="@(_exceptionBusyId is not null)" @onclick="() => VerifyExceptionAsync(row)">
+                                                        @(_exceptionBusyId == row.TransactionId ? "Checking…" : "Check with gateway")
+                                                    </button>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                }
+            </section>
         }
 
         <div class="op-intro op-intro-row">
@@ -499,6 +609,55 @@
 
 
     }
+    @if (_deciding is { } deciding)
+    {
+        <div class="eemo-modal-overlay" @onclick="CloseDecision">
+            <div class="eemo-modal eemo-modal-sm op-confirm" role="dialog" aria-modal="true" aria-labelledby="op-decide-title" @onclick:stopPropagation="true">
+                <div class="eemo-modal-header">
+                    <div class="eemo-modal-title" id="op-decide-title">Record decision</div>
+                    <button class="eemo-modal-close" type="button" aria-label="Close" @onclick="CloseDecision">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                </div>
+                <div class="eemo-modal-body">
+                    <p class="op-pw-note">
+                        ₱@((deciding.CapturedAmount ?? deciding.Amount).ToString("N2")) from @deciding.PayorName · @deciding.Period · @deciding.Reference
+                    </p>
+                    <fieldset class="op-decide-options">
+                        <legend class="form-label">What became of this money?</legend>
+                        <label class="op-decide-option">
+                            <input type="radio" name="op-decide-kind" checked="@(_decideKind == OnlinePaymentDisposition.Refunded)"
+                                   @onchange="() => _decideKind = OnlinePaymentDisposition.Refunded" />
+                            <span>Refunded through the gateway</span>
+                        </label>
+                        <label class="op-decide-option">
+                            <input type="radio" name="op-decide-kind" checked="@(_decideKind == OnlinePaymentDisposition.Applied)"
+                                   @onchange="() => _decideKind = OnlinePaymentDisposition.Applied" />
+                            <span>Applied through an Official Receipt the office issued</span>
+                        </label>
+                    </fieldset>
+                    <div class="form-group">
+                        <label class="form-label" for="op-decide-reference">@(_decideKind == OnlinePaymentDisposition.Applied ? "OR number" : "Refund reference")</label>
+                        <input class="form-input" id="op-decide-reference" type="text" maxlength="100" autocomplete="off" @bind="_decideReference" @bind:event="oninput" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="op-decide-note">Note (optional)</label>
+                        <textarea class="form-input" id="op-decide-note" rows="2" maxlength="500" @bind="_decideNote" @bind:event="oninput"></textarea>
+                    </div>
+                    <div class="op-field-hint">This records the outcome. It does not change a balance or issue a receipt.</div>
+                    @if (!string.IsNullOrEmpty(_decideError))
+                    {
+                        <div class="op-banner op-banner-error op-decide-error" role="alert">@_decideError</div>
+                    }
+                </div>
+                <div class="eemo-modal-footer">
+                    <button class="btn-ghost" type="button" disabled="@_decideSaving" @onclick="CloseDecision">Cancel</button>
+                    <button class="btn-primary" type="button" disabled="@(_decideSaving || string.IsNullOrWhiteSpace(_decideReference))" @onclick="SaveDecisionAsync">@(_decideSaving ? "Saving…" : "Save decision")</button>
+                </div>
+            </div>
+        </div>
+    }
+
     @* Re-authentication before changing the online-payment account. *@
     @if (_showPwConfirm)
     {
@@ -679,6 +838,7 @@
 
         // Treasury overview + recent history (shown to all staff, independent of the cached awaiting list).
         await LoadDashboardAsync();
+        await LoadExceptionsAsync();
 
         if (CachedItems is not null)
         {
@@ -701,6 +861,141 @@
         finally
         {
             _dashboardLoaded = true;
+        }
+    }
+
+    // ── Online payments that did not simply complete. Head and Admin see them; the API lets only the Head record a decision. ──
+    private List<OnlinePaymentExceptionDto> _exceptions = new();
+    private bool _exceptionsFailed;
+    private bool _showDecided;
+    private Guid? _exceptionBusyId;
+    private string? _exceptionMsg;
+    private bool _exceptionMsgIsError;
+
+    private OnlinePaymentExceptionDto? _deciding;
+    private OnlinePaymentDisposition _decideKind = OnlinePaymentDisposition.Refunded;
+    private string _decideReference = string.Empty;
+    private string _decideNote = string.Empty;
+    private string? _decideError;
+    private bool _decideSaving;
+
+    private int DecidedCount => _exceptions.Count(e => e.Kind == OnlinePaymentExceptionKind.Resolved);
+    private IEnumerable<OnlinePaymentExceptionDto> VisibleExceptions =>
+        _exceptions.Where(e => _showDecided || e.Kind != OnlinePaymentExceptionKind.Resolved);
+
+    private string ExceptionsSummary
+    {
+        get
+        {
+            var deciding = _exceptions.Count(e => e.Kind == OnlinePaymentExceptionKind.NeedsDecision);
+            var checking = _exceptions.Count(e => e.Kind is OnlinePaymentExceptionKind.Unconfirmed or OnlinePaymentExceptionKind.Failed);
+            var parts = new List<string>();
+            if (deciding > 0) parts.Add(deciding == 1 ? "1 payment waiting for the Head's decision" : $"{deciding} payments waiting for the Head's decision");
+            if (checking > 0) parts.Add(checking == 1 ? "1 to check with the gateway" : $"{checking} to check with the gateway");
+            return parts.Count > 0 ? string.Join(" · ", parts) : "Nothing open.";
+        }
+    }
+
+    private static string ExceptionLabel(OnlinePaymentExceptionDto row) => row.Kind switch
+    {
+        OnlinePaymentExceptionKind.NeedsDecision => "Received, not applied",
+        OnlinePaymentExceptionKind.Unconfirmed => "Not confirmed yet",
+        OnlinePaymentExceptionKind.Failed => "Attempt failed",
+        _ => row.Disposition == OnlinePaymentDisposition.Applied ? "Applied" : "Refunded"
+    };
+
+    private static string ExceptionTone(OnlinePaymentExceptionDto row) => row.Kind switch
+    {
+        OnlinePaymentExceptionKind.NeedsDecision => "is-hold",
+        OnlinePaymentExceptionKind.Unconfirmed => "is-await",
+        OnlinePaymentExceptionKind.Failed => "is-quiet",
+        _ => "is-done"
+    };
+
+    private static string? ExceptionDetail(OnlinePaymentExceptionDto row) => row.Kind switch
+    {
+        OnlinePaymentExceptionKind.Resolved =>
+            $"{row.DispositionReference} · {row.DispositionBy}{(row.DispositionAtUtc is { } at ? " · " + PhilippineTime.ToPhilippineTime(at).ToString("MMM d, yyyy h:mm tt") : "")}{(string.IsNullOrEmpty(row.DispositionNote) ? "" : " · " + row.DispositionNote)}",
+        OnlinePaymentExceptionKind.Unconfirmed => "The checkout is over a day old and could not be confirmed or closed with the gateway.",
+        OnlinePaymentExceptionKind.Failed => "Every attempt failed and the checkout is closed. The payor can start a new payment.",
+        _ => row.Reason
+    };
+
+    private async Task LoadExceptionsAsync()
+    {
+        var result = await OnlinePaymentsApi.GetExceptionsAsync();
+        _exceptionsFailed = result is not { IsSuccess: true, Value: not null };
+        _exceptions = _exceptionsFailed ? new() : result.Value!.ToList();
+    }
+
+    private async Task VerifyExceptionAsync(OnlinePaymentExceptionDto row)
+    {
+        _exceptionMsg = null;
+        _exceptionBusyId = row.TransactionId;
+        try
+        {
+            var result = await OnlinePaymentsApi.VerifyAsync(row.Reference);
+            _exceptionMsgIsError = !result.IsSuccess;
+            _exceptionMsg = !result.IsSuccess
+                ? result.Error ?? "Could not check this payment with the gateway."
+                : result.Value?.Status switch
+                {
+                    "Paid" => $"{row.Reference}: the gateway has this payment and it has been recorded.",
+                    "UnderReview" => $"{row.Reference}: the gateway has this payment, but it cannot be applied by itself. It now waits for the Head's decision.",
+                    "Failed" or "Expired" or "Cancelled" => $"{row.Reference}: the gateway shows no successful payment. The checkout is {result.Value.Status.ToLowerInvariant()}.",
+                    _ => $"{row.Reference}: the gateway shows no payment yet."
+                };
+
+            // A found payment moves through the OR queue and the treasury figures as well, so they are re-read rather than patched.
+            await LoadExceptionsAsync();
+            await LoadDashboardAsync();
+            await LoadAsync();
+        }
+        finally
+        {
+            _exceptionBusyId = null;
+        }
+    }
+
+    private void OpenDecision(OnlinePaymentExceptionDto row)
+    {
+        _exceptionMsg = null;
+        _decideError = null;
+        _decideReference = string.Empty;
+        _decideNote = string.Empty;
+        _decideKind = OnlinePaymentDisposition.Refunded;
+        _deciding = row;
+    }
+
+    private void CloseDecision()
+    {
+        if (!_decideSaving) _deciding = null;
+    }
+
+    private async Task SaveDecisionAsync()
+    {
+        if (_deciding is not { } row || string.IsNullOrWhiteSpace(_decideReference)) return;
+
+        _decideError = null;
+        _decideSaving = true;
+        try
+        {
+            var result = await OnlinePaymentsApi.ResolveExceptionAsync(row.TransactionId, _decideKind, _decideReference.Trim(),
+                string.IsNullOrWhiteSpace(_decideNote) ? null : _decideNote.Trim());
+            if (!result.IsSuccess)
+            {
+                _decideError = result.Error ?? "Could not save the decision.";
+                return;
+            }
+
+            _deciding = null;
+            _exceptionMsgIsError = false;
+            _exceptionMsg = $"Decision recorded for {row.Reference}.";
+            await LoadExceptionsAsync();
+        }
+        finally
+        {
+            _decideSaving = false;
         }
     }
 

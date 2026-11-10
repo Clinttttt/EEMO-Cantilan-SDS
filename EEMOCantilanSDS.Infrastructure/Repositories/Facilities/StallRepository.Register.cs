@@ -132,7 +132,7 @@ public partial class StallRepository
             ? (rateSnapshot!.MonthRule.HasMonthlyGoal
                 ? s.ResolveMonthlyRent(NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf), npmMonthlyRent)
                 : 0m)
-            : s.MonthlyRate);
+            : s.MonthlyRentFor(asOf.Year, asOf.Month, asOf));
 
         decimal DailyOf(Stall s) => OpeningRate(s)?.ApprovedDailyInstallment ?? (isDailyBilled
             ? NpmDailyFee.ForStall(s, rateSnapshot!, rateAsOf)

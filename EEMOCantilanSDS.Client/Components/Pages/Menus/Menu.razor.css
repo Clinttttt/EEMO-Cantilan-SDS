@@ -221,7 +221,7 @@
     padding: 2px 8px;
     border-radius: 10px;
     background: rgba(200,168,75,0.1);
-    color: #7a5010;
+    color: var(--dark-amber-text, #7a5010);
     border: 1px solid rgba(200,168,75,0.25);
     letter-spacing: 0.3px;
 }
@@ -400,7 +400,7 @@ a.dashboard-report-tab:hover {
 }
 
 .dashboard-report-tab.active {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     box-shadow: 0 3px 9px rgba(13,33,55,.18);
 }
@@ -414,7 +414,7 @@ a.dashboard-report-tab:hover {
     padding: 2px 6px;
     border-radius: 999px;
     background: rgba(200,168,75,.18);
-    color: #8a6d1b;
+    color: var(--dark-amber-text, #8a6d1b);
     font-size: 11px;
     font-weight: 800;
     letter-spacing: .04em;
@@ -540,7 +540,7 @@ a.dashboard-report-tab:hover {
 }
 
 .facility-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -603,7 +603,7 @@ a.dashboard-report-tab:hover {
 }
 
 .dashboard-view-tab:hover { background: var(--accent-soft); color: var(--accent-hover); }
-.dashboard-view-tab.active { background: var(--accent); color: var(--surface); }
+.dashboard-view-tab.active { background: var(--dark-accent-fill, var(--accent)); color: var(--dark-on-fill, var(--surface)); }
 .dashboard-view-tab:focus-visible,
 .dashboard-view-retry:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

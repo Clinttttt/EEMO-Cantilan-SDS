@@ -68,8 +68,8 @@ public class FinancialReportClaimsTests
     public void SettingsAndFinancialSummary_DoNotPublishAnAgeBasedArrearsSplit()
     {
         var root = RepositoryRoot().FullName;
-        var settings = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Menus", "Settings.razor"));
-        var summary = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "FinancialSummaryDocument.razor"));
+        var settings = File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Menus", "BillingPolicySettings.razor"));
+        var summary =File.ReadAllText(Path.Combine(root, "EEMOCantilanSDS.Client", "Components", "Pages", "Reports", "FinancialSummaryDocument.razor"));
         var completeDocumentation = File.ReadAllText(Path.Combine(root, "docs", "business", "EEMO_BUSINESS_RULES.md"));
 
         // IA-069 defines Arrears per obligation (year / ended occupancy / expired contract), never by the age of an unpaid-month count.

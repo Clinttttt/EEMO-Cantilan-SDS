@@ -12,24 +12,27 @@
 @inject BrandingState BrandingStore
 @inject IServiceProvider Services
 
-<PageTitle>StallTrack — Operation settings</PageTitle>
+<PageTitle>StallTrack — Operation Settings</PageTitle>
 
 @* Which revenue operations this office lists in its Operations directory, and what it calls them. Presentation only: listing or
    naming an operation never grants, removes or changes authority to collect, its classification, its receipt instrument, its
    sources or its Collector assignments, and hiding one deletes nothing. The office's own configuration, never hard-coded. *@
 <header class="topbar">
     <div class="topbar-left">
-        <div class="topbar-title">Operation settings</div>
+        <div class="topbar-title">Operation Settings</div>
         <div class="topbar-breadcrumb">
             <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <a class="breadcrumb-link" href="/settings">Settings</a>
             <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-active">Operations</span>
+            <span class="breadcrumb-active">Operation Settings</span>
         </div>
     </div>
     <div class="topbar-right">
-        <div class="topbar-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
         <AccountChip />
     </div>
 </header>
@@ -43,7 +46,7 @@
         else if (_model is null)
         {
             <div class="v3-notice v3-notice-error" role="alert">
-                <p>Operation settings couldn't be loaded.</p>
+                <p>Operation Settings couldn't be loaded.</p>
                 <button type="button" class="v3-btn" @onclick="LoadAsync">Try again</button>
             </div>
         }
@@ -118,7 +121,6 @@
                 <header class="v3-panel-header"><h2 id="os-more">Not listed here</h2></header>
                 <div class="os-intro">
                     <p>Facility-backed operations are managed in <a href="/settings/facilities">Facility Configuration</a>. Rates, Collectors and collection authority are configured separately.</p>
-                    <p>Cantilan's Municipal Space Rental uses a three-year contract standard; other LGUs must confirm their own approved contract terms.</p>
                 </div>
             </section>
 

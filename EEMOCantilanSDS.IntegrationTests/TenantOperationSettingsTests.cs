@@ -64,6 +64,35 @@ public sealed class TenantOperationSettingsTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task EachOperation_StatesTheReceiptTypeItsOfficesOwnPolicySetsToday_AndNothingElse()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        var t = await SeedAsync();
+        var today = PhilippineTime.Today;
+        await using (var ctx = db.CreateContext(Guid.Empty))
+        {
+            var market = EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassification.Create(RevenueClassificationCodes.MarketFees, t.Carrascal);
+            var weight = EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassification.Create(RevenueClassificationCodes.WeightAndMeasure, t.Carrascal);
+            var landing = EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassification.Create(RevenueClassificationCodes.LandingBerthing, t.Carrascal);
+            landing.Retire("test");
+            var cantilanMarket = EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassification.Create(RevenueClassificationCodes.MarketFees, t.Cantilan);
+            ctx.AddRange(market, weight, landing, cantilanMarket,
+                EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassificationPolicy.Create(market.Id, new DateOnly(2000, 1, 1), "Market Fees", RevenueInstrumentType.OfficialReceipt, t.Carrascal),
+                EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassificationPolicy.Create(market.Id, today.AddDays(-1), "Market Fees", RevenueInstrumentType.CashTicket, t.Carrascal),
+                EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassificationPolicy.Create(market.Id, today.AddDays(10), "Market Fees", RevenueInstrumentType.OfficialReceipt, t.Carrascal),
+                EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassificationPolicy.Create(landing.Id, new DateOnly(2000, 1, 1), "Landing", RevenueInstrumentType.CashTicket, t.Carrascal),
+                EEMOCantilanSDS.Domain.Entities.Revenue.RevenueClassificationPolicy.Create(cantilanMarket.Id, new DateOnly(2000, 1, 1), "Market Fees", RevenueInstrumentType.OfficialReceipt, t.Cantilan));
+            await ctx.SaveChangesAsync();
+        }
+
+        var carrascal = (await ReadAsync(t.Carrascal)).Items.ToDictionary(i => i.OperationCode, i => i.Instrument);
+
+        Assert.Equal(RevenueInstrumentType.CashTicket, carrascal[CollectorOperationCodes.MarketFees]); // the newest in effect, not the scheduled one, not Cantilan's
+        Assert.Null(carrascal[CollectorOperationCodes.WeightAndMeasure]);                              // a source with no policy: nothing assumed
+        Assert.Null(carrascal[CollectorOperationCodes.LandingBerthing]);                               // a retired source states none
+    }
+
+    [SkippableFact]
     public async Task AMunicipalityThatNeverAdopted_IsReadAsEverythingListedUnderItsEstablishedNames()
     {
         Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);

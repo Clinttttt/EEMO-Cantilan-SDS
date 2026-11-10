@@ -9,7 +9,7 @@
 .oc-btn { border: 1px solid var(--border); background: var(--bg-card); color: var(--navy); border-radius: 8px; padding: 8px 14px; min-height: 40px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .oc-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .oc-btn:disabled { opacity: .55; cursor: not-allowed; }
-.oc-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.oc-btn-primary { background: var(--dark-accent-fill, var(--accent)); border-color: var(--accent); color: #fff; }
 .oc-btn-primary:hover:not(:disabled) { color: #fff; filter: brightness(.94); }
 .oc-btn:focus-visible, .oc-cell:focus-visible, .oc-input:focus-visible, .oc-check input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 

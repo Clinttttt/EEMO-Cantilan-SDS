@@ -147,11 +147,11 @@
 
 .mi-ytd {
     font-weight: 600;
-    background: color-mix(in srgb, var(--accent) 3%, var(--surface));
+    background: color-mix(in srgb, var(--dark-accent-fill, var(--accent)) 3%, var(--surface));
 }
 
 .mi-table thead th.mi-ytd {
-    background: color-mix(in srgb, var(--accent) 6%, var(--surface-muted));
+    background: color-mix(in srgb, var(--dark-accent-fill, var(--accent)) 6%, var(--surface-muted));
     color: var(--navy);
 }
 
@@ -165,7 +165,7 @@
     height: 34px;
     position: sticky;
     left: 0;
-    background: color-mix(in srgb, var(--accent) 5%, var(--surface-muted));
+    background: color-mix(in srgb, var(--dark-accent-fill, var(--accent)) 5%, var(--surface-muted));
     border-top: 1px solid var(--border-strong);
     color: var(--navy);
     font-size: 0.6875rem;
@@ -197,18 +197,18 @@
 .mi-total td {
     height: 46px;
     font-weight: 700;
-    background: var(--navy);
-    color: var(--surface);
+    background: var(--dark-navy-fill, var(--navy));
+    color: var(--dark-on-fill, var(--surface));
     border-bottom: 0;
 }
 
 .mi-total th.mi-line {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     letter-spacing: 0.04em;
 }
 
 .mi-total .mi-ytd {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
 }
 
 .mi-tag {
@@ -330,7 +330,7 @@
 }
 
 /* An adjusted official amount keeps one quiet marker; the audit lives in the adjustment drawer, not in the table. */
-.mi-adj { display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+.mi-adj { display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--dark-accent-fill, var(--accent)); vertical-align: middle; }
 .mi-adjust { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-right: 4px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--text-subtle); cursor: pointer; opacity: 0; }
 .mi-adjust svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 tr:hover .mi-adjust, .mi-adjust:focus-visible { opacity: 1; }

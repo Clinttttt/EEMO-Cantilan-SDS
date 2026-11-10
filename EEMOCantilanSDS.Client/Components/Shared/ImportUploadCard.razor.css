@@ -49,7 +49,7 @@
        table below it. */
     border-left: 3px solid var(--navy, #0b2239);
     border-radius: 0 9px 9px 0;
-    background: var(--bg-page, #f4f6f9);
+    background: var(--bg-page, var(--dark-surface-muted, #f4f6f9));
     font-size: 13px;
     line-height: 1.65;
     color: var(--text-muted);

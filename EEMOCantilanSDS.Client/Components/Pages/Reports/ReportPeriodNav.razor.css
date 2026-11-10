@@ -85,12 +85,12 @@
     transition: background .12s ease, color .12s ease, border-color .12s ease;
 }
 .rpt-picker-cell:hover { background: var(--bg-icon); }
-.rpt-picker-cell.current { border-color: var(--accent); color: #8a6d1b; }
+.rpt-picker-cell.current { border-color: var(--accent); color: var(--dark-amber-text, #8a6d1b); }
 .rpt-picker-cell.selected, .rpt-picker-cell.selected:hover {
-    background: var(--accent); color: #fff; border-color: transparent;
+    background: var(--dark-accent-fill, var(--accent)); color: #fff; border-color: transparent;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .16);
 }
 
 .rpt-picker-foot { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; text-align: center; }
-.rpt-picker-today { background: transparent; border: none; color: #8a6d1b; font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
+.rpt-picker-today { background: transparent; border: none; color: var(--dark-amber-text, #8a6d1b); font-size: 12px; font-weight: 700; cursor: pointer; padding: 4px 10px; border-radius: 6px; }
 .rpt-picker-today:hover { color: var(--navy); background: var(--bg); }

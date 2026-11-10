@@ -29,10 +29,12 @@ public static class TenantDataTables
         "NpmRegistrationRequests", "FishMeatRegistrationRequests",
         "NpmRentMonths", // preparation-only month identity/evidence; audit remains export-only and no cash is created
         "FineAssessmentPolicies", "FineAssessments", "FineAssessmentEvents", // source-owned non-cash liability and its immutable governing/audit evidence
+        "BillingPolicyVersions", // the office's own billing rules: a restore without them would silently return it to the defaults
         "DirectFineAuthorities", // reviewed no-registration fine authority; posted CollectionLines reference it, so a restore must carry it
         "OfficialReportRevisions", // approved targets and report deltas are the tenant's revision-safe official statement evidence
         "Facilities", "FacilityRates", "WeighingRateVersions", "FacilitySectionRates", "FacilitySectionUtilities", "FacilitySectionClosures", "OrSeriesConfigs", "TenantOperationSettings", "TerminalSectionSettings", "RevenueClassifications", "RevenueClassificationPolicies", "Collections", "CollectionLines", "Payors", "CollectionAllocations", "WebCollectionDrafts", "WebCollectionDraftLines", "WebCollectionDraftAllocations", "PostingOperations", "CollectionSettlementCutovers", "AccountableFormBooks", "AccountableDocuments", "AccountableFormAssignments", "CollectionCorrections", "CollectionCorrectionLines", "CollectionCorrectionAllocations", "Stalls", "Contracts", "PaymentRecords",
         "DailyCollections", "UtilityBills", "StallMonthlyExceptions", "NpmMarketClosures", "NpmOperatingSchedules",
+        "PaymentInstalments", // each receipt of a month paid in parts (IA-081): without them a restored month reads as paid on its last receipt
         "OnlinePaymentTransactions", "SlaughterTransactions", "SlaughterAnimalRates", "SlaughterAnimalLabels", "TpmVendors",
         "TpmAttendances", "TrmTransporters", "TrmTrips", "PayorStallLinks", "PayorLiabilityLinks", "CollectorFacilityAssignments",
         // The office's own record of which weekday it has held its weekly market on, and from when. Restorable
@@ -65,6 +67,9 @@ public static class TenantDataTables
         ["PayorActivationCodes"] =
             "One-time secrets. A vendor's app activation code is spent on use and expires; restoring one would "
             + "revive a credential the office already retired.",
+        ["InboxNotifications"] =
+            "Messages derived from records that are themselves backed up. A restore loses who has read what, and "
+            + "the sweep writes the recent ones again from the restored records.",
         ["CollectorDeviceTokens"] =
             "Per-device push registrations, issued by the device and valid only while it holds them. Restored "
             + "tokens would be stale on arrival, addressing handsets that no longer answer to them.",

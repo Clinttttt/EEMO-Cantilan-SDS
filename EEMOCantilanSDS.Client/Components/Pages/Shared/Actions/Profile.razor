@@ -632,7 +632,8 @@
                                 var paidCount = Stall.LedgerSummary?.MonthsPaid ?? 0;
                                 var unpaidCount = Stall.LedgerSummary?.MonthsUnpaid ?? 0;
                                 var totalCollected = Stall.LedgerSummary?.TotalCollected ?? 0m;
-                                var balanceDue = Stall.LedgerSummary?.TotalOutstanding ?? 0m;
+                                // The statement's whole account, so this page states one figure. The ledger's rolling twelve months is only the fallback.
+                                var balanceDue = Stall.Statement?.TotalDue ?? Stall.LedgerSummary?.TotalOutstanding ?? 0m;
                             }
                             @if (IsNpm)
                             {
@@ -679,6 +680,85 @@
                             }
                         </div>
                     </div>
+
+                    <!-- Statement of Account: read from the same whole-account figures as Follow-up, nothing worked out here. -->
+                    <section class="prof-card" aria-labelledby="prof-stmt-title">
+                        <div class="prof-card-header">
+                            <div class="prof-card-icon">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h12v20l-3-2-3 2-3-2-3 2z" /><line x1="9" y1="8" x2="15" y2="8" /><line x1="9" y1="12" x2="15" y2="12" /></svg>
+                            </div>
+                            <div class="prof-card-title" id="prof-stmt-title">Statement of Account</div>
+                            @if (Stall.Statement is { } asOfStatement)
+                            {
+                                <div class="prof-stmt-asof">As of @asOfStatement.AsOf.ToString("MMM d, yyyy")</div>
+                            }
+                        </div>
+
+                        @if (Stall.Statement is { } statement)
+                        {
+                            <dl class="prof-stmt">
+                                <div class="prof-stmt-row">
+                                    <dt>Previous balance</dt>
+                                    <dd>₱@statement.PreviousBalance.ToString("N2")</dd>
+                                </div>
+                                @if (statement.ArrearsAmount > 0m)
+                                {
+                                    <div class="prof-stmt-row part">
+                                        <dt>Arrears · @statement.ArrearsMonths @(statement.ArrearsMonths == 1 ? "month" : "months")</dt>
+                                        <dd>₱@statement.ArrearsAmount.ToString("N2")</dd>
+                                    </div>
+                                }
+                                @if (statement.DelinquentAmount > 0m)
+                                {
+                                    <div class="prof-stmt-row part">
+                                        <dt>Delinquent · @statement.DelinquentMonths @(statement.DelinquentMonths == 1 ? "month" : "months")</dt>
+                                        <dd>₱@statement.DelinquentAmount.ToString("N2")</dd>
+                                    </div>
+                                }
+                                @if (statement.UtilityBalance > 0m)
+                                {
+                                    <div class="prof-stmt-row">
+                                        <dt>Electricity and water</dt>
+                                        <dd>₱@statement.UtilityBalance.ToString("N2")</dd>
+                                    </div>
+                                }
+                                @if (statement.PenaltiesDue > 0m)
+                                {
+                                    <div class="prof-stmt-row">
+                                        <dt>Fines and late penalties</dt>
+                                        <dd>₱@statement.PenaltiesDue.ToString("N2")</dd>
+                                    </div>
+                                }
+                                @if (statement.CurrentDueDate is { } dueDate)
+                                {
+                                    <div class="prof-stmt-row">
+                                        <dt>This month is due</dt>
+                                        <dd>@dueDate.ToString("MMM d, yyyy")</dd>
+                                    </div>
+                                }
+                                <div class="prof-stmt-row">
+                                    <dt>Charges this month</dt>
+                                    <dd>₱@statement.CurrentCharges.ToString("N2")</dd>
+                                </div>
+                                <div class="prof-stmt-row">
+                                    <dt>Paid this month</dt>
+                                    <dd>@(statement.Payments > 0m ? "−" : "")₱@statement.Payments.ToString("N2")</dd>
+                                </div>
+                                <div class="prof-stmt-row total">
+                                    <dt>Total due</dt>
+                                    <dd>₱@statement.TotalDue.ToString("N2")</dd>
+                                </div>
+                            </dl>
+                            @if (statement.BalanceBeforeRules > 0m && statement.CountsMonthsFrom is { } countedFrom)
+                            {
+                                <p class="prof-stmt-note" role="note">₱@statement.BalanceBeforeRules.ToString("N2") is from before @countedFrom.ToString("MMMM yyyy"), when this office's billing rules begin. Check it against your records. It doesn't hold up later rent, and a payor sees only the months that have a record.</p>
+                            }
+                        }
+                        else
+                        {
+                            <p class="prof-stmt-failed" role="status">The statement could not be read just now. Reload this page to try again.</p>
+                        }
+                    </section>
 
                     <!-- Collection History (transparency log, cursor-paginated 10/page) -->
                     <div class="prof-card">
@@ -1237,6 +1317,7 @@
         public Dictionary<string, string> PaymentHistory { get; set; } = new();
         // Authoritative daily-aware rolling 12-month ledger totals (from the server).
         public StallLedgerSummaryDto? LedgerSummary { get; set; }
+        public EEMOCantilanSDS.Application.Dtos.Facilities.StallStatementDto? Statement { get; set; }
     }
 
     StallProfile Stall = new();
@@ -1293,10 +1374,11 @@
                 var historyTask = PaymentsApi.GetPaymentHistoryAsync(stallDto.Id);
                 var currentPaymentTask = PaymentsApi.GetPaymentRecordAsync(stallDto.Id, PhilippineTime.Now.Year, PhilippineTime.Now.Month);
                 var ledgerTask = PaymentsApi.GetStallLedgerSummaryAsync(stallDto.Id);
+                var statementTask = PaymentsApi.GetStallStatementAsync(stallDto.Id);
                 var reportTask = FacilityId.ToUpper() == "NPM"
                     ? FacilitiesApi.GetFacilityReportsAsync(facilityCode, Domain.Enums.ReportPeriod.Monthly, PhilippineTime.Now.Year, PhilippineTime.Now.Month)
                     : null;
-                var pending = new List<Task> { historyTask, currentPaymentTask, ledgerTask };
+                var pending = new List<Task> { historyTask, currentPaymentTask, ledgerTask, statementTask };
                 if (reportTask is not null) pending.Add(reportTask);
                 await Task.WhenAll(pending);
 
@@ -1422,7 +1504,8 @@
                     ORNumber = orNumber,
                     Remarks = stallDto.Remarks ?? string.Empty,
                     PaymentHistory = paymentHistory,
-                    LedgerSummary = (await ledgerTask).Value
+                    LedgerSummary = (await ledgerTask).Value,
+                    Statement = (await statementTask).Value
                 };
 
                 // Earlier occupancy spans first, then the grid: the grid needs them to know whether a past day was

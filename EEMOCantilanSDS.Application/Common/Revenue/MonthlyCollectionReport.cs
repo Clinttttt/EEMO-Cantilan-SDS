@@ -134,6 +134,11 @@ public static class MonthlyCollectionReport
         decimal Official(IEnumerable<string> keys, bool legacyOnly = false) =>
             official.Rows.Where(r => keys.Contains(r.Key)).Sum(r => legacyOnly ? r.LegacyCollected : r.Collected);
 
+        // A facility's account detail holds all its rent; the statement prints the old part on the Arrears row, so the comparison adds it back.
+        decimal Recovered(params FacilityCode[] codes) => official.RecoveredArrears?.Where(a => codes.Contains(a.Facility)).Sum(a => a.Amount) ?? 0m;
+        static string Scope(string text, decimal recovered) =>
+            recovered == 0m ? text : $"{text} Includes ₱{recovered:N2} of this rent that the statement reports as recovered Arrears.";
+
         var rows = new List<MonthlyReconciliationRowDto>();
 
         foreach (var facility in detail.Facilities.Where(f => !IsCustom(f.Code)).OrderBy(f => f.Code))
@@ -144,15 +149,19 @@ public static class MonthlyCollectionReport
                     "Compared with the legacy part of the official Terminal rows. Terminal cash recorded since cutover is itemised in the source rows, not here.",
                     GroupOf(facility.Code), keys));
             else
-                rows.Add(new(facility.Name, facility.Collected, Official(keys), "Account detail compared with the official source row.",
+                rows.Add(new(facility.Name, facility.Collected, Official(keys) + Recovered(facility.Code),
+                    Scope("Account detail compared with the official source row.", Recovered(facility.Code)),
                     GroupOf(facility.Code), keys));
         }
 
         var custom = detail.Facilities.Where(f => IsCustom(f.Code)).ToList();
         if (custom.Count > 0)
-            rows.Add(new("Other rental facilities", custom.Sum(f => f.Collected), Official(["RENT_OTHER"]),
-                "Configured rental facilities compared with the official row for other rental facilities.",
+        {
+            var codes = custom.Select(f => f.Code).ToArray();
+            rows.Add(new("Other rental facilities", custom.Sum(f => f.Collected), Official(["RENT_OTHER"]) + Recovered(codes),
+                Scope("Configured rental facilities compared with the official row for other rental facilities.", Recovered(codes)),
                 RevenueSourceCatalog.RentGroup, ["RENT_OTHER"]));
+        }
 
         // The official money the account detail itemises is exactly what each comparison measured against (for legacy Terminal
         // trips, only the legacy part). Everything else — direct and event sources, and Terminal cash recorded since cutover —

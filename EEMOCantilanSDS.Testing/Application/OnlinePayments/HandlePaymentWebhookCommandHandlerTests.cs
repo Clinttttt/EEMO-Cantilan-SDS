@@ -215,17 +215,34 @@ public class HandlePaymentWebhookCommandHandlerTests
     }
 
     [Fact]
-    public async Task Paid_AmountMismatch_IsRejected_AndDoesNotSettle()
+    public async Task Paid_AmountMismatch_IsKeptForTheOffice_AndAcknowledged()
     {
+        // Answering 409 saved nothing and made the provider retry until it disabled the webhook for every payment of the LGU.
         var (txn, record) = PendingPair();
         var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount - 1m)); // underpayment
 
         var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
 
-        Assert.Equal(ResultStatus.Conflict, result.Status);
-        Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);   // not settled
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal(Amount - 1m, txn.CapturedAmount);
         Assert.Equal(PaymentStatus.Unpaid, record.Status);       // balance untouched
-        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Paid_CaptureAfterThePeriodWasSettled_IsAcknowledged_AndAttributionKept()
+    {
+        var (txn, record) = PendingPair();
+        record.RecordPayment("OR-OFFLINE-9", Guid.NewGuid(), PaymentStatus.Paid);
+        var (handler, _, _, notifier) = Build(txn, record, PaidEvent(Amount));
+
+        var result = await handler.Handle(new HandlePaymentWebhookCommand("{}", "sig"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
+        Assert.Equal("OR-OFFLINE-9", record.ORNumber);
+        notifier.Verify(n => n.NotifyPaymentReceivedAsync(It.IsAny<OnlinePaymentNotification>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

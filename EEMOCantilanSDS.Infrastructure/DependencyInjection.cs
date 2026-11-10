@@ -226,6 +226,9 @@ namespace EEMOCantilanSDS.Infrastructure
             // is exactly what it was. See DailyTenantBackupService for why it asks "has today's been taken?" rather than sleeping
             // for a day, which is what makes a sleeping app's schedule self-healing.
             service.AddHostedService<EEMOCantilanSDS.Infrastructure.Services.DailyTenantBackupService>();
+            service.AddHostedService<EEMOCantilanSDS.Infrastructure.Services.OnlinePaymentReconciliationService>();
+            service.AddHostedService<EEMOCantilanSDS.Infrastructure.Services.LatePenaltyAssessmentService>();
+            service.AddHostedService<EEMOCantilanSDS.Infrastructure.Services.NotificationSweepService>();
 
             return service;
         }

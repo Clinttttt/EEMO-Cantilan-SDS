@@ -17,12 +17,30 @@
 
 <PageTitle>@Branding.OfficeAcronym — Revenue Sources</PageTitle>
 
-@* The revenue-source directory remains a read-only register of existing entries and policy history.
-   A separate, explicit Head-only drawer can complete a selected operation's first source/policy
-   using the existing governed API. It never grants collector, rate, document, or posting authority. *@
-<div class="v3-page rev-page">
-    <WorkspaceHeader Title="Revenue Sources" Parent="Settings" ParentHref="/settings" />
+@* The revenue-source directory remains a read-only register of existing entries and policy history, grouped as the official
+   Monthly Income statement groups its income. A separate, explicit Head-only drawer can complete a selected operation's first
+   source/policy using the existing governed API. It never grants collector, rate, document, or posting authority. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <h1 class="topbar-title">Revenue Sources</h1>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Revenue Sources</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
+        <AccountChip />
+    </div>
+</header>
 
+<div class="v3-page rev-page">
     @if (_loading)
     {
         <section class="v3-panel rev-group" aria-label="Loading revenue sources" aria-busy="true">
@@ -42,7 +60,7 @@
             <button class="v3-btn v3-btn-primary" type="button" @onclick="LoadAsync">Try again</button>
         </div>
     }
-    else if (_classifications.Count == 0)
+    else if (_classifications.Count == 0 && _setupRequired.Count == 0 && _setup is not { Items.Count: > 0 })
     {
         <div class="v3-panel rev-state">
             <h3>No revenue sources configured yet.</h3>

@@ -1022,7 +1022,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal(headers, report.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Equal(headers, overview.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Contains("Revenue source performance — October 2026", report.Find("#rsp-title").TextContent);
-            Assert.Equal("Actual collections and operating activity by revenue source. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
+            Assert.Equal("Money received in this period by revenue source, including rent of earlier months. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
             Assert.DoesNotContain("Targets partially configured", report.Markup);
             Assert.DoesNotContain("Targets partially configured", overview.Markup);
             Assert.Empty(report.FindAll(".rsp-cov"));
@@ -1207,6 +1207,37 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.DoesNotContain("Awaiting an approved official grouping", cut.Markup);
             Assert.Contains("Prepared by", cut.Find("footer.omi-sign").TextContent);         // the two official roles come from office settings
             Assert.Contains("Certified Correct", cut.Find("footer.omi-sign").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AFamilyWithNoLineOnThisOfficesSheet_IsNotPrinted_AndTheOverallTotalIsUnchanged()
+    {
+        // IA-080: an office with a terminal but no slaughterhouse gets its slaughterhouse line flagged hidden by the server.
+        var statement = Statement(null) with { Year = 2025 };
+        var terminal = new OfficialMonthlyIncomeGroupDto("TERMINAL", "B. Income From Terminal",
+            [Row("COMFORT_ROOM", "Comfort Room", 0m, 40m, "Canonical")], Months(0m, 40m), new MonthlyIncomeCellDto(0m, 40m));
+        var slaughter = new OfficialMonthlyIncomeGroupDto("SLAUGHTERHOUSE", "Slaughterhouse",
+            [Row("SLAUGHTERHOUSE", "Income from Slaughterhouse", 0m, 0m, "None") with { ShowOnOfficialReport = false }],
+            Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m));
+        OfficialMonthlyIncomeSectionDto Section(string key, string label, params string[] keys) => new(key, label, keys,
+            key == "B" ? terminal.MonthTotals : Months(0m, 0m), key == "B" ? terminal.Total : new MonthlyIncomeCellDto(0m, 0m));
+        statement = statement with
+        {
+            Groups = statement.Groups.Append(terminal).Append(slaughter).ToList(),
+            Sections = [Section("A", "Income From Market", "MARKET", "RENT"), Section("B", "Income From Terminal", "TERMINAL"), Section("C", "Income from Slaughterhouse", "SLAUGHTERHOUSE")],
+        };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var continuation = cut.Find("[data-report-page='2']");
+            Assert.Contains("B. Income From Terminal", continuation.TextContent);
+            Assert.DoesNotContain("C. Income from Slaughterhouse", cut.Markup);
+            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", continuation.TextContent);
+            Assert.Contains(statement.GrandTotal.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture), continuation.QuerySelector("tfoot")!.TextContent);
         }, Timeout);
     }
 

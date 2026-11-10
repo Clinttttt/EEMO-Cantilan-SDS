@@ -656,7 +656,8 @@ public partial class CollectorRepository
                 var record = s.PaymentRecords.FirstOrDefault();
                 var status = record?.Status ?? PaymentStatus.Unpaid;
                 var amountPaid = record?.AmountPaid ?? 0m;
-                var balance = record is null ? s.MonthlyRate : record.BalanceDue;
+                var rent = s.MonthlyRentFor(year, month, collectionEnd);
+                var balance = record is null ? rent : record.BalanceDue;
 
                 return new MobileReportPayeeSummaryDto(
                     string.IsNullOrWhiteSpace(contract?.ActualOccupant) ? "No active occupant" : contract.ActualOccupant,
@@ -666,7 +667,7 @@ public partial class CollectorRepository
                     s.StallNo,
                     GetAreaLabel(s),
                     status,
-                    s.MonthlyRate,
+                    rent,
                     amountPaid,
                     balance,
                     0,

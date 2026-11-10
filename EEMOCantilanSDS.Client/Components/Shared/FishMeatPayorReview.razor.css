@@ -131,8 +131,8 @@
 }
 
 .fmp-seg button.is-active {
-    background: var(--accent);
-    color: var(--bg-card);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--bg-card));
 }
 
 .fmp-confirm {

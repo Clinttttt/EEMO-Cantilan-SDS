@@ -25,7 +25,7 @@
     flex-shrink: 0;
 }
 ::deep .status-badge.paid { border-left: 3px solid var(--green); }
-::deep .status-badge.paid::before { background: var(--green); }
+::deep .status-badge.paid::before { background: var(--dark-green-fill, var(--green)); }
 ::deep .status-badge.partial { border-left: 3px solid #b87333; }
 ::deep .status-badge.partial::before { background: #b87333; }
 ::deep .status-badge.unpaid { border-left: 3px solid var(--text-muted); }
@@ -95,7 +95,7 @@
     font-size: 11px;
     font-weight: 600;
     background: rgba(184,115,51,.1);
-    color: #b87333;
+    color: var(--dark-amber-text, #b87333);
     border-radius: 20px;
     text-transform: uppercase;
     letter-spacing: .4px;
@@ -160,7 +160,7 @@
 ::deep .partial-input-wrap { position: relative; display: flex; align-items: center; }
 ::deep .currency-symbol { position: absolute; left: 12px; font-size: 14px; font-weight: 600; color: var(--text-muted); pointer-events: none; }
 ::deep .partial-input { padding-left: 28px; font-weight: 600; }
-::deep .partial-hint { font-size: 11px; color: #b87333; margin-top: 6px; font-weight: 500; }
+::deep .partial-hint { font-size: 11px; color: var(--dark-amber-text, #b87333); margin-top: 6px; font-weight: 500; }
 
 /* ── Spinner ── */
 ::deep .btn-loading { opacity: .75; cursor: not-allowed; display: flex; align-items: center; gap: 8px; }

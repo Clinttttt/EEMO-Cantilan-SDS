@@ -7,7 +7,7 @@
 .fine-assessment ::deep .fine-steps li.done { border-bottom-color:var(--accent); color:var(--text-secondary); }
 .fine-assessment ::deep .fine-steps li.done .fine-step-n { border-color:var(--accent); background:var(--accent-soft); color:var(--accent); }
 .fine-assessment ::deep .fine-steps li.current { border-bottom-color:var(--accent); color:var(--navy); }
-.fine-assessment ::deep .fine-steps li.current .fine-step-n { border-color:var(--accent); background:var(--accent); color:var(--surface); }
+.fine-assessment ::deep .fine-steps li.current .fine-step-n { border-color:var(--accent); background:var(--dark-accent-fill, var(--accent)); color:var(--dark-on-fill, var(--surface)); }
 
 /* ── Account search ── */
 .fine-assessment ::deep .fine-search { display:flex; gap:8px; align-items:end; }

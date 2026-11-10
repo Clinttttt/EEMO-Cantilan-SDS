@@ -143,6 +143,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
 
  
         public DbSet<PaymentRecord> PaymentRecords { get; set; }
+        public DbSet<PaymentInstalment> PaymentInstalments => Set<PaymentInstalment>();
         public DbSet<DailyCollection> DailyCollections { get; set; }
         public DbSet<NpmRentMonth> NpmRentMonths => Set<NpmRentMonth>();
         public DbSet<UtilityBill> UtilityBills { get; set; }
@@ -183,6 +184,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<PenaltyDefinition> PenaltyDefinitions { get; set; }
         public DbSet<DirectFineAuthority> DirectFineAuthorities { get; set; }
         public DbSet<FineAssessment> FineAssessments { get; set; }
+        public DbSet<BillingPolicyVersion> BillingPolicyVersions { get; set; }
         public DbSet<FineAssessmentPolicy> FineAssessmentPolicies { get; set; }
         public DbSet<FineAssessmentEvent> FineAssessmentEvents { get; set; }
         public DbSet<ObligationAccount> ObligationAccounts { get; set; }
@@ -204,6 +206,7 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence
         public DbSet<AccountableFormReference> AccountableFormReferences { get; set; }
 
         public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.CollectorDeviceToken> CollectorDeviceTokens { get; set; }
+        public DbSet<EEMOCantilanSDS.Domain.Entities.Notifications.InboxNotification> InboxNotifications { get; set; }
 
 
         public DbSet<AuditLog> AuditLogs { get; set; }

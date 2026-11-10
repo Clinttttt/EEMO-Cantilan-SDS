@@ -57,6 +57,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public decimal BalanceDue => TotalBill - AmountPaid;
 
         public Stall? Stall { get; private set; }
+
+        private readonly List<PaymentInstalment> _instalments = new();
+        private PaymentInstalment? _awaitingOr;
+
+        /// <summary>The receipts of a month paid in more than one receipt, oldest first (IA-081). Empty for a month paid in one.</summary>
+        public IReadOnlyCollection<PaymentInstalment> Instalments => _instalments;
+
         private PaymentRecord() { }
         public static PaymentRecord Create(
             Guid stallId,
@@ -91,6 +98,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         string updatedBy = "System")
         {
             EnsureLegacySettlementAuthority();
+            var before = Receipt();
             ORNumber = orNumber;
             CollectorId = collectorId;
             Status = status;
@@ -104,6 +112,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            KeepReceipts(before, updatedBy);
+            if (_awaitingOr is { } receipt) receipt.SetOrNumber(orNumber, updatedBy);
+            _awaitingOr = null;
             BumpSettlementVersion();
         }
         /// <summary>
@@ -143,6 +154,36 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = orNumber;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            // The OR belongs to the receipt just taken; with none taken now, it corrects the newest receipt's OR.
+            (_awaitingOr ?? _instalments.LastOrDefault(i => i.Amount > 0m))?.SetOrNumber(orNumber, updatedBy);
+            _awaitingOr = null;
+        }
+
+        private (decimal Amount, DateTime? At, string? Or, Guid? Collector) Receipt() => (AmountPaid, PaidAt, ORNumber, CollectorId);
+
+        /// <summary>
+        /// Keeps every receipt of a month paid in parts (IA-081). When a month that already holds money receives more, the receipt
+        /// it already holds is kept first (amount, date, OR, collector), then the new money as its own receipt. Afterwards the
+        /// receipts always add up to the amount paid: more money is a new receipt, a correction lowers the newest first. A month
+        /// paid in one receipt, or only ever corrected, keeps no list and reads exactly as before.
+        /// </summary>
+        private void KeepReceipts((decimal Amount, DateTime? At, string? Or, Guid? Collector) before, string updatedBy)
+        {
+            var after = AmountPaid;
+            if (_instalments.Count == 0)
+            {
+                if (before.Amount <= 0m || after <= before.Amount) return;
+                _instalments.Add(PaymentInstalment.Create(Id, MunicipalityId, before.Amount, before.At ?? CreatedAt, before.Or, before.Collector, updatedBy));
+            }
+
+            var held = _instalments.Sum(i => i.Amount);
+            if (after > held)
+            {
+                _awaitingOr = PaymentInstalment.Create(Id, MunicipalityId, after - held, PaidAt ?? DateTime.UtcNow, null, CollectorId, updatedBy);
+                _instalments.Add(_awaitingOr);
+            }
+            for (var i = _instalments.Count - 1; i >= 0 && held > after; i--)
+                held -= _instalments[i].Reduce(held - after, updatedBy);
         }
 
         /// <summary>
@@ -154,6 +195,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public void MarkPaidOnline(string remarks, string updatedBy = "Online")
         {
             EnsureLegacySettlementAuthority();
+            var before = Receipt();
             Status = PaymentStatus.Paid;
             CollectorId = null;
             ORNumber = null;
@@ -162,6 +204,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            KeepReceipts(before, updatedBy);
             BumpSettlementVersion();
         }
 
@@ -174,6 +217,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public void MarkPartiallyPaidOnline(decimal amountReceived, string remarks, string updatedBy = "Online")
         {
             EnsureLegacySettlementAuthority();
+            var before = Receipt();
             Status = PaymentStatus.Partial;
             CollectorId = null;
             ORNumber = null;
@@ -182,12 +226,14 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            KeepReceipts(before, updatedBy);
             BumpSettlementVersion();
         }
 
         public void MarkUnpaid(string updatedBy = "System")
         {
             EnsureLegacySettlementAuthority();
+            var before = Receipt();
             Status = PaymentStatus.Unpaid;
             ORNumber = null;
             CollectorId = null;
@@ -195,6 +241,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            KeepReceipts(before, updatedBy);
             BumpSettlementVersion();
         }
 
@@ -246,6 +293,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             Guid? collectorId = null)
         {
             EnsureLegacySettlementAuthority();
+            var before = Receipt();
             // Auto-upgrade from Partial to Paid if partial amount equals or exceeds total bill
             if (status == PaymentStatus.Partial && partialAmount >= TotalBill)
             {
@@ -268,6 +316,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 CollectorId = collectorId.Value;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
+            KeepReceipts(before, updatedBy);
             BumpSettlementVersion();
         }
 

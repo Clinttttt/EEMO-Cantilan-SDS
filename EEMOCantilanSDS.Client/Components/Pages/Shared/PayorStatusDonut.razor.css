@@ -63,7 +63,7 @@
     transition: background 0.2s ease;
 }
 .donut-leg-item:hover {
-    background: rgba(13, 33, 55, 0.05);
+    background: var(--dark-tint, rgba(13, 33, 55, 0.05));
 }
 
 .donut-leg-left {
@@ -105,7 +105,7 @@
 
 /* V3: flat legend markers in the same semantic colours as the status pills. */
 .donut-leg-dot.paid {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
 }
 
 .donut-leg-dot.partial {
@@ -113,5 +113,5 @@
 }
 
 .donut-leg-dot.unpaid {
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
 }

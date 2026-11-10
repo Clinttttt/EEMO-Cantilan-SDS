@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Common.Payments;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -18,14 +19,15 @@ public class PayorRepository(
     AppDbContext context,
     INpmMonthSettlementService npmMonthSettlementService,
     IFeeRateResolver feeRateResolver,
-    IClock clock) : IPayorRepository
+    IClock clock,
+    IFacilityReportsRepository reports) : IPayorRepository
 {
     /// <summary>
     /// Test/non-DI convenience, matching the other repositories: the real clock, and the office's own rate rows read from the
     /// same context, so a daily fee resolves exactly as it does under dependency injection.
     /// </summary>
     public PayorRepository(AppDbContext context, INpmMonthSettlementService npmMonthSettlementService)
-        : this(context, npmMonthSettlementService, new Fees.FeeRateResolver(context), new SystemClock()) { }
+        : this(context, npmMonthSettlementService, new Fees.FeeRateResolver(context), new SystemClock(), new FacilityReportsRepository(context)) { }
     public async Task<PayorUser?> GetByContactNumberAsync(string contactNumber, CancellationToken ct = default)
     {
         var normalized = contactNumber.Trim();
@@ -155,7 +157,7 @@ public class PayorRepository(
             return Array.Empty<PayorStallBalanceDto>();
 
         var items = await BuildPayableItemsAsync(stalls, ct);
-        var byStall = items.GroupBy(i => i.StallId).ToDictionary(g => g.Key, g => g.ToList());
+        var byStall = items.Where(i => !i.Advance).GroupBy(i => i.StallId).ToDictionary(g => g.Key, g => g.ToList());
 
         // The office's wall clock decides which month is current, and its own rates decide a day's fee. The snapshot is read
         // at most once, and only where a daily-billed stall is actually present.
@@ -202,7 +204,7 @@ public class PayorRepository(
                 stall.StallNo,
                 stall.Facility!.Code,
                 occupant,
-                stall.MonthlyRate,
+                stall.MonthlyRentFor(today.Year, today.Month, today),
                 balance,
                 stallItems.Count,
                 oldest?.Period,
@@ -244,11 +246,12 @@ public class PayorRepository(
     }
 
     /// <summary>
-    /// Builds the payable obligations for the given stalls: every existing unpaid/partial record
-    /// (arrears) PLUS a synthesized current-month charge for monthly-rental stalls that are active,
-    /// under an effective contract, and have no record yet for the current month. NPM (daily-billed)
-    /// is excluded from synthesis — its obligation is day-based, handled elsewhere.
+    /// Builds the payable obligations for the given stalls: every existing unpaid/partial record, every elapsed
+    /// month the office counts as owed but holds no record for, PLUS a synthesized current-month charge for
+    /// monthly-rental stalls that are active, under an effective contract, and have no record yet for the current
+    /// month. NPM (daily-billed) is excluded from that synthesis — its obligation is day-based, handled elsewhere.
     /// </summary>
+    // shortcut: months are added to the records, not replaced by the office's walk, so a record the walk leaves out (an earlier occupancy's, an excused month's) still shows here. Replace once those records have their own home on the portal; hiding them today would hide real debt.
     private async Task<List<PayorPayableItemDto>> BuildPayableItemsAsync(List<Stall> stalls, CancellationToken ct)
     {
         var stallIds = stalls.Select(s => s.Id).ToList();
@@ -257,6 +260,14 @@ public class PayorRepository(
         var nonPaid = await context.PaymentRecords
             .Where(p => stallIds.Contains(p.StallId) && p.Status != PaymentStatus.Paid)
             .ToListAsync(ct);
+
+        var nonPaidIds = nonPaid.Select(r => r.Id).ToList();
+        var underReview = (await context.OnlinePaymentTransactions
+                .Where(t => t.PaymentRecordId != null && nonPaidIds.Contains(t.PaymentRecordId.Value)
+                    && t.Status == OnlinePaymentStatus.ReconciliationRequired && t.Disposition == null)
+                .Select(t => t.PaymentRecordId!.Value)
+                .ToListAsync(ct))
+            .ToHashSet();
 
         var today = clock.PhilippineToday;
         int curYear = today.Year, curMonth = today.Month;
@@ -271,11 +282,13 @@ public class PayorRepository(
         var monthStart = new DateOnly(curYear, curMonth, 1);
         var monthEnd = new DateOnly(curYear, curMonth, DateTime.DaysInMonth(curYear, curMonth));
 
-        // Current-month utility bills for the linked stalls (for the online NPM utility payable item).
-        var utilBills = (await context.UtilityBills
-                .Where(b => stallIds.Contains(b.StallId) && b.BillingYear == curYear && b.BillingMonth == curMonth)
+        var rules = BillingPolicyVersion.InForce(await context.BillingPolicyVersions.AsNoTracking().ToListAsync(ct), today)?.Rules ?? BillingPolicy.StallTrackDefaults;
+        var recordedAhead = (await context.PaymentRecords
+                .Where(p => stallIds.Contains(p.StallId) && (p.BillingYear > curYear || (p.BillingYear == curYear && p.BillingMonth > curMonth)))
+                .Select(p => new { p.StallId, p.BillingYear, p.BillingMonth })
                 .ToListAsync(ct))
-            .ToDictionary(b => b.StallId);
+            .Select(p => (p.StallId, p.BillingYear, p.BillingMonth))
+            .ToHashSet();
 
         var items = new List<PayorPayableItemDto>();
         foreach (var stall in stalls)
@@ -288,15 +301,46 @@ public class PayorRepository(
                 items.Add(new PayorPayableItemDto(
                     stall.Id, stall.StallNo, facility, r.BillingYear, r.BillingMonth, r.PeriodKey, r.BalanceDue)
                 {
-                    // Initiate pauses a source that is transitioning (PendingCutover); Legacy and Canonical rows are payable.
-                    PayableOnline = r.SettlementAuthorityState != SettlementAuthority.PendingCutover
+                    // Initiate pauses a source that is transitioning (PendingCutover) or has a capture under review; Legacy and Canonical rows are otherwise payable.
+                    PayableOnline = r.SettlementAuthorityState != SettlementAuthority.PendingCutover && !underReview.Contains(r.Id),
+                    PaymentUnderReview = underReview.Contains(r.Id)
                 });
             }
 
-            // 2) Synthesized current-month obligation for monthly-rental facilities.
+            // Nothing writes a record until money moves, so a month nobody paid had no row here while the office counted it as owed: two totals for one account.
             var isMonthly = facility != FacilityCode.NPM || stall.Facility.IsMonthlyRentMarket;
+            var statement = await reports.GetStallStatementAsync(stall.Id, ct);
+            foreach (var missed in statement?.UnpaidMonths ?? [])
+            {
+                if (nonPaid.Any(r => r.StallId == stall.Id && r.BillingYear == missed.Year && r.BillingMonth == missed.Month))
+                    continue;
+
+                // A month with no record from before these rules begin says nothing about whether it was paid, so it is not asked of a payor (IA-075).
+                if (!rules.Counts(missed.Year, missed.Month))
+                    continue;
+
+                // Monthly rent states what Initiate will charge for the month, so the row and the checkout cannot differ.
+                var owed = isMonthly ? stall.MonthlyRentFor(missed.Year, missed.Month, today) : missed.Unpaid;
+                if (owed > 0m)
+                    items.Add(new PayorPayableItemDto(
+                        stall.Id, stall.StallNo, facility, missed.Year, missed.Month, $"{missed.Year:0000}-{missed.Month:00}", owed,
+                        isMonthly ? PayorPayableKind.Monthly : PayorPayableKind.NpmDaily));
+            }
+
+            // Electricity and water: each bill still owed, whatever its month, the same figure the office's statement states.
+            foreach (var bill in statement?.UnpaidUtilities ?? [])
+            {
+                items.Add(new PayorPayableItemDto(
+                    stall.Id, stall.StallNo, facility, bill.Year, bill.Month, $"{bill.Year:0000}-{bill.Month:00}", bill.Unpaid, PayorPayableKind.NpmUtility));
+            }
+
+            if (statement is { PenaltiesDue: > 0m })
+                items.Add(new PayorPayableItemDto(
+                    stall.Id, stall.StallNo, facility, curYear, curMonth, $"{curYear:0000}-{curMonth:00}", statement.PenaltiesDue, PayorPayableKind.Penalty));
+
+            // 2) Synthesized current-month obligation for monthly-rental facilities.
             var dueThisMonth = isMonthly
-                && stall.MonthlyRate > 0m
+                && stall.MonthlyRentFor(curYear, curMonth, today) > 0m
                 && stall.Status == StallStatus.Active
                 && !hasCurrentMonthRecord.Contains(stall.Id)
                 && stall.Contracts.Any(c => c.IsActive && c.EffectivityDate <= monthEnd && monthStart <= c.ExpiryDate);
@@ -345,13 +389,20 @@ public class PayorRepository(
                             $"{curYear:0000}-{curMonth:00}", payable.Amount, PayorPayableKind.NpmDaily));
                     }
                 }
+            }
 
-                // NPM electricity + water — the month's metered bill balance (its own payable item + OR).
-                if (utilBills.TryGetValue(stall.Id, out var bill) && bill.BalanceDue > 0m)
+            // 4) The months ahead the office lets this account pay, once nothing older stands in the way.
+            if (isMonthly && stall.Status == StallStatus.Active
+                && (!rules.OldestMonthFirst || !items.Any(i => i.StallId == stall.Id && i.Kind == PayorPayableKind.Monthly && rules.PaidInOrder(i.Year, i.Month, today))))
+            {
+                foreach (var ahead in rules.MonthsPayableAhead(today))
                 {
-                    items.Add(new PayorPayableItemDto(
-                        stall.Id, stall.StallNo, facility, curYear, curMonth,
-                        $"{curYear:0000}-{curMonth:00}", bill.BalanceDue, PayorPayableKind.NpmUtility));
+                    if (stall.OccupancyAnsweringForMonth(ahead.Year, ahead.Month, today)?.Contract.BillsCalendarMonth(ahead.Year, ahead.Month) != true)
+                        break;
+                    if (recordedAhead.Contains((stall.Id, ahead.Year, ahead.Month)))
+                        continue;
+                    items.Add(new PayorPayableItemDto(stall.Id, stall.StallNo, facility, ahead.Year, ahead.Month, $"{ahead.Year:0000}-{ahead.Month:00}",
+                        stall.MonthlyRentFor(ahead.Year, ahead.Month, today)));
                 }
             }
         }
@@ -360,13 +411,28 @@ public class PayorRepository(
         var facilityOf = stalls.Where(s => s.Facility is not null).ToDictionary(s => s.Id, s => s.Facility!);
         // PayableOnline is the initiate guard's own rule (facility billing basis + kind), so a daily-billed market's balance,
         // whatever its kind, stays visible but read-only.
-        return items.Select(i => facilityOf.TryGetValue(i.StallId, out var facility)
+        var stated = items.Select(i => (facilityOf.TryGetValue(i.StallId, out var facility)
             ? i with
             {
                 FacilityName = facility.Name,
                 FacilityShortName = string.IsNullOrWhiteSpace(facility.ShortName) ? null : facility.ShortName,
                 PayableOnline = i.PayableOnline && InitiateOnlinePaymentCommandHandler.IsOnlineStallRent(facility, i.Kind)
             }
-            : i with { PayableOnline = false }).ToList();
+            : i with { PayableOnline = false }) with
+            {
+                PreviousBalance = new DateOnly(i.Year, i.Month, 1) < monthStart,
+                Advance = new DateOnly(i.Year, i.Month, 1) > monthStart,
+                DueDate = i.Kind == PayorPayableKind.Monthly ? rules.DueDate(i.Year, i.Month) : null
+            }).ToList();
+
+        if (!rules.OldestMonthFirst)
+            return stated;
+
+        // The button says what the initiate guard would say: only a stall's oldest counted month can be paid now. A month from before the rules begin never holds up another.
+        var oldestPayable = stated.Where(i => i.PayableOnline && rules.PaidInOrder(i.Year, i.Month, today)).GroupBy(i => i.StallId)
+            .ToDictionary(g => g.Key, g => g.MinBy(i => (i.Year, i.Month))!.Period);
+        return stated.Select(i => i.PayableOnline && rules.PaidInOrder(i.Year, i.Month, today) && oldestPayable[i.StallId] != i.Period
+            ? i with { PayableOnline = false, PayFirst = oldestPayable[i.StallId] }
+            : i).ToList();
     }
 }

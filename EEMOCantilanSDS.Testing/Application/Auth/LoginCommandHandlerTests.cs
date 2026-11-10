@@ -51,6 +51,19 @@ public class LoginCommandHandlerTests
     }
 
     [Fact]
+    public async Task SuccessfulLogin_RecordsTheLastLogin_AndAFailedOneDoesNot()
+    {
+        var admin = NewAdmin();
+        var (handler, _, _, _) = Build(admin);
+
+        await handler.Handle(new LoginCommand("head", "wrong"), CancellationToken.None);
+        Assert.Null(admin.LastLoginAt);
+
+        Assert.True((await handler.Handle(new LoginCommand("head", Password), CancellationToken.None)).IsSuccess);
+        Assert.NotNull(admin.LastLoginAt);
+    }
+
+    [Fact]
     public async Task BadPassword_RecordsFailedAttempt_AndReturnsUnauthorized()
     {
         var admin = NewAdmin();

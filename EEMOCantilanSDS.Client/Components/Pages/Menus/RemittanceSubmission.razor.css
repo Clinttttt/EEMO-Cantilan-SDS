@@ -15,9 +15,9 @@
 .rs-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .rs-header .v3-btn { background: transparent; color: white; border-color: rgba(255, 255, 255, .45); }
 .rs-header .v3-btn:hover { background: rgba(255, 255, 255, .1); }
-.rs-header .v3-btn-primary { background: white; color: var(--civic-panel, #173b64); border-color: white; }
-.rs-header .v3-btn-primary:hover { background: #eef3f9; }
-.rs-status { display: inline-block; margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: #fff5f5; color: #842626; font-size: .75rem; vertical-align: middle; }
+.rs-header .v3-btn-primary { background: var(--dark-surface, white); color: var(--dark-accent-text, var(--civic-panel, #173b64)); border-color: var(--dark-surface, white); }
+.rs-header .v3-btn-primary:hover { background: var(--dark-surface-sunken, #eef3f9); }
+.rs-status { display: inline-block; margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: var(--dark-surface-muted, #fff5f5); color: var(--dark-red-text, #842626); font-size: .75rem; vertical-align: middle; }
 
 /* One collector: a one-line record of who recorded it, then the collections beside their breakdown by source. */
 .rs-meta { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0; padding: 10px 20px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: .8125rem; }
@@ -109,7 +109,7 @@
 }
 
 .rm-diff-flag {
-    color: var(--danger, #b42318);
+    color: var(--danger, var(--dark-red-text, #b42318));
     font-weight: 600;
 }
 
@@ -177,7 +177,7 @@
 }
 
 .rm-trace {
-    color: var(--v3-text-muted, #475467);
+    color: var(--v3-text-muted, var(--dark-text-secondary, #475467));
     font-size: 0.75rem;
     white-space: nowrap;
 }

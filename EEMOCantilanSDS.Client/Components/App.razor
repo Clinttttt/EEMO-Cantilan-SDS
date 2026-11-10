@@ -5,6 +5,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <base href="/" />
+    <script>
+        // Light or dark, set before the first paint so a prerendered page never flashes the wrong one. The choice stays in
+        // this browser; a first visit follows the OS. The sidebar's toggle is handled here, so it works before the circuit connects.
+        (function () {
+            var key = 'st-theme', root = document.documentElement;
+            function set(dark) {
+                if (dark) root.setAttribute('data-st-theme', 'dark'); else root.removeAttribute('data-st-theme');
+            }
+            window.stallTrackApplyTheme = function () {
+                var choice = null;
+                try { choice = localStorage.getItem(key); } catch (e) { /* storage blocked: follow the OS */ }
+                set(choice ? choice === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches);
+            };
+            window.stallTrackApplyTheme();
+            document.addEventListener('click', function (e) {
+                if (!e.target.closest || !e.target.closest('[data-st-theme-toggle]')) return;
+                var dark = root.getAttribute('data-st-theme') !== 'dark';
+                set(dark);
+                try { localStorage.setItem(key, dark ? 'dark' : 'light'); } catch (err) { /* lasts until the page reloads */ }
+            });
+        })();
+    </script>
     <link rel="stylesheet" href="/css/site.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="/css/payor.css" asp-append-version="true" />
@@ -39,6 +61,9 @@
     <script src="/js/print.js"></script>
     <script src="/js/download.js"></script>
     <script>
+        // An enhanced navigation (a link clicked before the circuit connects) rewrites <html>'s attributes to the server's.
+        if (window.Blazor && Blazor.addEventListener) Blazor.addEventListener('enhancedload', window.stallTrackApplyTheme);
+
         // Branded boot splash: covers the fallback path while the Blazor circuit connects. When
         // prerendered app markup is present, hide it immediately so the static HTML is visible.
         window.hideStallTrackSplash = function () {

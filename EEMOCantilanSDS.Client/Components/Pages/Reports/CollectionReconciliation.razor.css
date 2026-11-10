@@ -38,7 +38,7 @@ tfoot th, tfoot td { background:var(--surface-muted); border-top:2px solid var(-
 .rcm-head p { margin:2px 0 0; color:rgba(255,255,255,.8); font-size:0.8125rem; }
 .rcm-close { display:grid; place-items:center; width:32px; height:32px; padding:0; border:1px solid rgba(255,255,255,.25); border-radius:8px; background:rgba(255,255,255,.1); cursor:pointer; }
 .rcm-close svg { width:16px; height:16px; fill:none; stroke:#fff; stroke-width:2; stroke-linecap:round; }
-.rcm-close:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+.rcm-close:focus-visible { outline:2px solid var(--dark-surface, #fff); outline-offset:2px; }
 .rcm-body { display:grid; gap:18px; overflow-y:auto; padding:20px; background:var(--surface); }
 .rcm-body h3 { margin:0 0 8px; color:var(--navy); font-size:0.8125rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; }
 .rcm-facts { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px 24px; margin:0; }
@@ -78,9 +78,9 @@ tfoot th, tfoot td { background:var(--surface-muted); border-top:2px solid var(-
 /* Hero actions are icons: one square control each, named by aria-label and title. */
 .reconciliation .rc-ic { display:inline-grid; place-items:center; box-sizing:border-box; width:36px; height:36px; padding:0; border:1px solid rgba(255,255,255,.4); border-radius:8px; background:rgba(255,255,255,.1); color:#fff; cursor:pointer; }
 .reconciliation .rc-ic:hover { background:rgba(255,255,255,.2); }
-.reconciliation .rc-ic:focus-visible { outline:2px solid #fff; outline-offset:2px; }
+.reconciliation .rc-ic:focus-visible { outline:2px solid var(--dark-surface, #fff); outline-offset:2px; }
 .reconciliation .rc-ic svg { width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
-.rc-review { display:inline-flex; align-items:center; gap:6px; min-height:36px; margin-left:auto; padding:0 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; font:inherit; font-size:0.8125rem; font-weight:600; cursor:pointer; }
+.rc-review { display:inline-flex; align-items:center; gap:6px; min-height:36px; margin-left:auto; padding:0 14px; border:0; border-radius:8px; background:var(--dark-accent-fill, var(--accent)); color:#fff; font:inherit; font-size:0.8125rem; font-weight:600; cursor:pointer; }
 .rc-review:disabled { opacity:.6; cursor:default; }
 .rc-review:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .rc-review svg { width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }

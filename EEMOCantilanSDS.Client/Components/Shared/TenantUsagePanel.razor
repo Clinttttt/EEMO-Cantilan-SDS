@@ -1,7 +1,7 @@
 @using EEMOCantilanSDS.Application.Dtos.SystemHealth
 @inject ITenantUsageApiClient TenantUsageApi
 @*
-    Per-tenant storage panel — shown to every municipality's Head on the Settings page. It reports ONLY
+    Per-tenant storage panel — shown to every municipality's Head on Settings > Storage. It reports ONLY
     the caller's own municipality footprint (record counts + estimated data size), scoped server-side to
     the caller's tenant. It never shows the whole shared database. Backup/restore live on the dedicated
     Backups page (/settings/backups) so this card stays a clean, read-only footprint.

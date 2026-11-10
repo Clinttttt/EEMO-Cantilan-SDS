@@ -11,6 +11,8 @@ namespace EEMOCantilanSDS.Infrastructure.Payments;
 /// <summary>
 /// PayMongo's expire operation is the authority: an active checkout is not assumed abandoned
 /// merely because its QR code timed out. Always re-read the provider before changing local state.
+/// Works under live keys (IA-073). The Head's bulk cleanup stays Test-only through its own check in
+/// CloseAbandonedTestCheckoutsCommandHandler.
 /// </summary>
 public sealed class PayMongoCheckoutExpiryService(
     HttpClient http,
@@ -28,11 +30,9 @@ public sealed class PayMongoCheckoutExpiryService(
             return Result<PaymentGatewayEvent>.Failure("Invalid checkout reference.", ResultStatus.Invalid);
 
         var account = await credentials.ResolveAsync(cancellationToken);
-        if (!account.IsConfigured
-            || !account.SecretKey.StartsWith("sk_test_", StringComparison.Ordinal))
+        if (!account.IsConfigured)
             return Result<PaymentGatewayEvent>.Failure(
-                "Only checkouts belonging to the office's saved PayMongo Test account can be closed.",
-                ResultStatus.Forbidden);
+                "Online payments are not set up for this LGU.", ResultStatus.Forbidden);
 
         try
         {

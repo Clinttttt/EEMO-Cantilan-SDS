@@ -59,6 +59,15 @@ public class ApplicationEfBoundaryTests
         // explicit MunicipalityId, instrument, normalized serial and assignee checks.
         "NpmReceiptEvidence.cs",
         "PaginationExtensions.cs",
+        // An office's billing rules are read and appended beside the tenant check. The guard reads which months are held
+        // for the office in the same request, so a held month and the refusal it prevents cannot disagree.
+        "BillingPolicyWorkflow.cs",
+        "BillingRules.cs",
+        // Each charge's identity, definition and facility policy are read and written together, so a retry finds them and creates nothing twice.
+        "LatePenaltyAssessor.cs",
+        // A person's inbox and the sweep that fills it read many owning records and write only messages, so a repository per query would add nothing.
+        "NotificationInbox.cs",
+        "NotificationSweep.cs",
 
         // Onboarding and assessment: the operator pipeline from request to activation.
         // The shared guard owns the one normalized active-pipeline query used at every transition, instead of letting
@@ -137,6 +146,9 @@ public class ApplicationEfBoundaryTests
         // Revenue source performance: its money is the official statement above; it reads posted Collections only to count
         // transactions, documents and collectors per statement row, and the classification policies for their instruments.
         "GetRevenueSourcePerformanceQueryHandler.cs",
+        // Where collected rent reports (IA-076): the read both handlers above used to make apart, kept in one place so the statement and the
+        // performance page cannot place the same allocation on different rows. It reads tenant-filtered allocations and writes nothing.
+        "RecoveredArrears.cs",
         "CreateRevenueClassificationCommandHandler.cs",
         "AppendRevenueClassificationPolicyCommandHandler.cs",
         "RetireRevenueClassificationCommandHandler.cs",

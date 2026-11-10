@@ -34,6 +34,7 @@ public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), 
     public Task<Result<IReadOnlyList<FinePolicyDto>>> GetFinePoliciesAsync() => GetAsync<IReadOnlyList<FinePolicyDto>>("api/fine-assessments/policies");
     public Task<Result<FinePolicyDto>> RecordFinePolicyAsync(FinePolicyRequest request) => PostAsync<FinePolicyRequest, FinePolicyDto>("api/fine-assessments/policies", request);
     public Task<Result<FineAssessmentDto>> CreateAssessmentAsync(CreateFineAssessmentRequest request) => PostAsync<CreateFineAssessmentRequest, FineAssessmentDto>("api/fine-assessments", request);
+    public Task<Result<FineAssessmentDto>> AdjustAssessmentAsync(Guid id, AdjustFineAssessmentRequest request) => PostAsync<AdjustFineAssessmentRequest, FineAssessmentDto>($"api/fine-assessments/{id}/adjust", request);
     public Task<Result<IReadOnlyList<FineAssessmentEventDto>>> GetAssessmentHistoryAsync(Guid id) => GetAsync<IReadOnlyList<FineAssessmentEventDto>>($"api/fine-assessments/{id}/history");
     public Task<Result<IReadOnlyList<PenaltyDefinitionDto>>> GetDefinitionsAsync() =>
         GetAsync<IReadOnlyList<PenaltyDefinitionDto>>("api/penalties/definitions");

@@ -60,14 +60,14 @@
     transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-.tu-export-btn:hover:not(:disabled) { background: #e7edf3; border-color: #c7d4df; }
+.tu-export-btn:hover:not(:disabled) { background: var(--dark-surface-sunken, #e7edf3); border-color: var(--dark-border, #c7d4df); }
 .tu-export-btn:disabled { opacity: 0.6; cursor: default; }
 .tu-export-btn svg { width: 15px; height: 15px; }
 
 .tu-export-spin {
     width: 13px;
     height: 13px;
-    border: 2px solid rgba(13, 33, 55, 0.25);
+    border: 2px solid var(--dark-border, rgba(13, 33, 55, 0.25));
     border-top-color: var(--navy);
     border-radius: 50%;
     animation: tu-spin 0.7s linear infinite;
@@ -153,17 +153,7 @@
     text-align: right;
 }
 
-.tu-rows {
-    margin-top: 0.35rem;
-    max-height: 276px;      /* ~6 rows, then scroll — keeps the card a professional height */
-    overflow-y: auto;
-    padding-right: 6px;
-    scrollbar-width: thin;
-    scrollbar-color: #cdd8e2 transparent;
-}
-.tu-rows::-webkit-scrollbar { width: 4px; }
-.tu-rows::-webkit-scrollbar-thumb { background: #cdd8e2; border-radius: 3px; }
-.tu-rows::-webkit-scrollbar-track { background: transparent; }
+.tu-rows { margin-top: 0.35rem; }
 
 .tu-note {
     margin-top: 0.85rem;
@@ -181,7 +171,7 @@
 .sk {
     display: inline-block;
     border-radius: 6px;
-    background: linear-gradient(90deg, var(--bg-icon) 25%, #f4f7fa 37%, var(--bg-icon) 63%);
+    background: linear-gradient(90deg, var(--bg-icon) 25%, var(--dark-surface-muted, #f4f7fa) 37%, var(--bg-icon) 63%);
     background-size: 400% 100%;
     animation: tu-shimmer 1.4s ease infinite;
 }
@@ -216,7 +206,7 @@
     border: 1px solid var(--navy); background: var(--bg-card); color: var(--navy);
     border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 0.78rem; font-weight: 700;
 }
-.tu-restore-dl:hover:not(:disabled) { background: #f4f8fb; }
+.tu-restore-dl:hover:not(:disabled) { background: var(--dark-surface-muted, #f4f8fb); }
 .tu-restore-dl:disabled { opacity: .55; cursor: default; }
 .tu-restore-field { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.76rem; color: var(--text-subtle); }
 .tu-restore-field span strong { color: var(--text); }
@@ -231,13 +221,13 @@
 .tu-restore-go {
     align-self: flex-start; margin-top: 0.15rem;
     border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer;
-    background: var(--red); color: #fff; font: inherit; font-size: 0.82rem; font-weight: 700;
+    background: var(--dark-red-fill, var(--red)); color: #fff; font: inherit; font-size: 0.82rem; font-weight: 700;
 }
-.tu-restore-go:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 88%, black); }
+.tu-restore-go:hover:not(:disabled) { background: color-mix(in srgb, var(--dark-red-fill, var(--red)) 88%, black); }
 .tu-restore-go:disabled { opacity: .5; cursor: default; }
 
 /* V3 consistency: one quiet civic-blue icon tile for every settings card (status colour stays on the status itself). */
 .set-card-icon {
     background: var(--accent-soft);
-    color: var(--civic-panel);
+    color: var(--dark-accent-text, var(--civic-panel));
 }

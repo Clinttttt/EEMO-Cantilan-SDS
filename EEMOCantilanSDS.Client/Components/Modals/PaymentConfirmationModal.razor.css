@@ -57,7 +57,7 @@
 
 .confirm-payment-card.status-partial {
     border-color: var(--gold);
-    background: #fffbeb;
+    background: var(--dark-amber-tint, #fffbeb);
 }
 
 .confirm-payment-card.status-unpaid {
@@ -111,7 +111,7 @@
 }
 
 .confirm-payment-status.status-paid {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
     color: white;
 }
 
@@ -121,7 +121,7 @@
 }
 
 .confirm-payment-status.status-unpaid {
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
     color: white;
 }
 
@@ -151,7 +151,7 @@
 }
 
 .btn-success {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
     color: white;
 }
 

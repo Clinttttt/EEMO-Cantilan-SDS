@@ -97,12 +97,12 @@
 
 .mfa-remind-go {
     color: #fff;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border: 1px solid var(--accent);
 }
 
     .mfa-remind-go:hover {
-        background: var(--accent-hover);
+        background: var(--dark-accent-hover-fill, var(--accent-hover));
     }
 
 .mfa-remind-later:disabled,

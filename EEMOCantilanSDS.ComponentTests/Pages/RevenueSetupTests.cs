@@ -205,6 +205,7 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Contains("Water Consumption Fees", available.TextContent);
             Assert.DoesNotContain("Market Fees", available.TextContent);
             Assert.Empty(cut.FindAll("section[aria-labelledby='rev-g-setup']"));                   // the name-only list is replaced by the verified register
+            Assert.DoesNotContain("No revenue sources configured yet.", cut.Markup);               // the register already says so, row by row
         }, RenderTimeout);
     }
 
@@ -416,7 +417,31 @@ public sealed class RevenueSetupTests : TestContext
             Assert.Empty(revenueLinks);
             Assert.Contains("Managed by the MEEDO Head", cut.Markup);
             Assert.Contains("aria-disabled=\"true\"", cut.Markup);
+            Assert.Contains("Head only", cut.Markup);
         }
+
+        // The rules page is open to both: an Administrator reads it, only the Head changes it.
+        Assert.Single(cut.FindAll("a[href='/settings/billing-policy']"));
+    }
+
+    [Fact]
+    public void Settings_IsOneGroupedList_WithNothingAnOfficeCannotActOn()
+    {
+        RegisterSettingsPageServices();
+        this.AddTestAuthorization().SetAuthorized("head").SetRoles("SuperAdmin");
+        var cut = RenderComponent<Settings>();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(["Office", "Revenue", "People", "Data", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
+            string[] destinations = ["/office-profile", "/settings/report-signatories", "/settings/facilities", "/settings/operations", "/settings/revenue",
+                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
+            Assert.Equal(destinations, cut.FindAll("a.set-item").Select(a => a.GetAttribute("href")).ToArray());
+        }, RenderTimeout);
+
+        // Server internals and figures that belong on other pages are not stated here.
+        foreach (var internalDetail in new[] { "Environment", "Sign-in session", "Account lockout", "Roles", "Delinquency window", "Server month", "Database health", "Storage usage" })
+            Assert.DoesNotContain(internalDetail, cut.Markup);
     }
 
     [Fact]
@@ -436,10 +461,7 @@ public sealed class RevenueSetupTests : TestContext
         {
             Assert.Contains("Coastal Enterprise Office", cut.Markup);
             Assert.Contains("Test Municipality", cut.Markup);
-            var figures = cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray();
-            Assert.Equal(new[] { "Feb 2027", "v9.8.7" }, figures);
-            Assert.Contains("4 failed attempts · 25 minutes", cut.Find(".set-grid").TextContent);
-            Assert.DoesNotContain("System configuration · read-only", cut.FindComponent<EEMOCantilanSDS.Client.Components.Shared.V3Hero>().Markup);
+            Assert.Contains("v9.8.7", cut.Find(".set-foot").TextContent);
             Assert.DoesNotContain("Collection Period", cut.Markup);
             Assert.Empty(cut.FindAll(".pill-ok"));
             Assert.DoesNotContain("Contract expiry", cut.Markup);
@@ -456,15 +478,18 @@ public sealed class RevenueSetupTests : TestContext
         RegisterSettingsPageServices(response.Task);
         this.AddTestAuthorization().SetAuthorized("admin").SetRoles("Admin");
         var cut = RenderComponent<Settings>();
-        cut.WaitForAssertion(() => Assert.Equal(new[] { "—", "—" },
-            cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray()), RenderTimeout);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".set-item-desc .skeleton"));
+            Assert.Empty(cut.FindAll(".set-foot"));
+        }, RenderTimeout);
 
         response.SetResult(Result<SystemSettingsDto>.Failure("Unavailable", 500));
         cut.WaitForAssertion(() =>
         {
             Assert.Contains("Couldn't load settings", cut.Markup);
-            Assert.Equal(new[] { "—", "—" },
-                cut.FindAll(".v3h-val").Select(v => v.TextContent).ToArray());
+            Assert.Contains("Details could not be loaded", cut.Markup);
+            Assert.Empty(cut.FindAll(".set-foot"));
             Assert.Single(cut.FindAll(".set-retry"));
         }, RenderTimeout);
     }
@@ -551,10 +576,6 @@ public sealed class RevenueSetupTests : TestContext
         mfa.Setup(api => api.GetMfaStatusAsync()).ReturnsAsync(Result<MfaStatusDto>.Success(
             new MfaStatusDto(false, false, null, 0)));
         Services.AddSingleton(mfa.Object);
-        Services.AddSingleton<ITenantUsageApiClient>(Mock.Of<ITenantUsageApiClient>(api =>
-            api.GetUsageAsync() == Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.SystemHealth.TenantUsageDto>.Failure("Unavailable", 500))));
-        Services.AddSingleton<IDatabaseHealthApiClient>(Mock.Of<IDatabaseHealthApiClient>(api =>
-            api.GetHealthAsync() == Task.FromResult(Result<EEMOCantilanSDS.Application.Dtos.SystemHealth.DatabaseHealthDto>.Failure("Unavailable", 500))));
 
         Services.AddLogging();
         Services.AddSingleton<AuthService>(provider => new AuthService(

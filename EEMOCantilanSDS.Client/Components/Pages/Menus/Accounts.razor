@@ -17,9 +17,11 @@
 
 <header class="topbar">
     <div class="topbar-left">
-        <div class="topbar-title">Account Management</div>
+        <div class="topbar-title">Accounts</div>
         <div class="topbar-breadcrumb">
             <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
             <span class="breadcrumb-sep">/</span>
             <span class="breadcrumb-active">Accounts</span>
         </div>
@@ -253,7 +255,7 @@
                                             }
                                         </div>
                                     </td>
-                                    <td class="cell-login"><span class="acct-meta">@(a.LastLoginAt?.ToString("MMM d, yyyy") ?? "Never")</span></td>
+                                    <td class="cell-login"><span class="acct-meta">@(a.LastLoginAt is { } lastLogin ? PhilippineTime.ToPhilippineTime(lastLogin).ToString("MMM d, yyyy") : "Never")</span></td>
                                     <td class="col-actions">
                                         @{
                                             // Peer Heads are read-only to each other (server-enforced); own account is editable.

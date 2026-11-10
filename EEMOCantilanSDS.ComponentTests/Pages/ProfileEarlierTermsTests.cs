@@ -2,6 +2,7 @@ using Bunit;
 using Bunit.TestDoubles;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Dtos.Stalls;
 using EEMOCantilanSDS.Domain.Constants;
@@ -54,6 +55,9 @@ public class ProfileEarlierTermsTests : TestContext
     /// </summary>
     private int contractYearsForFixture = 3;
 
+    private Result<StallStatementDto> statementForFixture = Result<StallStatementDto>.Failure("not needed here");
+    private StallLedgerSummaryDto? ledgerForFixture;
+
     private IRenderedComponent<Profile> RenderProfile(string currentOccupant, params ClosedStallAccountDto[] priorTerms)
     {
         this.AddTestAuthorization().SetAuthorized("cly.sullano");
@@ -79,7 +83,10 @@ public class ProfileEarlierTermsTests : TestContext
         payments.Setup(p => p.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<PaymentRecordDto>.NotFound());
         payments.Setup(p => p.GetStallLedgerSummaryAsync(It.IsAny<Guid>()))
-            .ReturnsAsync(Result<StallLedgerSummaryDto>.Failure("not needed here"));
+            .ReturnsAsync(ledgerForFixture is { } ledger
+                ? Result<StallLedgerSummaryDto>.Success(ledger)
+                : Result<StallLedgerSummaryDto>.Failure("not needed here"));
+        payments.Setup(p => p.GetStallStatementAsync(It.IsAny<Guid>())).ReturnsAsync(statementForFixture);
 
         Services.AddSingleton(stalls.Object);
         Services.AddSingleton(payments.Object);
@@ -99,6 +106,113 @@ public class ProfileEarlierTermsTests : TestContext
         Id: StallId, StallNo: "4", Status: StallStatus.Active, ActualOccupant: occupant, NameOnContract: occupant,
         AreaSqm: null, ContractDate: new DateTime(2024, 1, 1), MonthlyRate: 900m, DailyRate: null, ORNumber: null,
         Section: null, AreaLocation: null, AreaNote: null, Remarks: null, ContractYears: contractYears);
+
+    private static StallStatementDto Statement() => new(
+        new DateOnly(2026, 11, 4), ArrearsMonths: 10, ArrearsAmount: 9_000m, DelinquentMonths: 2, DelinquentAmount: 1_800m,
+        CurrentCharges: 900m, Payments: 300m, CurrentBalance: 600m, UnpaidMonths: [], UnpaidUtilities: [new UnpaidMonthDto(2026, 10, 220m)]);
+
+    [Fact]
+    public void Penalties_AddToTheTotal_AsALineOfTheirOwn_AndTheDueDateIsStated()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement() with { PenaltiesDue = 60m, CurrentDueDate = new DateOnly(2026, 11, 30) });
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var rows = page.FindAll(".prof-stmt-row").Select(r => r.TextContent).ToList();
+            Assert.Contains(rows, r => r.Contains("Fines and late penalties") && r.Contains("₱60.00"));
+            Assert.Contains(rows, r => r.Contains("This month is due") && r.Contains("Nov 30, 2026"));
+            Assert.Contains(rows, r => r.Contains("Total due") && r.Contains("₱11,680.00"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void MoneyFromBeforeTheRulesBegin_IsExplained_WithoutLeavingTheTotal()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement() with { UnpaidMonths = [new UnpaidMonthDto(2025, 3, 900m)], CountsMonthsFrom = new DateOnly(2026, 12, 1) });
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var note = page.Find(".prof-stmt-note");
+            Assert.Contains("₱900.00", note.TextContent);
+            Assert.Contains("December 2026", note.TextContent);
+            Assert.Contains(page.FindAll(".prof-stmt-row"), r => r.TextContent.Contains("Total due") && r.TextContent.Contains("₱11,620.00"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void WithNothingFromBeforeTheRulesBegin_NoNoteIsShown()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement() with { CountsMonthsFrom = new DateOnly(2026, 12, 1) });
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() => Assert.Contains("Total due", page.Markup), RenderTimeout);
+        Assert.Empty(page.FindAll(".prof-stmt-note"));
+    }
+
+    [Fact]
+    public void WithNoPenalties_AndADayBilledSpace_ThoseLinesAreLeftOut()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement());
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() => Assert.Contains("Total due", page.Markup), RenderTimeout);
+        Assert.DoesNotContain("Fines and late penalties", page.Markup);
+        Assert.DoesNotContain("This month is due", page.Markup);
+    }
+
+    [Fact]
+    public void TheStatementStatesPreviousBalanceItsPartsThisMonthAndTheTotal()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement());
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var rows = page.FindAll(".prof-stmt-row").Select(r => r.TextContent).ToList();
+            Assert.Contains(rows, r => r.Contains("Previous balance") && r.Contains("₱10,800.00"));
+            Assert.Contains(rows, r => r.Contains("Arrears") && r.Contains("10 months") && r.Contains("₱9,000.00"));
+            Assert.Contains(rows, r => r.Contains("Delinquent") && r.Contains("2 months") && r.Contains("₱1,800.00"));
+            Assert.Contains(rows, r => r.Contains("Electricity and water") && r.Contains("₱220.00"));
+            Assert.Contains(rows, r => r.Contains("Charges this month") && r.Contains("₱900.00"));
+            Assert.Contains(rows, r => r.Contains("Paid this month") && r.Contains("−₱300.00"));
+            Assert.Contains(rows, r => r.Contains("Total due") && r.Contains("₱11,620.00"));
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void TheBalanceCardStatesTheStatementTotal_NotTheRollingTwelveMonths()
+    {
+        // Two figures for one account on one page: the ledger stops at twelve months, the statement does not.
+        statementForFixture = Result<StallStatementDto>.Success(Statement());
+        ledgerForFixture = new StallLedgerSummaryDto(0, 12, 0m, 5_000m);
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var card = page.FindAll(".prof-hist-stat").Single(c => c.TextContent.Contains("Current Term Balance"));
+            Assert.Contains("₱11,620", card.TextContent);
+        }, RenderTimeout);
+    }
+
+    [Fact]
+    public void AStatementThatCouldNotBeRead_SaysSo_InsteadOfStatingNothingIsOwed()
+    {
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            Assert.Contains("could not be read", page.Find(".prof-stmt-failed").TextContent);
+            Assert.Empty(page.FindAll(".prof-stmt-row"));
+        }, RenderTimeout);
+    }
 
     [Fact]
     public void AnOpenEndedOccupancy_StatesNoTermAndNoExpiry_RatherThanTheSentinel()

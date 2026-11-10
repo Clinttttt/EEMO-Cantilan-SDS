@@ -75,7 +75,20 @@
                     @foreach(var cash in _cash) { <tr><td>@cash.BusinessDate.ToString("MMM d, yyyy")<span class="v3-block far-src">@cash.Src</span></td><td class="v3-num">@Money(cash.AllocatedAmount)</td><td class="v3-num">@Money(cash.EffectiveAmount)</td></tr> }
                 </tbody></table></div> }
             </section>
-            <p class="far-note">Original assessment evidence is preserved. Obligation adjustments remain unavailable.</p></ChildContent>
+            @if (selected.CanAdjust)
+            {
+                <AuthorizeView Roles="SuperAdmin"><Authorized>
+                    <section class="far-section" aria-labelledby="far-adjust-title"><h3 id="far-adjust-title">Update this penalty</h3>
+                        <form class="far-adjust" @onsubmit="() => Adjust(selected)" @onsubmit:preventDefault="true">
+                            <label class="v3-field"><span>New amount (0 waives it)</span><input type="number" min="0" step="0.01" @bind="_adjustAmount" /></label>
+                            <label class="v3-field far-wide"><span>Reason</span><input type="text" maxlength="1000" @bind="_adjustReason" /></label>
+                            <button class="v3-btn v3-btn-primary" type="submit" disabled="@_adjusting">Save update</button>
+                        </form>
+                        @if (_adjustError is not null) { <p class="v3-notice v3-notice-error" role="alert">@_adjustError</p> }
+                    </section>
+                </Authorized></AuthorizeView>
+            }
+            <p class="far-note">@(selected.CanAdjust ? "The original assessment is kept, and each update is recorded above." : "Original assessment evidence is preserved. Obligation adjustments remain unavailable.")</p></ChildContent>
         <Footer><button class="btn-ghost" type="button" @onclick="() => _selected = null">Close</button></Footer>
     </VendorDrawerShell>
 }
@@ -107,7 +120,7 @@
     private string _search = "", _status = "All"; private bool _loading = true, _adding;
     private IEnumerable<FineAssessmentDto> VisibleRows => _rows.Where(r => _status == "All" || (_status == "Outstanding" ? r.Remaining > 0m : r.Status == _status));
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}";
-    private static string StatusPill(string status) => status switch { "Settled" => "pill-active", "Partial" => "pill-partial", _ => "pill-pending" };
+    private static string StatusPill(string status) => status switch { "Settled" or "Waived" => "pill-active", "Partial" => "pill-partial", _ => "pill-pending" };
     private static RenderFragment EyeIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
     private static RenderFragment PayIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01" /><path d="M18 12h.01" /></svg>;
     private static RenderFragment EmptyIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
@@ -115,7 +128,18 @@
     private async Task Load() { _loading = true; _error = null; _rows = [];
         try { var result = await Api.GetAssessmentsAsync(search: _search); if (result is { IsSuccess: true, Value: not null }) _rows = result.Value.ToList(); else _error = result?.Error ?? "Assessments could not be loaded."; }
         catch { _error = "Assessments are unavailable."; } finally { _loading = false; } }
-    private async Task Details(FineAssessmentDto row) { _selected = row; _history = []; _historyError = null; _cash=[]; _cashError=null;
+    private decimal? _adjustAmount; private string? _adjustReason, _adjustError; private bool _adjusting;
+    private async Task Adjust(FineAssessmentDto row) {
+        if (_adjustAmount is not { } amount || string.IsNullOrWhiteSpace(_adjustReason)) { _adjustError = "Enter the new amount and the reason."; return; }
+        _adjusting = true; _adjustError = null;
+        try {
+            var result = await Api.AdjustAssessmentAsync(row.Id, new(amount, _adjustReason, row.Version));
+            if (result is { IsSuccess: true, Value: not null }) { await Load(); await Details(result.Value); await OnChanged.InvokeAsync(); }
+            else _adjustError = result?.Error ?? "The penalty could not be updated.";
+        }
+        catch { _adjustError = "The penalty could not be updated. Reload and try again."; }
+        finally { _adjusting = false; } }
+    private async Task Details(FineAssessmentDto row) { _selected = row; _history = []; _historyError = null; _cash=[]; _cashError=null; _adjustAmount = row.Assessed; _adjustReason = null; _adjustError = null;
         try { var result = await Api.GetAssessmentHistoryAsync(row.Id); if (result is { IsSuccess: true, Value: not null }) _history = result.Value.ToList(); else _historyError = "Assessment history is unavailable."; }
         catch { _historyError = "Assessment history is unavailable."; }
         try { var cash=await Api.GetFineSettlementHistoryAsync(row.Id); if(cash is {IsSuccess:true,Value:not null}) _cash=cash.Value.ToList(); else _cashError="Payment history is unavailable."; }

@@ -6,8 +6,8 @@
     cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: background .14s ease, color .14s ease;
 }
 .imp-btn ::deep svg { width: 16px; height: 16px; }
-.imp-btn-primary { background: var(--accent); color: #fff; }
-.imp-btn-primary:hover { background: var(--accent-hover); }
+.imp-btn-primary { background: var(--dark-accent-fill, var(--accent)); color: #fff; }
+.imp-btn-primary:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
 .imp-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
 .imp-btn-outline { background: var(--bg-card); color: var(--navy); border-color: var(--border); }
 .imp-btn-outline:hover { background: var(--bg-icon); }

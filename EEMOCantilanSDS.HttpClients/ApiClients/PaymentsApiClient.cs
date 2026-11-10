@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
@@ -7,6 +8,7 @@ using EEMOCantilanSDS.Application.Command.Payments.ClearMonthlyException;
 using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Domain.Common;
@@ -52,8 +54,17 @@ public class PaymentsApiClient(HttpClient http) : HandleResponse(http), IPayment
     public async Task<Result<StallLedgerSummaryDto>> GetStallLedgerSummaryAsync(Guid stallId) =>
         await GetAsync<StallLedgerSummaryDto>($"api/Stalls/{stallId}/ledger-summary");
 
+    public async Task<Result<StallStatementDto>> GetStallStatementAsync(Guid stallId) =>
+        await GetAsync<StallStatementDto>($"api/Stalls/{stallId}/statement");
+
     public async Task<Result<bool>> RecordPaymentAsync(RecordPaymentCommand command) =>
         await PostAsync<RecordPaymentCommand, bool>("api/Payments/record", command);
+
+    public async Task<Result<PayAheadOptionsDto>> GetPayAheadOptionsAsync(Guid stallId) =>
+        await GetAsync<PayAheadOptionsDto>($"api/Payments/stall/{stallId}/pay-ahead");
+
+    public async Task<Result<bool>> RecordPayAheadAsync(RecordPayAheadCommand command) =>
+        await PostAsync<RecordPayAheadCommand, bool>("api/Payments/pay-ahead", command);
 
     public async Task<Result<bool>> SaveOrNumberAsync(SaveOrNumberCommand command) =>
         await PostAsync<SaveOrNumberCommand, bool>("api/Payments/or-number", command);

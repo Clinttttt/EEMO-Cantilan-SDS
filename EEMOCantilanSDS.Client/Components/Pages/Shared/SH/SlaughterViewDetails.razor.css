@@ -140,7 +140,7 @@
     width: 30px;
     height: 30px;
     border-radius: 50%;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: var(--gold-light);
     font-family: 'DM Sans', sans-serif;
     font-size: 14px;
@@ -176,7 +176,7 @@
 ══════════════════════════════════════════ */
 .slh-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -373,7 +373,7 @@
     align-items: center;
     gap: 7px;
     padding: 8px 16px;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: white;
     border: none;
     border-radius: 8px;
@@ -385,7 +385,7 @@
 }
 
     .btn-print:hover {
-        background: var(--navy-3);
+        background: var(--dark-navy-3-fill, var(--navy-3));
     }
 
     .btn-print svg {
@@ -800,20 +800,20 @@
 }
 
 .slh-hero-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 .btn-print {
     border-color: var(--accent);
     border-radius: 6px;
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .btn-print:hover {
     border-color: var(--accent-hover);
-    background: var(--accent-hover);
-    color: var(--surface);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 /* An itemized collection: the approved charges, their quantity and frozen rate, under the transaction they belong to. */

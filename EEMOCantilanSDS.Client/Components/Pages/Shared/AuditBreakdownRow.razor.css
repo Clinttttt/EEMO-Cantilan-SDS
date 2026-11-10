@@ -86,9 +86,9 @@
     border-radius: 999px;
     transition: width .4s ease;
 }
-.fm-billed { background: var(--accent); }
-.fm-collected { background: var(--accent); }
-.fm-open { background: var(--red); }
+.fm-billed { background: var(--dark-accent-fill, var(--accent)); }
+.fm-collected { background: var(--dark-accent-fill, var(--accent)); }
+.fm-open { background: var(--dark-red-fill, var(--red)); }
 .fm-vals {
     display: flex;
     flex-direction: column;

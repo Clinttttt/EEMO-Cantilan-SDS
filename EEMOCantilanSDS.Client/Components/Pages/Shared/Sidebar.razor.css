@@ -218,7 +218,7 @@
         bottom: 8px;
         width: 3px;
         border-radius: 0 3px 3px 0;
-        background: var(--accent);
+        background: var(--dark-accent-fill, var(--accent));
     }
 
     .sidebar ::deep .nav-item:focus-visible {
@@ -234,7 +234,7 @@
 
 .nav-badge {
     margin-left: auto;
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
     color: #fff;
     font-size: 9px;
     font-weight: 700;
@@ -242,6 +242,29 @@
     border-radius: 10px;
     flex-shrink: 0;
 }
+
+.theme-toggle {
+    width: calc(100% - 16px);
+    margin: 0 8px 2px;
+    flex-shrink: 0;
+    background: none;
+    border: 0;
+    font-family: inherit;
+    text-align: left;
+}
+
+    /* One label and icon for each theme: the one naming where the button takes you. */
+    .theme-when-dark {
+        display: none;
+    }
+
+    html[data-st-theme="dark"] .theme-when-dark {
+        display: inline;
+    }
+
+    html[data-st-theme="dark"] .theme-when-light {
+        display: none;
+    }
 
 .sidebar-toggle {
     margin: 8px;
