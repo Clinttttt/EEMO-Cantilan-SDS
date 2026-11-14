@@ -1,4 +1,5 @@
 using System.Text;
+using EEMOCantilanSDS.Application.Command.OnlinePayments.ApplyHeld;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Confirm;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.HandleWebhook;
 using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
@@ -8,6 +9,7 @@ using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetAwaitingOr;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetDashboard;
 using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetExceptions;
+using EEMOCantilanSDS.Application.Queries.OnlinePayments.GetHeldPaymentPlan;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -115,6 +117,24 @@ public class OnlinePaymentsController(ISender sender) : ApiBaseController(sender
         return HandleResponse(result);
     }
 
+    /// <summary>The months a held capture would pay if the Head applied it to the space's rent. Nothing is saved.</summary>
+    [HttpGet("{id:guid}/application")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<HeldPaymentPlanDto>> HeldPaymentPlanAsync(Guid id)
+    {
+        var result = await Sender.Send(new GetHeldPaymentPlanQuery(id));
+        return HandleResponse(result);
+    }
+
+    /// <summary>The Head applies a held capture to the space's rent on the payor's written request, under the OR the office issues (IA-082).</summary>
+    [HttpPost("{id:guid}/application")]
+    [Authorize(Roles = "SuperAdmin")]
+    public async Task<ActionResult<bool>> ApplyHeldPaymentAsync(Guid id, [FromBody] ApplyHeldOnlinePaymentRequest request)
+    {
+        var result = await Sender.Send(new ApplyHeldOnlinePaymentCommand(id, request.ORNumber, request.WrittenRequest, request.Months));
+        return HandleResponse(result);
+    }
+
     /// <summary>Treasury overview + recent settled history for the admin Online Payments page (current LGU).</summary>
     [HttpGet("dashboard")]
     [Authorize(Roles = "SuperAdmin,Admin")]
@@ -140,3 +160,6 @@ public record IssueOnlinePaymentOrNumberRequest(string ORNumber);
 
 /// <summary>Request body for a Head's decision (the transaction id comes from the route).</summary>
 public record ResolveOnlinePaymentExceptionRequest(OnlinePaymentDisposition Disposition, string Reference, string? Note);
+
+/// <summary>Request body for applying a held capture to rent: the OR, the payor's written request and the months the Head saw.</summary>
+public record ApplyHeldOnlinePaymentRequest(string ORNumber, string WrittenRequest, IReadOnlyList<HeldPaymentMonthDto> Months);

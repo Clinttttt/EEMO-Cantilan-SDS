@@ -130,6 +130,56 @@ public sealed class OnlinePaymentsExceptionsTests : TestContext
     }
 
     [Fact]
+    public void TheHeadAppliesHeldMoneyToRent_FromThePlanTheServerShowed()
+    {
+        var row = Row(OnlinePaymentExceptionKind.NeedsDecision, captured: 2_500m);
+        IReadOnlyList<HeldPaymentMonthDto> months = [new(2026, 5, 1_000m, 1_000m), new(2026, 6, 1_000m, 1_000m), new(2026, 7, 1_000m, 500m)];
+        var cut = Open("SuperAdmin", Rows(row));
+        _online.Setup(a => a.GetHeldPaymentPlanAsync(row.TransactionId)).ReturnsAsync(Result<HeldPaymentPlanDto>.Success(new(2_500m, months, null)));
+        _online.Setup(a => a.ApplyHeldPaymentAsync(row.TransactionId, "OR-88", "Letter of 14 Nov", months)).ReturnsAsync(Result<bool>.Success(true));
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent == "Record decision"), Wait);
+        cut.FindAll("button").Single(b => b.TextContent == "Record decision").Click();
+        cut.FindAll("input[name=op-decide-kind]")[2].Change(true);
+
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".op-apply-months li").Count), Wait);
+        Assert.Contains("500.00 of ₱1,000.00", cut.Find(".op-apply-months").TextContent);
+        Assert.Empty(cut.FindAll("#op-decide-note"));
+        // The written request is required: an OR alone does not open the save.
+        cut.Find("#op-decide-reference").Input(" OR-88 ");
+        Assert.True(cut.FindAll("button").Single(b => b.TextContent == "Apply to rent").HasAttribute("disabled"));
+        cut.Find("#op-decide-request").Input(" Letter of 14 Nov ");
+        cut.FindAll("button").Single(b => b.TextContent == "Apply to rent").Click();
+
+        cut.WaitForAssertion(() =>
+        {
+            _online.Verify(a => a.ApplyHeldPaymentAsync(row.TransactionId, "OR-88", "Letter of 14 Nov", months), Times.Once);
+            _online.Verify(a => a.ResolveExceptionAsync(It.IsAny<Guid>(), It.IsAny<OnlinePaymentDisposition>(), It.IsAny<string>(), It.IsAny<string?>()), Times.Never);
+            Assert.Contains("applied to rent under OR OR-88", cut.Markup);
+            Assert.Empty(cut.FindAll("[role=dialog]"));
+        }, Wait);
+    }
+
+    [Fact]
+    public void MoneyThePlanCannotPlace_SaysWhy_AndCannotBeApplied()
+    {
+        var row = Row(OnlinePaymentExceptionKind.NeedsDecision, captured: 1_500m);
+        var cut = Open("SuperAdmin", Rows(row));
+        _online.Setup(a => a.GetHeldPaymentPlanAsync(row.TransactionId)).ReturnsAsync(Result<HeldPaymentPlanDto>.Success(new(1_500m,
+            [new(2026, 7, 1_000m, 1_000m)], "₱500.00 would have no month to go to: this office does not take rent for a month that has not begun. Record a refund instead.")));
+
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent == "Record decision"), Wait);
+        cut.FindAll("button").Single(b => b.TextContent == "Record decision").Click();
+        cut.FindAll("input[name=op-decide-kind]")[2].Change(true);
+        cut.Find("#op-decide-reference").Input("OR-88");
+        cut.Find("#op-decide-request").Input("Letter");
+
+        cut.WaitForAssertion(() => Assert.Contains("Record a refund instead", cut.Find("[role=dialog] [role=alert]").TextContent), Wait);
+        Assert.Empty(cut.FindAll(".op-apply-months"));
+        Assert.True(cut.FindAll("button").Single(b => b.TextContent == "Apply to rent").HasAttribute("disabled"));
+    }
+
+    [Fact]
     public void ARefusedDecision_StaysOpenAndSaysWhy()
     {
         var row = Row(OnlinePaymentExceptionKind.NeedsDecision);

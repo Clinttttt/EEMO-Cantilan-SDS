@@ -20,4 +20,10 @@ public interface IOnlinePaymentsApiClient
 
     /// <summary>Head only: records what became of a held capture.</summary>
     Task<Result<bool>> ResolveExceptionAsync(Guid transactionId, OnlinePaymentDisposition disposition, string reference, string? note);
+
+    /// <summary>Head only: the months a held capture would pay if applied to the space's rent.</summary>
+    Task<Result<HeldPaymentPlanDto>> GetHeldPaymentPlanAsync(Guid transactionId);
+
+    /// <summary>Head only: applies a held capture to those months under the OR the office issues.</summary>
+    Task<Result<bool>> ApplyHeldPaymentAsync(Guid transactionId, string orNumber, string writtenRequest, IReadOnlyList<HeldPaymentMonthDto> months);
 }

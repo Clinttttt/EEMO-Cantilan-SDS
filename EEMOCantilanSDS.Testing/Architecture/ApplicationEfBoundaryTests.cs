@@ -182,6 +182,8 @@ public class ApplicationEfBoundaryTests
         // Online payments: the gateway webhook and its confirmation.
         "HandlePaymentWebhookCommandHandler.cs",
         "ConfirmOnlinePaymentCommandHandler.cs",
+        // Applying a held capture to rent: only to recognise a lost concurrency race and answer it as a conflict, never to query.
+        "ApplyHeldOnlinePaymentCommand.cs",
 
         // The rent adapter reads the existing PaymentRecord/occupancy authority in the same application scope;
         // it never owns a mutable receivable balance or writes settlement. The shared Composer validates the

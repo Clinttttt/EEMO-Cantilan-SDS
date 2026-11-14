@@ -70,6 +70,7 @@ If no gateway is connected, the page opens on its setup screen. Choose **Back to
 - **Needs attention.** The gateway took money that could not post on its own: the amount differed, or the month was already paid. The month stays held and the payor is told not to pay it again. Both Head and Admin see this list.
 - **Check with gateway.** Asks the gateway about a payment now, without waiting for its message. StallTrack also checks open payments by itself every 15 minutes.
 - **Record decision (Head only).** Records what happened to held money: refunded through the gateway, or applied through an Official Receipt the office issued. Give the reference. **This records the decision only. It does not move money.** Do the refund at the gateway first.
+- **Apply it to this space's rent now (Head only).** For monthly rent, when the payor asks in writing for the money to be credited instead of refunded. StallTrack shows the months it would pay, the oldest unpaid month first, then this month and the months ahead your office takes, with the last month in part. Enter the OR you issue and the date or reference of the payor's written request, then choose **Apply to rent**. The months are recorded as paid under that OR in one step. If some of the money would have no month to go to, it cannot be applied: record a refund instead.
 
 An unpaid checkout closes after 24 hours, and an old payment link stops working.
 

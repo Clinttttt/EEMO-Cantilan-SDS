@@ -24,4 +24,10 @@ public class OnlinePaymentsApiClient(HttpClient http) : HandleResponse(http), IO
 
     public async Task<Result<bool>> ResolveExceptionAsync(Guid transactionId, OnlinePaymentDisposition disposition, string reference, string? note) =>
         await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/resolution", new { Disposition = disposition, Reference = reference, Note = note });
+
+    public async Task<Result<HeldPaymentPlanDto>> GetHeldPaymentPlanAsync(Guid transactionId) =>
+        await GetAsync<HeldPaymentPlanDto>($"api/onlinepayments/{transactionId}/application");
+
+    public async Task<Result<bool>> ApplyHeldPaymentAsync(Guid transactionId, string orNumber, string writtenRequest, IReadOnlyList<HeldPaymentMonthDto> months) =>
+        await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/application", new { ORNumber = orNumber, WrittenRequest = writtenRequest, Months = months });
 }
