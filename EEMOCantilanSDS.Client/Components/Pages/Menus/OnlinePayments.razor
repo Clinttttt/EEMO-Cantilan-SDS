@@ -626,25 +626,73 @@
                     <fieldset class="op-decide-options">
                         <legend class="form-label">What became of this money?</legend>
                         <label class="op-decide-option">
-                            <input type="radio" name="op-decide-kind" checked="@(_decideKind == OnlinePaymentDisposition.Refunded)"
-                                   @onchange="() => _decideKind = OnlinePaymentDisposition.Refunded" />
+                            <input type="radio" name="op-decide-kind" checked="@(!_applyNow && _decideKind == OnlinePaymentDisposition.Refunded)"
+                                   @onchange="() => ChooseRecorded(OnlinePaymentDisposition.Refunded)" />
                             <span>Refunded through the gateway</span>
                         </label>
                         <label class="op-decide-option">
-                            <input type="radio" name="op-decide-kind" checked="@(_decideKind == OnlinePaymentDisposition.Applied)"
-                                   @onchange="() => _decideKind = OnlinePaymentDisposition.Applied" />
+                            <input type="radio" name="op-decide-kind" checked="@(!_applyNow && _decideKind == OnlinePaymentDisposition.Applied)"
+                                   @onchange="() => ChooseRecorded(OnlinePaymentDisposition.Applied)" />
                             <span>Applied through an Official Receipt the office issued</span>
                         </label>
+                        <label class="op-decide-option">
+                            <input type="radio" name="op-decide-kind" checked="@_applyNow" @onchange="ChooseApplyAsync" />
+                            <span>Apply it to this space's rent now, on the payor's written request</span>
+                        </label>
                     </fieldset>
+                    @if (_applyNow)
+                    {
+                        @* The server's plan, shown before anything is saved; the save sends it back so a changed plan is refused. *@
+                        @if (_planError is { } planError)
+                        {
+                            <div class="op-banner op-banner-error op-apply-note" role="alert">
+                                <span>@planError</span>
+                                <button class="btn-ghost" type="button" @onclick="() => LoadPlanAsync(deciding)">Try again</button>
+                            </div>
+                        }
+                        else if (_plan is null)
+                        {
+                            <div class="op-muted op-apply-note" role="status">Working out the months…</div>
+                        }
+                        else if (_plan.Refusal is { } refusal)
+                        {
+                            <div class="op-banner op-banner-error op-apply-note" role="alert">@refusal</div>
+                        }
+                        else
+                        {
+                            <div class="form-label" id="op-apply-months-title">Months it pays, oldest first</div>
+                            <ul class="op-apply-months" aria-labelledby="op-apply-months-title">
+                                @foreach (var month in _plan.Months)
+                                {
+                                    <li @key="(month.Year, month.Month)">
+                                        <span>@(new DateOnly(month.Year, month.Month, 1).ToString("MMMM yyyy"))</span>
+                                        <span class="op-amt">₱@month.Applied.ToString("N2")@(month.Applied < month.Due ? $" of ₱{month.Due:N2}" : "")</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
                     <div class="form-group">
-                        <label class="form-label" for="op-decide-reference">@(_decideKind == OnlinePaymentDisposition.Applied ? "OR number" : "Refund reference")</label>
-                        <input class="form-input" id="op-decide-reference" type="text" maxlength="100" autocomplete="off" @bind="_decideReference" @bind:event="oninput" />
+                        <label class="form-label" for="op-decide-reference">@(_applyNow || _decideKind == OnlinePaymentDisposition.Applied ? "OR number" : "Refund reference")</label>
+                        <input class="form-input" id="op-decide-reference" type="text" maxlength="@(_applyNow ? 30 : 100)" autocomplete="off" @bind="_decideReference" @bind:event="oninput" />
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="op-decide-note">Note (optional)</label>
-                        <textarea class="form-input" id="op-decide-note" rows="2" maxlength="500" @bind="_decideNote" @bind:event="oninput"></textarea>
-                    </div>
-                    <div class="op-field-hint">This records the outcome. It does not change a balance or issue a receipt.</div>
+                    @if (_applyNow)
+                    {
+                        <div class="form-group">
+                            <label class="form-label" for="op-decide-request">Payor's written request</label>
+                            <input class="form-input" id="op-decide-request" type="text" maxlength="200" autocomplete="off" aria-describedby="op-decide-request-hint" @bind="_decideRequest" @bind:event="oninput" />
+                            <div class="op-field-hint" id="op-decide-request-hint">Its date or reference. A refund or credit is granted only on the payor's written claim.</div>
+                        </div>
+                        <div class="op-field-hint">Records these months as paid under this OR, and this decision, in one step.</div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label class="form-label" for="op-decide-note">Note (optional)</label>
+                            <textarea class="form-input" id="op-decide-note" rows="2" maxlength="500" @bind="_decideNote" @bind:event="oninput"></textarea>
+                        </div>
+                        <div class="op-field-hint">This records the outcome. It does not change a balance or issue a receipt.</div>
+                    }
                     @if (!string.IsNullOrEmpty(_decideError))
                     {
                         <div class="op-banner op-banner-error op-decide-error" role="alert">@_decideError</div>
@@ -652,7 +700,7 @@
                 </div>
                 <div class="eemo-modal-footer">
                     <button class="btn-ghost" type="button" disabled="@_decideSaving" @onclick="CloseDecision">Cancel</button>
-                    <button class="btn-primary" type="button" disabled="@(_decideSaving || string.IsNullOrWhiteSpace(_decideReference))" @onclick="SaveDecisionAsync">@(_decideSaving ? "Saving…" : "Save decision")</button>
+                    <button class="btn-primary" type="button" disabled="@(!CanSaveDecision)" @onclick="SaveDecisionAsync">@(_decideSaving ? "Saving…" : _applyNow ? "Apply to rent" : "Save decision")</button>
                 </div>
             </div>
         </div>
@@ -878,6 +926,13 @@
     private string _decideNote = string.Empty;
     private string? _decideError;
     private bool _decideSaving;
+    private bool _applyNow;
+    private HeldPaymentPlanDto? _plan;
+    private string? _planError;
+    private string _decideRequest = string.Empty;
+
+    private bool CanSaveDecision => !_decideSaving && !string.IsNullOrWhiteSpace(_decideReference)
+        && (!_applyNow || _plan is { Refusal: null } && !string.IsNullOrWhiteSpace(_decideRequest));
 
     private int DecidedCount => _exceptions.Count(e => e.Kind == OnlinePaymentExceptionKind.Resolved);
     private IEnumerable<OnlinePaymentExceptionDto> VisibleExceptions =>
@@ -964,7 +1019,33 @@
         _decideReference = string.Empty;
         _decideNote = string.Empty;
         _decideKind = OnlinePaymentDisposition.Refunded;
+        _applyNow = false;
+        _plan = null;
+        _planError = null;
+        _decideRequest = string.Empty;
         _deciding = row;
+    }
+
+    private void ChooseRecorded(OnlinePaymentDisposition kind)
+    {
+        _applyNow = false;
+        _decideKind = kind;
+    }
+
+    private async Task ChooseApplyAsync()
+    {
+        _applyNow = true;
+        if (_plan is null && _deciding is { } row) await LoadPlanAsync(row);
+    }
+
+    private async Task LoadPlanAsync(OnlinePaymentExceptionDto row)
+    {
+        _plan = null;
+        _planError = null;
+        var result = await OnlinePaymentsApi.GetHeldPaymentPlanAsync(row.TransactionId);
+        if (_deciding?.TransactionId != row.TransactionId) return;
+        if (result is { IsSuccess: true, Value: not null }) _plan = result.Value;
+        else _planError = result.Error ?? "Couldn't work out the months this payment would pay.";
     }
 
     private void CloseDecision()
@@ -974,23 +1055,28 @@
 
     private async Task SaveDecisionAsync()
     {
-        if (_deciding is not { } row || string.IsNullOrWhiteSpace(_decideReference)) return;
+        if (_deciding is not { } row || !CanSaveDecision) return;
 
         _decideError = null;
         _decideSaving = true;
         try
         {
-            var result = await OnlinePaymentsApi.ResolveExceptionAsync(row.TransactionId, _decideKind, _decideReference.Trim(),
-                string.IsNullOrWhiteSpace(_decideNote) ? null : _decideNote.Trim());
+            var reference = _decideReference.Trim();
+            var result = _applyNow
+                ? await OnlinePaymentsApi.ApplyHeldPaymentAsync(row.TransactionId, reference, _decideRequest.Trim(), _plan!.Months)
+                : await OnlinePaymentsApi.ResolveExceptionAsync(row.TransactionId, _decideKind, reference,
+                    string.IsNullOrWhiteSpace(_decideNote) ? null : _decideNote.Trim());
             if (!result.IsSuccess)
             {
                 _decideError = result.Error ?? "Could not save the decision.";
+                // A refused application shows the plan as it stands now rather than the one that was refused.
+                if (_applyNow) await LoadPlanAsync(row);
                 return;
             }
 
             _deciding = null;
             _exceptionMsgIsError = false;
-            _exceptionMsg = $"Decision recorded for {row.Reference}.";
+            _exceptionMsg = _applyNow ? $"{row.Reference} was applied to rent under OR {reference}." : $"Decision recorded for {row.Reference}.";
             await LoadExceptionsAsync();
         }
         finally

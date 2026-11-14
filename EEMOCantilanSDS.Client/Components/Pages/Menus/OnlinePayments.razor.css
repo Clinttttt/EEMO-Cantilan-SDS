@@ -961,3 +961,34 @@
 .op-decide-error {
     margin: 0.75rem 0 0;
 }
+
+/* Where a held payment would go: a short register of months, amounts aligned right. */
+.op-apply-note {
+    margin: 0 0 1rem;
+}
+
+.op-apply-months {
+    list-style: none;
+    margin: 0.25rem 0 1rem;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.op-apply-months li {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.88rem;
+    color: var(--text);
+}
+
+.op-apply-months li + li {
+    border-top: 1px solid var(--border);
+}
+
+.op-apply-months .op-amt {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}

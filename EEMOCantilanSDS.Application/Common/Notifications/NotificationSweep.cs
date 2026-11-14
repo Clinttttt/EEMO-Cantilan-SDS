@@ -118,7 +118,8 @@ public sealed class NotificationSweep(IAppDbContext db, IPayorRepository payors,
 
         foreach (var p in payments)
         {
-            var what = p.Stall is { } id && stalls.TryGetValue(id, out var no) && p.Year is { } y && p.Month is { } m ? $"{no}, {MonthName(y, m)}" : "your account";
+            var space = p.Stall is { } id && stalls.TryGetValue(id, out var no) ? no : null;
+            var what = space is not null && p.Year is { } y && p.Month is { } m ? $"{space}, {MonthName(y, m)}" : "your account";
             void Say(string kind, string title, string body, string link) =>
                 messages.Add(new(InboxRecipientKind.Payor, p.PayorUserId, $"{kind}:{p.Id:N}", title, body, link));
 
@@ -132,7 +133,8 @@ public sealed class NotificationSweep(IAppDbContext db, IPayorRepository payors,
                 if (p.Disposition is null)
                     Say("payment-review", "Payment under review", $"The gateway reported {Peso(p.Amount)} for {what} and the office is reviewing it. Please do not pay this month again. Reference {p.Reference}.", "/balances");
                 else if (p.Disposition == OnlinePaymentDisposition.Applied)
-                    Say("payment-decided", "Payment review finished", $"The office applied your {Peso(p.Amount)} payment for {what}. Receipt reference {p.DispositionReference}.", "/history");
+                    // Not the checkout's month: held money may have paid older months first (IA-082), leaving that month unpaid.
+                    Say("payment-decided", "Payment review finished", $"The office applied your {Peso(p.Amount)} payment{(space is null ? "" : $" for {space}")} under receipt {p.DispositionReference}. Your balances show what is still owed.", "/balances");
                 else if (p.Disposition == OnlinePaymentDisposition.Refunded)
                     Say("payment-decided", "Payment review finished", $"The office recorded a refund of your {Peso(p.Amount)} payment for {what}. Refund reference {p.DispositionReference}.", "/history");
             }
