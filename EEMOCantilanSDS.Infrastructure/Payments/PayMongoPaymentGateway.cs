@@ -254,7 +254,8 @@ public sealed class PayMongoPaymentGateway(
     /// <summary>
     /// Reconciliation fallback: retrieves the checkout session directly from PayMongo and maps it to a
     /// normalized event. A session whose <c>payments[]</c> contains a <c>paid</c> payment is reported as
-    /// Paid (with that payment's id/amount/method/paid_at); an <c>expired</c> session as Expired;
+    /// Paid (with that payment's id/amount/method/paid_at); an <c>expired</c> session as Expired; an
+    /// open session whose every attempt failed as Failed (the payor can still retry in it);
     /// everything else (still active/unpaid) as Unknown. Read-only — never mutates the provider.
     /// </summary>
     public async Task<Result<PaymentGatewayEvent>> RetrievePaymentStatusAsync(
@@ -296,14 +297,19 @@ public sealed class PayMongoPaymentGateway(
             var attrs = data.GetProperty("attributes");
 
             // Look for a settled payment in the session's payments[] array.
+            var attempts = 0;
+            var failedAttempts = 0;
             if (attrs.TryGetProperty("payments", out var payments) && payments.ValueKind == JsonValueKind.Array)
             {
                 foreach (var payment in payments.EnumerateArray())
                 {
                     if (!payment.TryGetProperty("attributes", out var pa) || pa.ValueKind != JsonValueKind.Object)
                         continue;
-                    if (!pa.TryGetProperty("status", out var statusEl)
-                        || !string.Equals(statusEl.GetString(), "paid", StringComparison.OrdinalIgnoreCase))
+                    var attemptStatus = pa.TryGetProperty("status", out var statusEl) ? statusEl.GetString() : null;
+                    attempts++;
+                    if (string.Equals(attemptStatus, "failed", StringComparison.OrdinalIgnoreCase))
+                        failedAttempts++;
+                    if (!string.Equals(attemptStatus, "paid", StringComparison.OrdinalIgnoreCase))
                         continue;
 
                     var paymentId = payment.TryGetProperty("id", out var payIdEl) ? payIdEl.GetString() : null;
@@ -330,7 +336,9 @@ public sealed class PayMongoPaymentGateway(
             var sessionStatus = attrs.TryGetProperty("status", out var sStatusEl) ? sStatusEl.GetString() : null;
             var type = string.Equals(sessionStatus, "expired", StringComparison.OrdinalIgnoreCase)
                 ? PaymentGatewayEventType.Expired
-                : PaymentGatewayEventType.Unknown;
+                : attempts > 0 && failedAttempts == attempts
+                    ? PaymentGatewayEventType.Failed
+                    : PaymentGatewayEventType.Unknown;
 
             return Result<PaymentGatewayEvent>.Success(
                 new PaymentGatewayEvent(type, sessionId, 0m, null, null, null, payload));

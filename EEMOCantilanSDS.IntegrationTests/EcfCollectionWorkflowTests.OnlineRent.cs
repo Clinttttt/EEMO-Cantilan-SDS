@@ -173,7 +173,10 @@ public sealed partial class EcfCollectionWorkflowTests
         Assert.Equal(ResultStatus.Conflict, result.Status);
         await using var verify = db.CreateContext(seed.TenantId);
         Assert.Empty(await verify.Collections.ToArrayAsync());
-        Assert.Equal(OnlinePaymentStatus.Pending, (await verify.OnlinePaymentTransactions.SingleAsync()).Status);
+        // The gateway has the money, so the capture is kept for the office. It used to stay Pending with nothing recorded.
+        var held = await verify.OnlinePaymentTransactions.SingleAsync();
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, held.Status);
+        Assert.Equal(1000m, held.CapturedAmount);
     }
 
     [SkippableFact]

@@ -177,7 +177,8 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
             }
             // A canonical ICE rent source (converted) and a legacy TCC rent source (still legacy).
             var iceFacility = Facility.Create(FacilityCode.ICE, "Ice Plant", "ICE", municipalityId: tenant.Id);
-            var tccFacility = Facility.Create(FacilityCode.TCC, "Tampak Commercial Center", "TCC", municipalityId: tenant.Id);
+            // A nondefault office's own facility name must win over legacy Cantilan report labels.
+            var tccFacility = Facility.Create(FacilityCode.TCC, "Madrid Commercial Center", "TCC", municipalityId: tenant.Id);
             var payor = Payor.Create(tenant.Id, "Pedro Vendor", BusinessPayorKind.Person, "test");
             var iceStallEntity = Stall.Create(iceFacility.Id, "ICE-01", 1000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
             var contract = Contract.Create(iceStallEntity.Id, "Pedro Vendor", "Pedro Vendor", period, 5, 1000m, createdBy: "test");
@@ -252,6 +253,13 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
 
         // Legacy-authoritative rows are counted from their sources ...
         Assert.Equal(900m, Cell(before, "RENT_TCC", c => c.Legacy));
+        Assert.Equal("Madrid Commercial Center (TCC)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").Label);
+        Assert.True(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_TCC").ShowOnOfficialReport);
+        Assert.Equal("NCC rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").Label);
+        Assert.False(before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NCC").ShowOnOfficialReport);
+        Assert.Equal("NPM rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_NPM").Label);
+        Assert.Equal("BBQ rental (historical)", before.Groups.SelectMany(g => g.Rows).Single(r => r.Key == "RENT_BBQ").Label);
+        Assert.DoesNotContain(before.Groups.SelectMany(g => g.Rows), r => r.Label.Contains("Tampak Commercial", StringComparison.Ordinal));
         Assert.Equal(100m, Cell(before, "ECF", c => c.Legacy));
         // ... canonical-authoritative rows from their Collections ...
         Assert.Equal(30m, Cell(before, "MARKET_FEES", c => c.Canonical));
@@ -337,6 +345,32 @@ public sealed class OfficialMonthlyIncomeTests(PostgresFixture db)
         Assert.Equal(0m, Cell(statement, "RENT_TCC", c => c.Canonical));
         Assert.Equal(60m, Cell(statement, "MARKET_FEES", c => c.Canonical));
         Assert.Equal(900m + 100m + 60m, statement.GrandTotal.Total);
+    }
+
+    [SkippableFact]
+    public async Task LegacyRent_FromAPriorYear_ReportsOnArrears_AndTheTotalCountsItOnce()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var w = await SeedAsync();
+        decimal totalBefore;
+        await using (var ctx = db.CreateContext(w.Tenant.Id))
+        {
+            totalBefore = Statement(w, ctx).GrandTotal.Total;
+            var stall = await ctx.PaymentRecords.Where(x => x.BaseRentalAmount == 900m).Select(x => x.StallId).SingleAsync();
+            var old = PaymentRecord.Create(stall, Today.Year - 1, 12, 700m, "test");
+            old.RecordPayment("LEGACY-OLD", w.Collector.Id, PaymentStatus.Paid, updatedBy: "test");
+            ctx.Add(old);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using var read = db.CreateContext(w.Tenant.Id);
+        var statement = Statement(w, read);
+
+        Assert.Equal(700m, Cell(statement, "ARREARS", c => c.Legacy));
+        Assert.Equal(900m, Cell(statement, "RENT_TCC", c => c.Legacy));   // this year's rent stays where it was
+        Assert.Equal(totalBefore + 700m, statement.GrandTotal.Total);
+        Assert.Equal(new RecoveredArrearsDto(FacilityCode.TCC, 700m), Assert.Single(statement.RecoveredArrears!));
     }
 
     private async Task<Guid> ReadTccRecordIdAsync(World w)

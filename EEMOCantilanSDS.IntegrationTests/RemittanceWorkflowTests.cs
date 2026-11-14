@@ -10,6 +10,9 @@ using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
+using EEMOCantilanSDS.Infrastructure.Repositories;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
+using EEMOCantilanSDS.Domain.Entities.Payments;
 using Microsoft.EntityFrameworkCore;
 
 namespace EEMOCantilanSDS.IntegrationTests;
@@ -43,6 +46,34 @@ public sealed class RemittanceWorkflowTests(PostgresFixture db)
     private sealed record World(Municipality Tenant, CollectorUser Collector, Guid HeadId, Guid BookId, List<AccountableDocument> Documents);
 
     private static readonly DateOnly Today = PhilippineTime.Today;
+
+    [SkippableFact]
+    public async Task Legacy_only_collector_is_visible_without_becoming_remittable()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var w = await SeedAsync("legacy");
+        await using var ctx = db.CreateContext(w.Tenant.Id);
+        var facility = Facility.Create(FacilityCode.NCC, "Madrid Commercial Stalls", "NCC", municipalityId: w.Tenant.Id);
+        var stall = Stall.Create(facility.Id, "27", 2300m, ApplicableFees.BaseRental, municipalityId: w.Tenant.Id);
+        var old = PaymentRecord.Create(stall.Id, Today.Year, Today.Month, 2300m, "test");
+        old.RecordPayment("OR-949449", w.Collector.Id, PaymentStatus.Paid, updatedBy: "test");
+        ctx.AddRange(facility, stall, old);
+        await ctx.SaveChangesAsync();
+
+        var workflow = new RemittanceWorkflow(ctx, new Caller(w.HeadId, w.Tenant.Id, "SuperAdmin"),
+            new FixedTenant(w.Tenant.Id), new CollectorReportQueries(ctx));
+        var position = await workflow.GetPositionAsync(Today, Today);
+        Assert.True(position.IsSuccess, position.Error);
+        var collector = Assert.Single(position.Value!.Collectors, r => r.CollectorId == w.Collector.Id);
+        Assert.Equal(2300m, collector.LegacyCollectionsOutsideRemittance);
+        Assert.Equal(0m, collector.Collected);
+        Assert.Equal(0m, collector.Unremitted);
+        Assert.Equal(2300m, position.Value.LegacyCollectionsOutsideRemittance);
+        var scope = await workflow.GetScopeAsync(w.Collector.Id, Today, Today, null);
+        Assert.True(scope.IsSuccess, scope.Error);
+        Assert.Empty(scope.Value!.Collections);
+    }
 
     private async Task<World> SeedAsync(string label = "rem")
     {

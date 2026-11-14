@@ -244,7 +244,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 1.5rem 1.25rem;
-    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    background: linear-gradient(135deg, var(--dark-navy-fill, var(--navy)) 0%, var(--dark-navy-2-fill, var(--navy-2)) 100%);
     border-bottom: 1px solid rgba(200, 168, 75, 0.2);
     flex-shrink: 0;
 }
@@ -342,7 +342,7 @@
     gap: 3px;
     padding: 10px 12px;
     text-align: left;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     border: 1px solid var(--border, #d6dde5);
     border-radius: 6px;
     cursor: pointer;
@@ -354,7 +354,7 @@
 }
 
 .vds ::deep .avm-choice-item.is-selected {
-    background: color-mix(in srgb, var(--navy, #0b2239) 6%, #fff);
+    background: color-mix(in srgb, var(--dark-navy-fill, var(--navy, #0b2239)) 6%, var(--dark-surface, #fff));
     border-color: var(--navy, #0b2239);
     box-shadow: inset 0 0 0 1px var(--navy, #0b2239);
 }
@@ -362,7 +362,7 @@
 .vds ::deep .avm-choice-title {
     font-size: 12.5px;
     font-weight: 700;
-    color: var(--text-strong, #0b2239);
+    color: var(--text-strong, var(--dark-text, #0b2239));
     line-height: 1.3;
 }
 
@@ -389,7 +389,7 @@
     font-size: 13.5px;
     font-weight: 650;
     color: var(--text-muted);
-    background: var(--bg-subtle, #f4f6f8);
+    background: var(--bg-subtle, var(--dark-surface-muted, #f4f6f8));
     width: 100%;
     box-sizing: border-box;
     font-family: inherit;
@@ -493,7 +493,7 @@
     }
 
     .vds ::deep .eemo-drawer-header-close:focus-visible {
-        outline: 2px solid #ffffff;
+        outline: 2px solid var(--dark-surface, #ffffff);
         outline-offset: 2px;
     }
 @media (max-width: 640px) { .avm-row-2 { grid-template-columns: 1fr; } }
@@ -502,8 +502,8 @@
 /* The selected basis / event card is filled with the civic accent (the white title and note above are lifted for it). */
 .vds ::deep .avm-choice-item.is-selected {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 /* AddNewDrawer mounts only while open: animate that entry without mounting hidden forms. */

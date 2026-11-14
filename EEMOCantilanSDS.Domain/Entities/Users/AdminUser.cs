@@ -98,6 +98,9 @@ namespace EEMOCantilanSDS.Domain.Entities.Users
             LockedUntil = null;
         }
 
+        // Stamped when a session is issued: the password step of a two-factor sign-in is not a sign-in yet.
+        public void RecordSessionIssued(DateTime asOf) => LastLoginAt = asOf;
+
 
     }
 

@@ -87,6 +87,7 @@ public class MfaLoginEnforcementTests
         Assert.False(string.IsNullOrWhiteSpace(result.Value.MfaChallengeToken));
         // The critical assertion: NO session was created by the password step.
         Assert.Equal(string.Empty, result.Value.AccessToken);
+        Assert.Null(admin.LastLoginAt);
         Assert.Equal(string.Empty, result.Value.RefreshToken);
         token.Verify(t => t.CreateTokenResponse(It.IsAny<BaseUser>()), Times.Never);
         // Only the hash is persisted; the raw challenge exists solely in the response.
@@ -160,6 +161,7 @@ public class MfaLoginEnforcementTests
         using var verify = new AppDbContext(options);
         var saved = await verify.AdminUsers.IgnoreQueryFilters().FirstAsync(u => u.Id == admin.Id);
         Assert.Null(saved.MfaChallengeTokenHash);       // single use
+        Assert.NotNull(saved.LastLoginAt);              // the session exists now
     }
 
     [Fact]

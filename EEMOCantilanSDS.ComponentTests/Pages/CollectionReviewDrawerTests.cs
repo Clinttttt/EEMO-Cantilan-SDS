@@ -61,6 +61,49 @@ public sealed class CollectionReviewDrawerTests : TestContext
         return page;
     }
 
+
+    [Fact]
+    public void Canonical_collection_offers_printable_pdf_information_copy_with_real_src()
+    {
+        var page = Render(Review(true), Canonical());
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-download")), Timeout);
+        Assert.Contains("Print / Save as PDF", page.Find(".txr-foot").TextContent);
+        var paper = page.Find(".txr-paper").TextContent;
+        Assert.Contains("Collection Record", paper);
+        Assert.Contains("Information copy", paper);
+        Assert.Contains("SRC-2026-000003", paper);
+        Assert.Contains("NCC rent", paper);
+        Assert.Contains("600.00", paper);
+        Assert.Contains("None recorded", paper);
+        Assert.DoesNotContain("Download CSV", page.Find(".txr-foot").TextContent);
+
+        page.Find(".txr-download").Click();
+        page.WaitForAssertion(() =>
+        {
+            var call = Assert.Single(JSInterop.Invocations, i => i.Identifier == "stalltrackPrint.sectionDocument");
+            Assert.Equal(".txr-paper", call.Arguments[0]?.ToString());
+            Assert.Equal("txr-print-active", call.Arguments[1]?.ToString());
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Legacy_payment_print_copy_preserves_physical_receipt_without_inventing_src()
+    {
+        var page = Render(null, Legacy());
+        page.Find(".txn-row").Click();
+        page.WaitForAssertion(() => Assert.NotNull(page.Find(".txr-paper")), Timeout);
+        var paper = page.Find(".txr-paper").TextContent;
+        Assert.Contains("Legacy Payor", paper);
+        Assert.Contains("546564", paper);
+        Assert.Contains("1,200.00", paper);
+        Assert.DoesNotContain("StallTrack reference", paper);
+        Assert.DoesNotContain("SRC-2026-", paper);
+        Assert.Contains("Not an Official Receipt", paper);
+        page.Find(".txr-download").Click();
+        JSInterop.VerifyInvoke("stalltrackPrint.sectionDocument");
+    }
+
     [Fact]
     public void Review_shows_the_selected_SRC_facts_eligibility_and_a_reconciliation_link()
     {
@@ -147,9 +190,10 @@ public sealed class CollectionReviewDrawerTests : TestContext
         var page = Render(null, Legacy());
         page.Find(".txn-row").Click();
 
-        page.WaitForAssertion(() => Assert.Contains("legacy record", page.Find(".txr").TextContent), Timeout);
+        page.WaitForAssertion(() => Assert.Contains("recorded through a legacy financial workflow", page.Find(".txr").TextContent), Timeout);
         Assert.Contains("546564", page.Find(".txr").TextContent);
-        Assert.Contains("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("StallTrack reference", page.Find(".txr-meta").TextContent);
+        Assert.DoesNotContain("Not issued (legacy record)", page.Find(".txr-meta").TextContent);
         Assert.Contains("recorded through a legacy financial workflow", page.Find(".txn-note").TextContent);
         Assert.DoesNotContain("recorded before SRCs", page.Find(".txr").TextContent);
         Assert.Empty(page.FindAll(".txn-reason"));

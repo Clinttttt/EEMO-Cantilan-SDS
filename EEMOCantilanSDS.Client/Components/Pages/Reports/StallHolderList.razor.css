@@ -16,10 +16,10 @@
 /* Facility filter — segmented control (matches the Month-End me-filter) */
 .sh-filter {
     display: inline-flex; flex-wrap: wrap; gap: 5px; align-items: center;
-    background: linear-gradient(180deg, #f8fbfd 0%, var(--bg) 100%);
+    background: linear-gradient(180deg, var(--dark-surface-muted, #f8fbfd) 0%, var(--bg) 100%);
     border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
     border-radius: 9px; padding: 4px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .86);
+    box-shadow: inset 0 1px 0 var(--dark-none, rgba(255, 255, 255, .86));
 }
 .sh-chip {
     min-height: 32px; padding: 6px 16px; border-radius: 6px;
@@ -31,7 +31,7 @@
 }
 .sh-chip:hover { color: var(--navy); }
 .sh-chip-active, .sh-chip-active:hover {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border-color: color-mix(in srgb, var(--navy) 76%, #fff); color: #fff;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 6px 13px rgba(9, 31, 52, .14);
 }
@@ -62,21 +62,21 @@
 
 .sh-print-btn {
     display: inline-flex; align-items: center; gap: 8px;
-    background: var(--accent); color: #fff; border: none; border-radius: 9px;
+    background: var(--dark-accent-fill, var(--accent)); color: #fff; border: none; border-radius: 9px;
     padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
     /* A button label never wraps. With the year now on this row the space grew tight and "Save as PDF" broke across two
        lines, which made the whole toolbar taller and read as an error. The buttons hold their width and the search gives way
        instead, which is the order of precedence the row already follows. */
     white-space: nowrap; flex: 0 0 auto;
 }
-.sh-print-btn:hover { background: var(--accent-hover); }
+.sh-print-btn:hover { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
 .sh-print-btn:disabled { opacity: .5; cursor: default; }
 .sh-print-btn svg { width: 16px; height: 16px; stroke: #fff; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* States */
 .sh-state { padding: 40px; text-align: center; color: var(--text-subtle); font-size: 14px; }
 .sh-state-error { color: var(--red); }
-.sh-retry { margin-left: 10px; background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
+.sh-retry { margin-left: 10px; background: var(--dark-accent-fill, var(--accent)); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; cursor: pointer; }
 
 /* Sheet + document header */
 .sh-sheet { background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px; padding: 28px; }
@@ -255,12 +255,12 @@
 .sh-print-btn svg { stroke: currentColor; stroke-width: 1.8; }
 
 .sh-print-btn-primary {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border-color: var(--accent);
     color: #fff;
 }
 .sh-print-btn-primary:hover {
-    background: var(--accent-hover);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
     border-color: var(--navy-2, #112d47);
 }
 
@@ -300,7 +300,7 @@
     margin-top: 4px;
     font-size: 11px;
     font-weight: 700;
-    color: #b98f27;
+    color: var(--dark-amber-text, #b98f27);
     text-transform: uppercase;
     letter-spacing: .1em;
     text-align: center;
@@ -326,10 +326,10 @@
 
 /* Section total reads exactly as it does on the per-facility roster: a small uppercase label pressed against
    its figures, and a hairline under the last row so the table closes properly on paper. */
-.sh-tfoot-row { background: #f8fafc; }
-.sh-tfoot-label { text-align: right !important; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #111827; }
-.sh-tfoot-val { font-size: 13px; font-weight: 700; color: #111827; }
-.sh-table tfoot td { border-top: 1px solid #cfd6de !important; border-bottom: 1px solid #cfd6de !important; }
+.sh-tfoot-row { background: var(--dark-surface-muted, #f8fafc); }
+.sh-tfoot-label { text-align: right !important; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--dark-text, #111827); }
+.sh-tfoot-val { font-size: 13px; font-weight: 700; color: var(--dark-text, #111827); }
+.sh-table tfoot td { border-top: 1px solid var(--dark-border, #cfd6de) !important; border-bottom: 1px solid var(--dark-border, #cfd6de) !important; }
 
 /* The table sits directly under its section band. */
 .sh-table {
@@ -348,14 +348,14 @@
     font-size: 11px;
     letter-spacing: .5px;
     padding: 8px 10px;
-    background: #f3f6f9;
+    background: var(--dark-surface-muted, #f3f6f9);
     color: var(--navy);
-    border: 1px solid #cfd6de;
+    border: 1px solid var(--dark-border, #cfd6de);
 }
 
 .sh-table td {
     padding: 8px 10px;
-    border: 1px solid #cfd6de;
+    border: 1px solid var(--dark-border, #cfd6de);
 }
 
 /* Section band reads across the table, as on the office's paper form. The row above is a flex container, so
@@ -364,8 +364,8 @@
     position: relative;
     justify-content: center;
     text-align: center;
-    background: #f3f6f9;
-    border: 1px solid #cfd6de;
+    background: var(--dark-surface-muted, #f3f6f9);
+    border: 1px solid var(--dark-border, #cfd6de);
     border-bottom: none;
     border-radius: 0;
     margin: 0;

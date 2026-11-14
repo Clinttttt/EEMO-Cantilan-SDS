@@ -36,7 +36,7 @@
     min-width: 18px;
     padding: 0 5px;
     border-radius: 999px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     font-size: 0.6875rem;
     font-weight: 700;
@@ -66,7 +66,7 @@
     gap: 14px;
     padding: 16px 20px;
     background: var(--civic-panel);
-    color: var(--bg-card);
+    color: var(--dark-on-fill, var(--bg-card));
 }
 
 .dcr-head-icon {
@@ -96,7 +96,7 @@
 
 .dcr-head-text h2 {
     margin: 0;
-    color: var(--bg-card);
+    color: var(--dark-on-fill, var(--bg-card));
     font-size: 1rem;
     font-weight: 700;
     overflow-wrap: anywhere;
@@ -134,7 +134,7 @@
     width: 16px;
     height: 16px;
     fill: none;
-    stroke: var(--bg-card);
+    stroke: var(--dark-on-fill, var(--bg-card));
     stroke-width: 2;
     stroke-linecap: round;
 }

@@ -48,12 +48,15 @@ namespace EEMOCantilanSDS.Infrastructure.Repositories
             if (allowMonthlyStall is { } monthlyStallId)
             {
                 if (await context.PaymentRecords.IgnoreQueryFilters()
-                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or && p.StallId != monthlyStallId, ct)) return false;
+                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.StallId != monthlyStallId
+                            && (p.ORNumber == or || p.Instalments.Any(i => i.ORNumber == or)), ct)) return false;
             }
             else
             {
+                // An earlier receipt of a month paid in parts keeps its OR after the record shows the newest one (IA-081).
                 if (await context.PaymentRecords.IgnoreQueryFilters()
-                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid) && p.ORNumber == or, ct)) return false;
+                        .AnyAsync(p => (mid == Guid.Empty || p.MunicipalityId == mid)
+                            && (p.ORNumber == or || p.Instalments.Any(i => i.ORNumber == or)), ct)) return false;
             }
 
             // NPM daily: one OR may cover multiple days of the SAME stall (one receipt, several days);

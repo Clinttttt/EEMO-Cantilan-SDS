@@ -42,7 +42,7 @@
 /* ── Hero Banner ─────────────────────────────────────────── */
 .bbq-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -203,7 +203,7 @@
 
 .btn-outline:hover {
     border-color: var(--gold);
-    background: #fffbf0;
+    background: var(--dark-amber-tint, #fffbf0);
 }
 
 
@@ -291,7 +291,7 @@
 }
 
 .bbq-mini-stat.partial-stat .bbq-mini-val {
-    color: #b87333;
+    color: var(--dark-amber-text, #b87333);
 }
 
 /* ── Data Table Panel ────────────────────────────────────── */
@@ -347,7 +347,7 @@
 }
 
 .btn-action:hover {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: var(--gold-light);
     border-color: var(--navy);
 }
@@ -464,7 +464,7 @@
 }
 
 .btn-primary {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: #fff;
 }
 

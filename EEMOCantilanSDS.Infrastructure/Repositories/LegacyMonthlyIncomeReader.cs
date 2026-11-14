@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Enums;
@@ -31,38 +32,75 @@ public sealed class LegacyMonthlyIncomeReader(AppDbContext context) : ILegacyMon
                 When = d.UpdatedAt ?? d.CreatedAt,
                 DailyFee = d.DailyFee - (d.CanonicalAdjustmentCollectionId != null ? d.MonthEndAdjustment ?? 0m : 0m),
                 d.FishKilos, d.FishFeeAmountFrozen, d.MeatFeeAmount, d.SettlementAuthorityState,
-                Code = d.Stall!.Facility!.Code
+                Code = d.Stall!.Facility!.Code, d.StallId, d.CollectionDate
             }).ToListAsync(ct);
+
+        // Monthly rentals: the fee portion of what was paid, by the month it was paid. A converted row is excluded.
+        var monthly = await context.PaymentRecords.AsNoTracking()
+            .Where(p => p.Status != PaymentStatus.Unpaid && p.SettlementAuthorityState != SettlementAuthority.Canonical
+                && !p.Instalments.Any(i => i.Amount > 0m)
+                && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
+            .Select(p => new
+            {
+                When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt, p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos,
+                Code = p.Stall!.Facility!.Code, p.StallId, p.BillingYear, p.BillingMonth
+            }).ToListAsync(ct);
+
+        // A month paid in more than one receipt: each receipt in the month it came in (IA-081), never the whole at the last one.
+        var receipted = await context.PaymentRecords.AsNoTracking()
+            .Where(p => p.Status != PaymentStatus.Unpaid && p.SettlementAuthorityState != SettlementAuthority.Canonical
+                && p.Instalments.Any(i => i.Amount > 0m && i.ReceivedAt >= startUtc && i.ReceivedAt < endUtc))
+            .Select(p => new
+            {
+                p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos, Code = p.Stall!.Facility!.Code, p.StallId, p.BillingYear, p.BillingMonth,
+                Receipts = p.Instalments.OrderBy(i => i.ReceivedAt).Select(i => new { i.ReceivedAt, i.Amount }).ToList()
+            }).ToListAsync(ct);
+
+        // Rent that was already old when it was collected reports on the Arrears row, by the same rule as canonical cash (IA-076).
+        var rentStallIds = daily.Select(d => d.StallId).Concat(monthly.Select(p => p.StallId)).Concat(receipted.Select(p => p.StallId)).Distinct().ToList();
+        var stalls = await context.Stalls.AsNoTracking().Include(s => s.Contracts).Where(s => rentStallIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, ct);
+        string RentCode(Guid stall, int billingYear, int billingMonth, DateTime paidUtc) =>
+            RecoveredArrears.Qualifies(stalls.GetValueOrDefault(stall), billingYear, billingMonth, DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(paidUtc)))
+                ? RevenueClassificationCodes.Arrears
+                : RevenueClassificationCodes.PermanentStallRent;
+
         foreach (var d in daily)
         {
             var month = MonthOf(d.When);
             // A day paid by a canonical Collection is reported by that Collection; only its weighing stays on this side.
             if (CollectionSourceAuthorityMap.LegacyMoneyCounts(CollectionSourceKind.DailyCollection, d.SettlementAuthorityState))
-                facts.Add(new(month, RevenueClassificationCodes.PermanentStallRent, d.Code, d.DailyFee, "DailyCollection"));
+                facts.Add(new(month, RentCode(d.StallId, d.CollectionDate.Year, d.CollectionDate.Month, d.When), d.Code, d.DailyFee, "DailyCollection"));
             var fish = d.FishFeeAmountFrozen ?? 0m; // Unresolved history is not priced using a later ordinance.
             if (fish + d.MeatFeeAmount != 0m)
                 facts.Add(new(month, RevenueClassificationCodes.WeightAndMeasure, null, fish + d.MeatFeeAmount, "DailyCollection.Weighing"));
         }
 
-        // Monthly rentals: the fee portion of what was paid, by the month it was paid. A converted row is excluded.
-        var monthly = await context.PaymentRecords.AsNoTracking()
-            .Where(p => p.Status != PaymentStatus.Unpaid && p.SettlementAuthorityState != SettlementAuthority.Canonical
-                && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= startUtc && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < endUtc)
-            .Select(p => new
-            {
-                When = p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt, p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos,
-                Code = p.Stall!.Facility!.Code
-            }).ToListAsync(ct);
         foreach (var p in monthly)
         {
             var portion = EEMOCantilanSDS.Application.Common.Fees.CollectorFeeMoney.MonthlyFeePortion(
                 p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, 0m);
             var rent = Math.Min(portion, p.BaseRentalAmount);
             var month = MonthOf(p.When);
-            var classification = p.Code == FacilityCode.ICE ? RevenueClassificationCodes.IcePlant : RevenueClassificationCodes.PermanentStallRent;
+            // The Ice Plant is its own Market row, not stall rent, and no ruling sends its old rent to Arrears.
+            var classification = p.Code == FacilityCode.ICE ? RevenueClassificationCodes.IcePlant : RentCode(p.StallId, p.BillingYear, p.BillingMonth, p.When);
             facts.Add(new(month, classification, p.Code, rent, "PaymentRecord"));
             if (portion - rent > 0m)
                 facts.Add(new(month, RevenueClassificationCodes.WeightAndMeasure, null, portion - rent, "PaymentRecord.Weighing"));
+        }
+
+        foreach (var p in receipted)
+        {
+            var portion = EEMOCantilanSDS.Application.Common.Fees.CollectorFeeMoney.MonthlyFeePortion(
+                p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, 0m);
+            var placed = EEMOCantilanSDS.Application.Common.Fees.CollectorFeeMoney.PlaceReceipts(
+                portion, p.BaseRentalAmount, p.Receipts.Select(r => (r.ReceivedAt, r.Amount)));
+            foreach (var (when, rent, weighing) in placed.Where(x => x.Receipt >= startUtc && x.Receipt < endUtc))
+            {
+                var month = MonthOf(when);
+                var classification = p.Code == FacilityCode.ICE ? RevenueClassificationCodes.IcePlant : RentCode(p.StallId, p.BillingYear, p.BillingMonth, when);
+                if (rent != 0m) facts.Add(new(month, classification, p.Code, rent, "PaymentRecord"));
+                if (weighing > 0m) facts.Add(new(month, RevenueClassificationCodes.WeightAndMeasure, null, weighing, "PaymentRecord.Weighing"));
+            }
         }
 
         // Electricity and water, each by its own settlement authority. Converted parts are excluded.

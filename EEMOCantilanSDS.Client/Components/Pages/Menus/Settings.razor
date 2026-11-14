@@ -1,5 +1,4 @@
 ﻿@using EEMOCantilanSDS.Application.Common
-@using EEMOCantilanSDS.Application.Common.Authorization
 @page "/settings"
 @page "/admin"
 @using Microsoft.AspNetCore.Authorization
@@ -14,15 +13,15 @@
 @inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 
 @*
-    Tenant configuration overview and authorized management links.
-    Counts, identity, policy values and reference rates come from the settings API.
+    Everything the office configures, in one list grouped by what it is about. Each row says what it is and leads to the
+    one page that manages it; values live on those pages rather than being repeated here.
 *@
 
 <PageTitle>StallTrack — Settings</PageTitle>
 
 <header class="topbar">
     <div class="topbar-left">
-        <div class="topbar-title">Settings</div>
+        <h1 class="topbar-title">Settings</h1>
         <div class="topbar-breadcrumb">
             <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
@@ -39,187 +38,72 @@
 </header>
 
 <div class="content-area">
-
-    @{
-        var loaded = _model is not null;
-    }
-
-    <V3Hero Compact="true" Eyebrow="@($"{Branding.OfficeAcronym} Admin")" Title="Settings">
-        <Icon><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg></Icon>
-        <Figures>
-            <V3HeroFigure Label="Server month" Value="@(_model?.System.ServerDate.ToString("MMM yyyy") ?? "—")" Note="@_model?.System.TimeZone" />
-            <V3HeroFigure Label="Version" Value="@(loaded ? $"v{_model!.System.Version}" : "—")" Note="@_model?.System.ApplicationName" />
-        </Figures>
-    </V3Hero>
-
-    @if (_error is not null)
-    {
-        <div class="set-state">
-            <div class="set-state-title">Couldn't load settings</div>
-            <div class="set-state-text">@_error</div>
-            <button class="set-retry" @onclick="LoadAsync">Try again</button>
-        </div>
-    }
-    else
-    {
-        @* Where the office manages its configuration. Account, facility, operation, revenue and backup management belongs to
-           the Head; for an Administrator the same entries are stated but not offered — a link that leads to a refusal is worse
-           than no link. *@
-        <section class="set-card set-manage" aria-labelledby="set-manage-title">
-            <div class="set-card-head">
-                <div class="set-card-titles"><h2 id="set-manage-title" class="set-card-title">Manage</h2></div>
-                @if (!_isHead) { <span class="set-note set-note-inline">Managed by the @Branding.OfficeAcronym Head.</span> }
+    <div class="set-page">
+        @if (_error is not null)
+        {
+            <div class="set-state" role="alert">
+                <div class="set-state-title">Couldn't load settings</div>
+                <div class="set-state-text">@_error</div>
+                <button class="set-retry" @onclick="LoadAsync">Try again</button>
             </div>
-            <ul class="set-manage-list">
-                @foreach (var (href, label) in ManageLinks)
-                {
-                    <li>
-                        @if (_isHead)
-                        {
-                            <a class="set-manage-item" href="@href"><span>@label</span><span class="set-link-arrow" aria-hidden="true">→</span></a>
-                        }
-                        else
-                        {
-                            <span class="set-manage-item is-disabled" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head"><span>@label</span></span>
-                        }
-                    </li>
-                }
-            </ul>
-        </section>
+        }
 
-        <div class="set-grid">
-            <section class="set-card" aria-labelledby="set-office-title">
-                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-office-title" class="set-card-title">Office &amp; LGU Profile</h2></div></div>
-                <div class="set-rows">
-                    @if (loaded)
-                    {
-                        <div class="set-row"><span class="set-key">Office</span><span class="set-val">@_model!.Office.Office</span></div>
-                        <div class="set-row"><span class="set-key">Municipality</span><span class="set-val">@_model.Office.Municipality</span></div>
-                        <div class="set-row"><span class="set-key">Province</span><span class="set-val">@_model.Office.Province</span></div>
-                        <div class="set-row"><span class="set-key">System name</span><span class="set-val">@_model.Office.SystemName</span></div>
-                        <div class="set-row"><span class="set-key">Receipts issued by</span><span class="set-val">@_model.Office.ReceiptsIssuedBy</span></div>
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 5; i++)
-                        {
-                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
-                        }
-                    }
-                </div>
-            </section>
-
-            @* Only the rules the office applies: when an account is delinquent and what counts as arrears. *@
-            <section class="set-card" aria-labelledby="set-rules-title">
-                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-rules-title" class="set-card-title">Delinquency &amp; Arrears</h2></div></div>
-                <div class="set-rows">
-                    @if (loaded)
-                    {
-                        <div class="set-row"><span class="set-key">Delinquent</span><span class="set-val">@_model!.Collection.DelinquentThresholdMonths or more unpaid month(s)</span></div>
-                        <div class="set-row"><span class="set-key">Delinquency window</span><span class="set-val">Rolling @_model.Collection.DelinquencyWindowMonths months</span></div>
-                        <div class="set-row"><span class="set-key">Arrears</span><span class="set-val">Previous-year rent, expired contracts and ended occupancies, per obligation</span></div>
-                        <div class="set-row"><span class="set-key">Business clock</span><span class="set-val">@_model.Collection.TimeZone</span></div>
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 4; i++)
-                        {
-                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
-                        }
-                    }
-                </div>
-            </section>
-
-            <section class="set-card" aria-labelledby="set-security-title">
-                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-security-title" class="set-card-title">Security</h2></div></div>
-                <div class="set-rows">
-                    @if (loaded)
-                    {
-                        <div class="set-row"><span class="set-key">Sign-in session</span><span class="set-val">@_model!.Security.AccessTokenMinutes min · renews for @_model.Security.RefreshTokenDays days</span></div>
-                        <div class="set-row"><span class="set-key">Account lockout</span><span class="set-val">@_model.Security.MaxFailedLoginAttempts failed attempts · @_model.Security.LockoutMinutes minutes</span></div>
-                        <div class="set-row"><span class="set-key">Roles</span><span class="set-val">@string.Join(" · ", _model.Security.Roles)</span></div>
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 3; i++)
-                        {
-                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
-                        }
-                    }
-                </div>
-                <div class="set-links">
-                    <button class="set-2fa-btn" type="button" @onclick="() => _show2fa = true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /><path d="M12 15v3" />
-                        </svg>
-                        <span>Two-factor authentication</span>
-                        <span class="set-2fa-state @(_mfa?.Enabled == true ? "is-on" : "is-off")">
-                            @(_mfa is null ? "…" : _mfa.Enabled ? "On" : _mfa.PendingEnrollment ? "Unfinished" : "Off")
-                        </span>
-                    </button>
-                </div>
-            </section>
-
-            <section class="set-card" aria-labelledby="set-system-title">
-                <div class="set-card-head"><div class="set-card-titles"><h2 id="set-system-title" class="set-card-title">System</h2></div></div>
-                <div class="set-rows">
-                    @if (loaded)
-                    {
-                        <div class="set-row"><span class="set-key">Application</span><span class="set-val">@_model!.System.ApplicationName</span></div>
-                        <div class="set-row"><span class="set-key">Version</span><span class="set-val mono">v@(_model.System.Version)</span></div>
-                        <div class="set-row"><span class="set-key">Environment</span><span class="set-val">@_model.System.Environment</span></div>
-                        <div class="set-row"><span class="set-key">Server date</span><span class="set-val">@_model.System.ServerDate.ToString("MMMM d, yyyy")</span></div>
-                    }
-                    else
-                    {
-                        @for (var i = 0; i < 4; i++)
-                        {
-                            <div class="set-row"><Skeleton Width="35%" Height="12px" Radius="6px" /><Skeleton Width="42%" Height="12px" Radius="6px" /></div>
-                        }
-                    }
-                </div>
-            </section>
-
-            @if (_isHead)
-            {
-                <TenantUsagePanel />
-                <DatabaseHealthPanel />
-            }
-        </div>
-    }
-
-    <!-- Session / sign out (always available while authenticated) -->
-    <div class="set-session">
-        <div class="set-session-left">
-            <div class="set-session-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+        <div class="set-cols">
+            <div class="set-col">
+                @Group("office", "Office", OfficeRows)
+                @Group("revenue", "Revenue", RevenueRows)
             </div>
-            <div>
-                <div class="set-session-title">Session</div>
-                <div class="set-session-sub">Sign out of @Branding.OfficeAcronym Admin on this device.</div>
+            <div class="set-col">
+                @Group("people", "People", PeopleRows)
+                @Group("data", "Data", DataRows)
+
+                <section class="v3-panel" aria-labelledby="set-group-account">
+                    <header class="v3-panel-header"><h2 id="set-group-account">Your account</h2></header>
+                    <ul class="set-list">
+                        <li>
+                            <button class="set-item" type="button" @onclick="() => _show2fa = true">
+                                <div class="set-item-text">
+                                    <div class="set-item-name">Two-factor authentication</div>
+                                    <div class="set-item-desc">A second check when you sign in</div>
+                                </div>
+                                <span class="set-2fa-state @(_mfa?.Enabled == true ? "is-on" : "is-off")">
+                                    @(_mfa is null ? "…" : _mfa.Enabled ? "On" : _mfa.PendingEnrollment ? "Unfinished" : "Off")
+                                </span>
+                            </button>
+                        </li>
+                        <li class="set-session">
+                            <div class="set-item-text">
+                                <div class="set-item-name">Sign out</div>
+                                <div class="set-item-desc">End your session on this device</div>
+                            </div>
+                            <div class="set-session-right">
+                                @if (_confirmLogout)
+                                {
+                                    <span class="set-session-ask">Sign out now?</span>
+                                    <button class="set-signout-yes" @onclick="SignOutAsync" disabled="@_loggingOut">@(_loggingOut ? "Signing out…" : "Yes, sign out")</button>
+                                    <button class="set-signout-no" @onclick="() => _confirmLogout = false" disabled="@_loggingOut">Cancel</button>
+                                }
+                                else
+                                {
+                                    <button class="set-signout" @onclick="() => _confirmLogout = true">Sign out</button>
+                                }
+                            </div>
+                        </li>
+                    </ul>
+                </section>
             </div>
         </div>
-        <div class="set-session-right">
-            @if (_confirmLogout)
-            {
-                <span class="set-session-ask">Sign out now?</span>
-                <button class="set-signout-yes" @onclick="SignOutAsync" disabled="@_loggingOut">@(_loggingOut ? "Signing out…" : "Yes, sign out")</button>
-                <button class="set-signout-no" @onclick="() => _confirmLogout = false" disabled="@_loggingOut">Cancel</button>
-            }
-            else
-            {
-                <button class="set-signout" @onclick="() => _confirmLogout = true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
-                    Sign out
-                </button>
-            }
-        </div>
+
+        @if (_model is not null)
+        {
+            <p class="set-foot">@_model.System.ApplicationName v@(_model.System.Version) · @_model.System.TimeZone</p>
+        }
     </div>
 </div>
 
 @* ── Two-factor authentication dialog ──
-   Opened from the Security & Access Policy card. The panel renders "flat" because the modal already
-   provides the surface, and reports state changes back so the button's badge stays accurate. *@
+   Opened from the Your account group. The panel renders "flat" because the modal already provides the surface, and
+   reports state changes back so the row's badge stays accurate. *@
 @if (_show2fa)
 {
     <div class="eemo-modal-overlay" @onclick="Close2fa">
@@ -266,7 +150,7 @@
     private SystemSettingsDto? _model;
 
     // ── Two-factor (own account) ──
-    // The badge on the security card reflects current state; the dialog hosts the actual enrolment flow.
+    // The badge on the row reflects current state; the dialog hosts the actual enrolment flow.
     private bool _show2fa;
     private EEMOCantilanSDS.Application.Dtos.Auth.MfaStatusDto? _mfa;
 
@@ -279,7 +163,7 @@
     }
 
     /// <summary>
-    /// Reads the two-factor state for the button badge. Best-effort: a failure just leaves the badge
+    /// Reads the two-factor state for the row's badge. Best-effort: a failure just leaves the badge
     /// unresolved rather than breaking the Settings page.
     /// </summary>
     private async Task LoadMfaStatusAsync()
@@ -293,24 +177,79 @@
         catch { /* leave the badge unresolved */ }
     }
 
-    // Configuration the office manages, in the order an office reaches for it: who it is, who signs in, what it collects, its backups.
-    private static readonly (string Href, string Label)[] ManageLinks =
+    private sealed record SettingRow(string Href, string Label, string? Description, bool OpenToAdmin = false);
+
+    // The office's own name and place come from its profile; a dash of shimmer until they are read, never a stand-in.
+    private SettingRow[] OfficeRows =>
     [
-        ("/office-profile", "Office profile"),
-        ("/settings/report-signatories", "Report signatories"),
-        ("/accounts", "Accounts"),
-        ("/collectors", "Collectors"),
-        ("/settings/facilities", "Facilities"),
-        ("/settings/operations", "Operations"),
-        ("/settings/revenue", "Revenue Sources"),
-        ("/settings/monthly-rent-src", "Monthly rent SRC activation"),
-        ("/settings/backups", "Backups & restore"),
+        new("/office-profile", "Office Profile",
+            _model is { } m ? $"{m.Office.Office} · {m.Office.Municipality}, {m.Office.Province}" : _error is null ? null : "Details could not be loaded"),
+        new("/settings/report-signatories", "Report Signatories", "Names printed on official reports"),
     ];
+
+    private static readonly SettingRow[] RevenueRows =
+    [
+        new("/settings/facilities", "Facility Configuration", "Facilities, market sections and rates"),
+        new("/settings/operations", "Operation Settings", "Which operations are listed and what they are called"),
+        new("/settings/revenue", "Revenue Sources", "Revenue sources and the receipt each one uses"),
+        new("/settings/billing-policy", "Billing Policy", "Due dates, payment order and late penalties", OpenToAdmin: true),
+        // The page and its API admit Head and Admin alike (RentActivationsController).
+        new("/settings/monthly-rent-src", "Monthly Rent SRC Activation", "Record a facility's new monthly rent with StallTrack Reference Codes", OpenToAdmin: true),
+    ];
+
+    private static readonly SettingRow[] PeopleRows =
+    [
+        new("/accounts", "Accounts", "Who can sign in to this office"),
+        new("/collectors", "Collectors", "Collectors and what they are assigned to collect"),
+    ];
+
+    private static readonly SettingRow[] DataRows =
+    [
+        new("/settings/backups", "Backups", "Save a copy of this office's data, or restore one"),
+        new("/settings/storage", "Storage", "How much data this office holds"),
+    ];
+
+    // A row the Administrator cannot use is stated but not offered: a link that leads to a refusal is worse than no link.
+    private RenderFragment Group(string key, string title, IReadOnlyList<SettingRow> rows) => @<section class="v3-panel" aria-labelledby="set-group-@key">
+        <header class="v3-panel-header"><h2 id="set-group-@key">@title</h2></header>
+        <ul class="set-list">
+            @foreach (var row in rows)
+            {
+                <li>
+                    @if (_isHead || row.OpenToAdmin)
+                    {
+                        <a class="set-item" href="@row.Href">
+                            @RowText(row)
+                            <span class="set-item-arrow" aria-hidden="true">→</span>
+                        </a>
+                    }
+                    else
+                    {
+                        <div class="set-item is-locked" aria-disabled="true" title="Managed by the @Branding.OfficeAcronym Head">
+                            @RowText(row)
+                            <span class="set-item-lock">Head only</span>
+                        </div>
+                    }
+                </li>
+            }
+        </ul>
+    </section>;
+
+    private RenderFragment RowText(SettingRow row) => @<div class="set-item-text">
+        <div class="set-item-name">@row.Label</div>
+        @if (row.Description is null)
+        {
+            <div class="set-item-desc"><Skeleton Width="60%" Height="12px" Radius="6px" /></div>
+        }
+        else
+        {
+            <div class="set-item-desc">@row.Description</div>
+        }
+    </div>;
 
     private string? _error;
     private bool _confirmLogout;
     private bool _loggingOut;
-    private bool _isPlatformOperator;
     private bool _isHead;
 
     private async Task SignOutAsync()
@@ -326,14 +265,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Platform operator = a dedicated operator account. Database-health and the whole-database backup tools
-        // run across every LGU, so the API restricts them to that account and this screen offers them only to it
-        // (avoids the 403 "couldn't load" state and hides destructive platform-wide controls).
-        //
-        // Decided by PlatformOperatorPolicy, the same function the API's policy calls. This screen used to decide
-        // for itself — SuperAdmin of the default tenant — which is the clause the platform has since retired, so
-        // it would have gone on offering one municipality's Head controls the API now refuses, and offering the
-        // real operator none of the ones it allows.
         await Branding.EnsureLoadedAsync();
         await FacilityCatalog.EnsureLoadedAsync();
         var authState = await AuthState.GetAuthenticationStateAsync();
@@ -341,15 +272,10 @@
             || authState.User.Claims.Any(c =>
                 string.Equals(c.Value, "SuperAdmin", StringComparison.OrdinalIgnoreCase)
                 && c.Type.Contains("role", StringComparison.OrdinalIgnoreCase));
-        _isPlatformOperator = PlatformOperatorPolicy.IsOperator(
-            isDedicatedOperator: string.Equals(
-                authState.User.FindFirst(AppClaimTypes.PlatformOperator)?.Value, "true",
-                StringComparison.OrdinalIgnoreCase));
-        // The LGU Head (SuperAdmin of ANY tenant) manages their own facilities — unlike the platform-only
-        // database/backup tools, this is available to every LGU's Head.
+        // The LGU Head (SuperAdmin of ANY tenant) manages their own office's configuration.
         _isHead = isSuperAdmin;
 
-        // Two-factor state for the security card's badge (independent of the cached settings payload).
+        // Two-factor state for the row's badge (independent of the cached settings payload).
         await LoadMfaStatusAsync();
 
         if (CachedSettings is not null)

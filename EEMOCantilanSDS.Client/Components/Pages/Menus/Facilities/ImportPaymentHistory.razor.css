@@ -119,8 +119,8 @@
 }
 
 .iph-step.is-active .iph-step-no {
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .iph-step.is-done {
@@ -218,7 +218,7 @@
     padding: 10px 13px;
     border-radius: 9px;
     border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-    background: color-mix(in srgb, var(--red) 7%, transparent);
+    background: color-mix(in srgb, var(--dark-red-fill, var(--red)) 7%, transparent);
     font-size: 12.5px;
     color: var(--red);
 }
@@ -543,7 +543,7 @@
     padding: 11px 14px;
     border-radius: 9px;
     border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
-    background: color-mix(in srgb, var(--red) 7%, transparent);
+    background: color-mix(in srgb, var(--dark-red-fill, var(--red)) 7%, transparent);
     font-size: 13px;
     color: var(--red);
 }
@@ -585,7 +585,7 @@
 }
 
 .iph-btn-primary {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     border-color: var(--accent);
     color: #fff;
 }
@@ -623,7 +623,7 @@
    that fights the clerk as they type is worse than one that tells them where they have got to. Save refuses it. */
 .iph-input-bad {
     border-color: #b3261e;
-    background: #fdf6f5;
+    background: var(--dark-surface-muted, #fdf6f5);
 }
 
 .iph-input-bad:focus {
@@ -703,9 +703,9 @@
         height: 26px;
     }
 
-    .iph-pick-icon.veg { background: rgba(45, 122, 95, .12); color: #2d7a5f; }
-    .iph-pick-icon.fish { background: rgba(26, 122, 181, .12); color: #1a7ab5; }
-    .iph-pick-icon.meat { background: rgba(181, 86, 47, .12); color: #b5562f; }
+    .iph-pick-icon.veg { background: rgba(45, 122, 95, .12); color: var(--dark-green-text, #2d7a5f); }
+    .iph-pick-icon.fish { background: rgba(26, 122, 181, .12); color: var(--dark-accent-text, #1a7ab5); }
+    .iph-pick-icon.meat { background: rgba(181, 86, 47, .12); color: var(--dark-red-text, #b5562f); }
 
 .iph-pick-name {
     font-size: 15px;
@@ -742,7 +742,7 @@
 .iph-btn-on {
     border-color: var(--navy);
     color: var(--navy);
-    background: rgba(13, 33, 55, .05);
+    background: var(--dark-tint, rgba(13, 33, 55, .05));
 }
 
 /* ── Day lines (market, exact dates) ─────────────────────── */
@@ -872,5 +872,5 @@
 }
 
 .iph-hero-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }

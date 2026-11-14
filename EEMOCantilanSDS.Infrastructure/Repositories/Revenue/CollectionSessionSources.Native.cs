@@ -293,6 +293,13 @@ public sealed partial class CollectionSessionSources
             return (null, new(item.ClientItemId, "SourceNotAvailable", "This canonical rental source is unavailable."));
         var q = facts.Quote;
         if (r.SourceVersion != q.SourceVersion || item.ConfirmedAmount > q.OutstandingAmount) return (null, new(item.ClientItemId, "BalanceChanged", "Refresh the rental balance."));
+        // Checked at the quote, before any cash is taken. An earlier business date is queued work whose money already changed hands.
+        if (billingRules is not null && session.BusinessDate == clock.PhilippineToday)
+        {
+            var onThisSession = session.Items.Where(x => x.Rent?.StallId == r.StallId).Select(x => (x.Rent!.Year, x.Rent.Month)).ToList();
+            if (await billingRules.RefusalAsync(r.StallId, r.Year, r.Month, ct, onThisSession) is { } refusal)
+                return (null, new(item.ClientItemId, "OlderMonthOpen", refusal));
+        }
         return (new(item.ClientItemId, item.Kind, "FACILITY_" + facts.Stall.Facility!.Code, facts.Stall.Facility.Name,
             $"Stall {facts.Stall.StallNo} · {r.Year}-{r.Month:00}", q.Instrument, item.ConfirmedAmount, facts.SnapshotJson, Guid.Empty), null);
     }

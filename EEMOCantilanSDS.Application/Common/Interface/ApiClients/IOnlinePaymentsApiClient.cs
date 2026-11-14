@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
@@ -11,4 +12,12 @@ public interface IOnlinePaymentsApiClient
 
     /// <summary>Treasury overview + recent settled online-payment history for the admin page.</summary>
     Task<Result<OnlinePaymentDashboardDto>> GetDashboardAsync();
+
+    Task<Result<IReadOnlyList<OnlinePaymentExceptionDto>>> GetExceptionsAsync();
+
+    /// <summary>Asks the gateway what really happened to this payment and settles it if the money is there. Never edits state blindly.</summary>
+    Task<Result<ConfirmOnlinePaymentResultDto>> VerifyAsync(string reference);
+
+    /// <summary>Head only: records what became of a held capture.</summary>
+    Task<Result<bool>> ResolveExceptionAsync(Guid transactionId, OnlinePaymentDisposition disposition, string reference, string? note);
 }

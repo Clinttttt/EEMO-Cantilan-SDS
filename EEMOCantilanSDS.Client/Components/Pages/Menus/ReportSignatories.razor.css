@@ -1,4 +1,4 @@
-.rs-page { max-width: 720px; }
+.rs-page { max-width: 720px; min-height: 0; padding: 0; background: none; }
 
 .rs-form {
     display: flex;

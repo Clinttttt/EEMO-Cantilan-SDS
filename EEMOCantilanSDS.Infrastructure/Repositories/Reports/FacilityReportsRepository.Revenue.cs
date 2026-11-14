@@ -412,7 +412,7 @@ public partial class FacilityReportsRepository
 
     /// <summary>
     /// Rent obligation that has actually come DUE for a single stall within [start, end]: the
-    /// stall's MonthlyRate for every month its active contract is effective AND that has already
+    /// answering term's rate (IA-077) for every month its active contract is effective AND that has already
     /// started (future months in the current period are not yet owed). This mirrors the month rule
     /// in <see cref="CountMissedMonthsAsync"/>, so the compliance Balance, Outstanding KPI, Collection
     /// Rate and Missed-months all reconcile (e.g. Balance of an unpaid stall == MissedMonths × rate).
@@ -437,7 +437,7 @@ public partial class FacilityReportsRepository
                 && (excusedMonths is null || !excusedMonths.Contains((cursor.Year, cursor.Month)))
                 && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
             {
-                total += stall.MonthlyRate;
+                total += stall.MonthlyRentFor(cursor.Year, cursor.Month, today);
             }
             cursor = cursor.AddMonths(1);
         }
@@ -448,7 +448,7 @@ public partial class FacilityReportsRepository
     /// History-faithful monthly-rental obligation across rate changes: a month that already has a
     /// payment record is billed at that record's snapshot (<see cref="PaymentRecord.BaseRentalAmount"/>
     /// — the rate at the time it was recorded), and only months with NO record yet are billed at the
-    /// stall's CURRENT <see cref="Stall.MonthlyRate"/>. This stops an admin rate change from
+    /// answering term's rate (IA-077), the figure every writer charges. This stops an admin rate change from
     /// retroactively re-pricing already-recorded months (which previously made paid-at-the-old-rate
     /// months show a phantom balance). Excused months, and unrecorded months that are not yet due or
     /// outside the active contract, owe ₱0.
@@ -542,7 +542,7 @@ public partial class FacilityReportsRepository
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
                 if (mStart <= today
                     && stall.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
-                    total += stall.MonthlyRate;   // no record yet → current rate
+                    total += stall.MonthlyRentFor(cursor.Year, cursor.Month, today);   // no record yet → the term's rate
             }
 
             cursor = cursor.AddMonths(1);
@@ -551,8 +551,8 @@ public partial class FacilityReportsRepository
     }
 
     /// <summary>
-    /// Total monthly-rental obligation for occupied stalls over [start, end] — sum of each stall's
-    /// MonthlyRate for every month its active contract is effective within the range. Used as the
+    /// Total monthly-rental obligation for occupied stalls over [start, end] — sum of each answering
+    /// term's rate for every month its active contract is effective within the range. Used as the
     /// "expected" baseline for trend bar scaling so unpaid stalls (which have no record) still count.
     /// </summary>
     private decimal CalculateMonthlyRentalObligation(IEnumerable<Stall> occupiedStalls, DateOnly start, DateOnly end)
@@ -568,7 +568,7 @@ public partial class FacilityReportsRepository
                 var mStart = cursor;
                 var mEnd = new DateOnly(cursor.Year, cursor.Month, DateTime.DaysInMonth(cursor.Year, cursor.Month));
                 if (s.Contracts.Any(c => c.IsActive && c.BillsCalendarMonth(cursor.Year, cursor.Month)))
-                    total += s.MonthlyRate;
+                    total += s.MonthlyRentFor(cursor.Year, cursor.Month, _clock.PhilippineToday);
                 cursor = cursor.AddMonths(1);
             }
         }

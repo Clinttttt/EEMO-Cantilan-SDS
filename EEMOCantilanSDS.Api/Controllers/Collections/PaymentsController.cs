@@ -1,5 +1,6 @@
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
@@ -12,6 +13,7 @@ using EEMOCantilanSDS.Application.Queries.Payments.GetFacilityPaymentRecords;
 using EEMOCantilanSDS.Application.Queries.Payments.GetMonthlyExceptions;
 using EEMOCantilanSDS.Application.Queries.Payments.GetMarketClosures;
 using EEMOCantilanSDS.Application.Queries.Payments.GetNpmDailyStatus;
+using EEMOCantilanSDS.Application.Queries.Payments.GetPayAheadOptions;
 using EEMOCantilanSDS.Application.Queries.Payments.GetPaymentRecord;
 using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
@@ -95,6 +97,22 @@ public class PaymentsController(ISender sender) : ApiBaseController(sender)
 
     [HttpPost("record")]
     public async Task<ActionResult<bool>> RecordPayment([FromBody] RecordPaymentCommand command)
+    {
+        var result = await Sender.Send(command);
+        return HandleResponse(result);
+    }
+
+    [HttpGet("stall/{stallId:guid}/pay-ahead")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<PayAheadOptionsDto>> GetPayAheadOptions(Guid stallId)
+    {
+        var result = await Sender.Send(new GetPayAheadOptionsQuery(stallId));
+        return HandleResponse(result);
+    }
+
+    [HttpPost("pay-ahead")]
+    [Authorize(Roles = "SuperAdmin,Admin")]
+    public async Task<ActionResult<bool>> RecordPayAhead([FromBody] RecordPayAheadCommand command)
     {
         var result = await Sender.Send(command);
         return HandleResponse(result);

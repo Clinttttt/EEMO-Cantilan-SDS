@@ -51,6 +51,7 @@ public static class TenantBackupTableNames
         ["GovernedServices"] = "Governed services",
         ["GovernedServiceSettings"] = "Governed service settings",
         ["PenaltyDefinitions"] = "Penalty definitions",
+        ["BillingPolicyVersions"] = "Billing policy versions",
         ["ObligationAccounts"] = "Obligation accounts",
         ["ObligationRates"] = "Obligation rates",
         ["ObligationPeriods"] = "Obligation periods",

@@ -31,7 +31,8 @@ public sealed class OperationsTenantConfigurationTests : TestContext
     }
 
     internal static Mock<IOperationSettingsApiClient> SettingsApi(
-        bool adopted, IEnumerable<string> listed, IReadOnlyDictionary<string, string>? labels = null)
+        bool adopted, IEnumerable<string> listed, IReadOnlyDictionary<string, string>? labels = null,
+        IReadOnlyDictionary<string, RevenueInstrumentType>? instruments = null)
     {
         var on = listed.ToHashSet(StringComparer.Ordinal);
         var items = TenantOperationCatalog.All.Select(e =>
@@ -41,7 +42,8 @@ public sealed class OperationsTenantConfigurationTests : TestContext
             return new TenantOperationSettingDto(
                 e.Code, e.DefaultLabel, e.GroupKey, label,
                 adopted ? label ?? e.DefaultLabel : e.LegacyDirectoryLabel,
-                adopted ? on.Contains(e.Code) : true, adopted ? 1 : 0, adopted ? "Onboarding" : "Legacy", HasRecordedActivity: false);
+                adopted ? on.Contains(e.Code) : true, adopted ? 1 : 0, adopted ? "Onboarding" : "Legacy", HasRecordedActivity: false,
+                Instrument: instruments is not null && instruments.TryGetValue(e.Code, out var instrument) ? instrument : null);
         }).ToList();
         var api = new Mock<IOperationSettingsApiClient>();
         api.Setup(c => c.GetAsync()).ReturnsAsync(Result<TenantOperationSettingsDto>.Success(new TenantOperationSettingsDto(adopted, items)));
@@ -193,7 +195,7 @@ public sealed class OperationsTenantConfigurationTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            var rows = cut.FindAll("li").Where(li => li.TextContent.Contains("Policy confirmation required")).ToList();
+            var rows = cut.FindAll("li").Where(li => li.TextContent.Contains("Signed-contract duration not configured")).ToList();
             var row = Assert.Single(rows);
             Assert.Contains("Municipal Space Rental", row.TextContent);
         }, Timeout);
@@ -204,16 +206,36 @@ public sealed class OperationsTenantConfigurationTests : TestContext
     {
         Services.AddSingleton(Facilities(FacilityCode.NPM).Object);
         Services.AddSingleton(SettingsApi(adopted: true, listed: ["KANMANGGAY_SPACE_RENTAL"],
-            labels: new Dictionary<string, string> { ["KANMANGGAY_SPACE_RENTAL"] = "OR Plaza Rental" }).Object);
+            labels: new Dictionary<string, string> { ["KANMANGGAY_SPACE_RENTAL"] = "CT Plaza Rental" },
+            instruments: new Dictionary<string, RevenueInstrumentType> { ["KANMANGGAY_SPACE_RENTAL"] = RevenueInstrumentType.OfficialReceipt }).Object);
 
         var cut = RenderComponent<Operations>();
 
         cut.WaitForAssertion(() =>
         {
-            var row = Assert.Single(cut.FindAll("li"), li => li.TextContent.TrimStart().StartsWith("OR Plaza Rental", StringComparison.Ordinal));
+            var row = Assert.Single(cut.FindAll("li"), li => li.TextContent.TrimStart().StartsWith("CT Plaza Rental", StringComparison.Ordinal));
             Assert.Equal("/operations/kanmanggay", Assert.Single(row.QuerySelectorAll(":scope > a")).GetAttribute("href"));
-            // The instrument is the operation's own (Official Receipt), whatever the label says.
-            Assert.Contains("Official Receipt", row.TextContent);
+            // The instrument is the office's policy (Official Receipt), whatever the label says.
+            Assert.Contains("Official Receipt", row.QuerySelector(".ops-row-receipts")!.TextContent);
+            Assert.DoesNotContain("Cash Ticket", row.QuerySelector(".ops-row-receipts")!.TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AnOfficeOnItsOwnConfiguration_SeesItsOwnReceiptType_AndNotSetUntilItChoosesOne()
+    {
+        Services.AddSingleton(Facilities(FacilityCode.NPM).Object);
+        Services.AddSingleton(SettingsApi(adopted: true, listed: ["MARKET_FEES", "WEIGHT_AND_MEASURE"],
+            instruments: new Dictionary<string, RevenueInstrumentType> { ["WEIGHT_AND_MEASURE"] = RevenueInstrumentType.CashTicket }).Object);
+
+        var cut = RenderComponent<Operations>();
+
+        cut.WaitForAssertion(() =>
+        {
+            string Receipt(string line) => Assert.Single(cut.FindAll("li"), li => li.TextContent.TrimStart().StartsWith(line, StringComparison.Ordinal))
+                .QuerySelector(".ops-row-receipts")!.TextContent.Trim();
+            Assert.Equal("Not set", Receipt("Market Fees"));             // no policy yet: nothing assumed from another office
+            Assert.Contains("Cash Ticket", Receipt("Weight & Measure"));   // its own choice, not another office's Official Receipt
         }, Timeout);
     }
 }

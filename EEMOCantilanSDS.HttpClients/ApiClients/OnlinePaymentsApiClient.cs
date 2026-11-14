@@ -1,6 +1,7 @@
 ﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.HttpClients.ApiClients;
 
@@ -14,4 +15,13 @@ public class OnlinePaymentsApiClient(HttpClient http) : HandleResponse(http), IO
 
     public async Task<Result<OnlinePaymentDashboardDto>> GetDashboardAsync() =>
         await GetAsync<OnlinePaymentDashboardDto>("api/onlinepayments/dashboard");
+
+    public async Task<Result<IReadOnlyList<OnlinePaymentExceptionDto>>> GetExceptionsAsync() =>
+        await GetAsync<IReadOnlyList<OnlinePaymentExceptionDto>>("api/onlinepayments/exceptions");
+
+    public async Task<Result<ConfirmOnlinePaymentResultDto>> VerifyAsync(string reference) =>
+        await PostAsync<object, ConfirmOnlinePaymentResultDto>($"api/onlinepayments/{Uri.EscapeDataString(reference)}/reconcile", new { });
+
+    public async Task<Result<bool>> ResolveExceptionAsync(Guid transactionId, OnlinePaymentDisposition disposition, string reference, string? note) =>
+        await PostAsync<object, bool>($"api/onlinepayments/{transactionId}/resolution", new { Disposition = disposition, Reference = reference, Note = note });
 }

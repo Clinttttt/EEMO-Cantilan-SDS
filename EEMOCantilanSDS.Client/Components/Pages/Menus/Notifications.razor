@@ -1,0 +1,148 @@
+@page "/notifications"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Application.Common.Interface.ApiClients
+@using EEMOCantilanSDS.Application.Dtos.Notifications
+@using EEMOCantilanSDS.Client.Components.Shared
+@using EEMOCantilanSDS.Domain.Common
+@inject IInboxApiClient InboxApi
+@inject NavigationManager Nav
+
+<PageTitle>StallTrack — Notifications</PageTitle>
+
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">Notifications</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Notifications</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <div class="topbar-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="v3-page ib-page">
+        @if (_loading)
+        {
+            <p class="v3-notice" role="status">Loading notifications…</p>
+        }
+        else if (_page is null)
+        {
+            <div class="v3-notice v3-notice-error" role="alert">
+                <p>Your notifications couldn't be loaded.</p>
+                <button type="button" class="v3-btn" @onclick="LoadAsync">Try again</button>
+            </div>
+        }
+        else
+        {
+            @if (_error is not null)
+            {
+                <p class="v3-notice v3-notice-error" role="alert">@_error</p>
+            }
+
+            <section class="v3-panel" aria-labelledby="ib-heading">
+                <header class="v3-panel-header">
+                    <h2 id="ib-heading">@(_page.Unread == 0 ? "All read" : $"{_page.Unread} unread")</h2>
+                    @if (_page.Unread > 0)
+                    {
+                        <button type="button" class="v3-btn" disabled="@_saving" @onclick="() => MarkReadAsync(null)">Mark all as read</button>
+                    }
+                </header>
+
+                @if (_page.Items.Count == 0)
+                {
+                    <p class="ib-empty">Nothing here yet. Online payments that need review and late penalties will show here.</p>
+                }
+                else
+                {
+                    <ul class="ib-list">
+                        @foreach (var item in _page.Items)
+                        {
+                            <li class="ib-row @(item.Read ? "" : "ib-new")" @key="item.Id">
+                                <div class="ib-text">
+                                    <div class="ib-title">
+                                        @if (!item.Read)
+                                        {
+                                            <span class="ib-tag">New</span>
+                                        }
+                                        @item.Title
+                                    </div>
+                                    <p class="ib-body">@item.Body</p>
+                                    <time class="ib-time" datetime="@item.CreatedAt.ToString("O")">@PhilippineTime.ToPhilippineTime(item.CreatedAt).ToString("MMM d, yyyy h:mm tt")</time>
+                                </div>
+                                <div class="ib-actions">
+                                    @if (item.Link is { } link)
+                                    {
+                                        <a class="v3-btn" href="@link" @onclick:preventDefault @onclick="() => OpenAsync(item, link)">Open</a>
+                                    }
+                                    @if (!item.Read)
+                                    {
+                                        <button type="button" class="ib-read" disabled="@_saving" @onclick="() => MarkReadAsync(item.Id)">Mark as read</button>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+            </section>
+        }
+    </div>
+</div>
+
+@code {
+    private InboxPageDto? _page;
+    private bool _loading = true, _saving;
+    private string? _error;
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await InboxApi.GetAsync();
+            _page = result.IsSuccess ? result.Value : null;
+        }
+        catch
+        {
+            _page = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task MarkReadAsync(Guid? id)
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            var result = await InboxApi.MarkReadAsync(id);
+            if (result is { IsSuccess: true, Value: not null }) _page = result.Value;
+            else _error = result.Error ?? "That couldn't be saved. Try again.";
+        }
+        catch
+        {
+            _error = "That couldn't be saved. Try again.";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    // Saved before leaving, so the Sidebar's count is right when it asks again. A failed save must not stop the person reaching the page.
+    private async Task OpenAsync(InboxItemDto item, string link)
+    {
+        if (!item.Read) await MarkReadAsync(item.Id);
+        Nav.NavigateTo(link);
+    }
+}

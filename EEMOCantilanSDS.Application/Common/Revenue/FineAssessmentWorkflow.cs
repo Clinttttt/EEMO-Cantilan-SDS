@@ -217,6 +217,7 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
                 incident, r.Description ?? "", r.Amount, r.ClientOperationId, fingerprint, user.UserId!.Value, clock.UtcNow, evidence,
                 related?.Reference.Kind, related?.Reference.Start, related?.Reference.End, related?.Reference.ObligationPeriodId, related?.Label);
             db.FineAssessments.Add(a); db.FineAssessmentEvents.Add(FineAssessmentEvent.Created(a));
+            await FineAssessmentCollectionSource.EnsureRevenueSourceAsync(db, Tenant, clock.PhilippineToday, user.Username ?? "Head", ct);
             await db.SaveChangesAsync(ct);
             return Result<FineAssessmentDto>.Success(ToDto(a, policy.GoverningReference, incident is null ? "No case reference: real-world duplicate prevention is limited." : null));
         }
@@ -239,9 +240,33 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
     }
     private static FineAssessmentDto ToDto(FineAssessment a, string reference, string? warning = null, decimal settled = 0m) => new(a.Id,
         new(a.AccountKind, a.ContractId ?? a.ObligationAccountId!.Value), a.Occupant, a.UnitReference, a.SourceName,
-        a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AssessedAmount, settled,
-        a.AssessedAmount - settled, settled == a.AssessedAmount ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning,
-        a.RelatedPeriodKind is { } kind ? new(new(kind,a.RelatedPeriodStart!.Value,a.RelatedPeriodEnd!.Value,a.RelatedObligationPeriodId),a.RelatedPeriodLabel!) : null);
+        a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AmountDue, settled,
+        a.AmountDue - settled, a.AmountDue == 0m ? "Waived" : settled == a.AmountDue ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning,
+        a.RelatedPeriodKind is { } kind ? new(new(kind,a.RelatedPeriodStart!.Value,a.RelatedPeriodEnd!.Value,a.RelatedObligationPeriodId),a.RelatedPeriodLabel!) : null,
+        a.IsLatePenalty);
+
+    /// <summary>The Head updates or waives a late penalty (IA-072). An assessment changed since it was read is refused, not overwritten.</summary>
+    public async Task<Result<FineAssessmentDto>> AdjustAsync(Guid id, AdjustFineAssessmentRequest r, CancellationToken ct = default)
+    {
+        if (Guard<FineAssessmentDto>(true) is { } denied) return denied;
+        var a = await db.FineAssessments.SingleOrDefaultAsync(x => x.MunicipalityId == Tenant && x.Id == id, ct);
+        if (a is null) return Result<FineAssessmentDto>.NotFound();
+        if (a.Version != r.ExpectedVersion) return Result<FineAssessmentDto>.Failure("The penalty changed since you opened it. Reload and try again.", ResultStatus.Conflict);
+        var settled = (await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, [id], ct)).GetValueOrDefault(id);
+        try
+        {
+            db.FineAssessmentEvents.Add(a.Adjust(r.Amount, settled, r.Reason, user.UserId!.Value, clock.UtcNow));
+            await db.SaveChangesAsync(ct);
+        }
+        catch (ArgumentException ex) { return Result<FineAssessmentDto>.Failure(ex.Message, ResultStatus.Invalid); }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            return Result<FineAssessmentDto>.Failure("The penalty changed since you opened it. Reload and try again.", ResultStatus.Conflict);
+        }
+        var reference = await db.FineAssessmentPolicies.AsNoTracking().Where(x => x.MunicipalityId == Tenant && x.Id == a.PolicyId).Select(x => x.GoverningReference).SingleAsync(ct);
+        return Result<FineAssessmentDto>.Success(ToDto(a, reference, settled: settled));
+    }
     public async Task<Result<IReadOnlyList<FineAssessmentDto>>> ReadAsync(FineAccountKind? kind = null, Guid? accountId = null,
         string? search = null, CancellationToken ct = default)
     {
@@ -254,7 +279,7 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
             equals new { p.MunicipalityId, p.Id } orderby a.BusinessDate descending, a.Id select new { Assessment = a, p.GoverningReference }).Take(201).ToListAsync(ct);
         if (rows.Count > 200) return Result<IReadOnlyList<FineAssessmentDto>>.Failure("More than 200 assessments match. Narrow the search; totals have not been truncated.", ResultStatus.Invalid);
         var settled = await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, rows.Select(x => x.Assessment.Id).ToArray(), ct);
-        if (rows.Any(x => settled.GetValueOrDefault(x.Assessment.Id) < 0m || settled.GetValueOrDefault(x.Assessment.Id) > x.Assessment.AssessedAmount))
+        if (rows.Any(x => settled.GetValueOrDefault(x.Assessment.Id) < 0m || settled.GetValueOrDefault(x.Assessment.Id) > x.Assessment.AmountDue))
             return Result<IReadOnlyList<FineAssessmentDto>>.Failure("Fine settlement evidence does not reconcile.", ResultStatus.Conflict);
         return Result<IReadOnlyList<FineAssessmentDto>>.Success(rows.Select(x => ToDto(x.Assessment, x.GoverningReference,
             settled: settled.GetValueOrDefault(x.Assessment.Id))).ToList());

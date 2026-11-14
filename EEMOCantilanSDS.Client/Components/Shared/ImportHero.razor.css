@@ -39,7 +39,7 @@
     background: var(--bg-icon); color: var(--text-secondary);
 }
 .imp-step.active { color: var(--navy); }
-.imp-step.active .imp-step-no { background: var(--accent); color: var(--surface); }
+.imp-step.active .imp-step-no { background: var(--dark-accent-fill, var(--accent)); color: var(--dark-on-fill, var(--surface)); }
 .imp-step.done { color: var(--text-secondary); }
 .imp-step.done .imp-step-no { background: var(--accent-soft); color: var(--accent); }
 .imp-step-line { width: 26px; height: 1px; background: var(--border-strong); }
@@ -106,7 +106,7 @@
 }
 
 .imp-hero-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 /* ── Civic-blue variant (opt-in): the same band the Operations heroes use, with the three steps inside it ── */
@@ -125,7 +125,7 @@
 .imp-hero-blue .imp-step { color: rgba(255, 255, 255, 0.72); }
 .imp-hero-blue .imp-step-no { background: rgba(255, 255, 255, 0.18); color: #ffffff; }
 .imp-hero-blue .imp-step.active { color: #ffffff; }
-.imp-hero-blue .imp-step.active .imp-step-no { background: #ffffff; color: var(--civic-panel); }
+.imp-hero-blue .imp-step.active .imp-step-no { background: var(--dark-surface, #ffffff); color: var(--dark-accent-text, var(--civic-panel)); }
 .imp-hero-blue .imp-step.done { color: rgba(255, 255, 255, 0.9); }
 .imp-hero-blue .imp-step.done .imp-step-no { background: rgba(255, 255, 255, 0.32); color: #ffffff; }
 .imp-hero-blue .imp-step-line { background: rgba(255, 255, 255, 0.35); }

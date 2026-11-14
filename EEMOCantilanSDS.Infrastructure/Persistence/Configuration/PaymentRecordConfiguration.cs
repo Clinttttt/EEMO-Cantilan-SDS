@@ -59,6 +59,9 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
             builder.Property(s => s.ORNumber)
                 .HasMaxLength(50);
 
+            // Always loaded with the record: a writer that saw no receipts would start the list again and count the first twice (IA-081).
+            builder.Navigation(x => x.Instalments).AutoInclude();
+
             builder.Property(s => s.PaidAt);
 
             builder.Property(s=> s.BaseRentalAmount)

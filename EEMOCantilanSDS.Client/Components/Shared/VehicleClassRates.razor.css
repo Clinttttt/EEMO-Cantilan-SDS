@@ -5,7 +5,7 @@
 
 .vcr-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-muted); color: var(--text-secondary); font-size: .75rem; font-weight: 600; white-space: nowrap; }
 .vcr-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.vcr-active { border-color: #b8cde3; background: #eaf1f9; color: var(--civic-panel); }
+.vcr-active { border-color: var(--dark-blue-border, #b8cde3); background: var(--dark-blue-tint, #eaf1f9); color: var(--dark-accent-text, var(--civic-panel)); }
 
 .vcr-actions-cell { text-align: right; white-space: nowrap; }
 .vcr-actions-cell .v3-btn + .v3-btn { margin-left: 6px; }

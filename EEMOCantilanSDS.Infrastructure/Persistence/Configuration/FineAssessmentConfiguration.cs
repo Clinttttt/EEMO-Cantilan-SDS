@@ -27,12 +27,14 @@ public sealed class FineAssessmentConfiguration : IEntityTypeConfiguration<FineA
     {
         b.ToTable("FineAssessments", t => {
             t.HasCheckConstraint("CK_FineAssessment_Amount", "\"AssessedAmount\" > 0");
+            t.HasCheckConstraint("CK_FineAssessment_Adjusted", "\"AdjustedAmount\" IS NULL OR \"AdjustedAmount\" >= 0");
             t.HasCheckConstraint("CK_FineAssessment_Dates", "\"ViolationDate\" <= \"BusinessDate\"");
             t.HasCheckConstraint("CK_FineAssessment_RelatedPeriod", "(\"RelatedPeriodKind\" IS NULL AND \"RelatedPeriodStart\" IS NULL AND \"RelatedPeriodEnd\" IS NULL AND \"RelatedObligationPeriodId\" IS NULL AND \"RelatedPeriodLabel\" IS NULL) OR (\"RelatedPeriodKind\" IS NOT NULL AND \"RelatedPeriodKind\" IN (1,2,3) AND \"RelatedPeriodStart\" IS NOT NULL AND \"RelatedPeriodEnd\" IS NOT NULL AND \"RelatedPeriodEnd\" >= \"RelatedPeriodStart\" AND \"RelatedPeriodLabel\" IS NOT NULL AND ((\"RelatedPeriodKind\" = 1 AND EXTRACT(DAY FROM \"RelatedPeriodStart\") = 1 AND \"RelatedPeriodEnd\" = (\"RelatedPeriodStart\" + INTERVAL '1 month - 1 day')::date) OR (\"RelatedPeriodKind\" IN (2,3) AND \"RelatedPeriodStart\" = \"RelatedPeriodEnd\")) AND ((\"RelatedPeriodKind\" = 3 AND \"RelatedObligationPeriodId\" IS NOT NULL AND \"ObligationAccountId\" IS NOT NULL) OR (\"RelatedPeriodKind\" IN (1,2) AND \"RelatedObligationPeriodId\" IS NULL AND \"ContractId\" IS NOT NULL)))");
             t.HasCheckConstraint("CK_FineAssessment_Source", "(\"AccountKind\" = 1 AND \"ContractId\" IS NOT NULL AND \"ObligationAccountId\" IS NULL) OR (\"AccountKind\" IN (2,3,4) AND \"ContractId\" IS NULL AND \"ObligationAccountId\" IS NOT NULL)");
         });
         b.HasKey(x => x.Id); b.HasAlternateKey(x => new { x.MunicipalityId, x.Id });
         b.Property(x => x.AssessedAmount).HasPrecision(18, 2);
+        b.Property(x => x.AdjustedAmount).HasPrecision(18, 2);
         b.Property(x => x.Version).IsConcurrencyToken();
         b.Property(x => x.RequestFingerprint).HasMaxLength(64).IsRequired();
         b.Property(x => x.Occupant).HasMaxLength(200).IsRequired();

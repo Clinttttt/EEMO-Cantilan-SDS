@@ -42,7 +42,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 1.5rem 1.25rem;
-    background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%);
+    background: linear-gradient(135deg, var(--dark-navy-fill, var(--navy)) 0%, var(--dark-navy-2-fill, var(--navy-2)) 100%);
     border-bottom: 1px solid rgba(200, 168, 75, 0.2);
     flex-shrink: 0;
 }
@@ -210,7 +210,7 @@
 }
 
     .slh-edit-animal-card:hover {
-        background: #fff;
+        background: var(--dark-surface, #fff);
         border-color: var(--navy-2);
     }
 
@@ -398,12 +398,12 @@
     }
 
 .slh-edit-btn-save {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: #fff;
 }
 
     .slh-edit-btn-save:hover {
-        background: var(--navy-3);
+        background: var(--dark-navy-3-fill, var(--navy-3));
     }
 
     .slh-edit-btn-save svg {
@@ -477,12 +477,12 @@
 .slh-edit-btn-save {
     border-color: var(--accent);
     border-radius: 6px;
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .slh-edit-btn-save:hover {
     border-color: var(--accent-hover);
-    background: var(--accent-hover);
-    color: var(--surface);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
+    color: var(--dark-on-fill, var(--surface));
 }

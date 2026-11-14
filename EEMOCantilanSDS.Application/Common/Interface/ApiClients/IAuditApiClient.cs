@@ -5,6 +5,8 @@ namespace EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 
 public interface IAuditApiClient
 {
+    Task<Result<AuditEventDetailsDto>> GetAuditEventAsync(Guid eventId);
+
     Task<Result<AuditTrailDto>> GetAuditTrailAsync(
         string? search = null,
         string? action = null,

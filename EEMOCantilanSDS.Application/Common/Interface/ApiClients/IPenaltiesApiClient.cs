@@ -24,6 +24,7 @@ public interface IPenaltiesApiClient
     Task<Result<IReadOnlyList<FinePolicyDto>>> GetFinePoliciesAsync();
     Task<Result<FinePolicyDto>> RecordFinePolicyAsync(FinePolicyRequest request);
     Task<Result<FineAssessmentDto>> CreateAssessmentAsync(CreateFineAssessmentRequest request);
+    Task<Result<FineAssessmentDto>> AdjustAssessmentAsync(Guid id, AdjustFineAssessmentRequest request);
     Task<Result<IReadOnlyList<FineAssessmentEventDto>>> GetAssessmentHistoryAsync(Guid id);
     Task<Result<FineSettlementQuoteDto>> QuoteFineAsync(Guid id);
     Task<Result<IReadOnlyList<FineSettlementHistoryDto>>> GetFineSettlementHistoryAsync(Guid id);

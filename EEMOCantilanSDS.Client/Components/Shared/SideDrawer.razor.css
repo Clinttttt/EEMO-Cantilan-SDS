@@ -79,7 +79,7 @@
     }
 
     .sd-close:focus-visible {
-        outline: 2px solid #ffffff;
+        outline: 2px solid var(--dark-surface, #ffffff);
         outline-offset: 2px;
     }
 

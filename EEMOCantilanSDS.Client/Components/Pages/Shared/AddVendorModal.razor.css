@@ -46,7 +46,7 @@
 
 /* ── Fee highlight banners (NPM section-specific) ───────────── */
 .avm-fee-highlight {
-    background: rgba(13,33,55,0.03);
+    background: var(--dark-tint, rgba(13,33,55,0.03));
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 10px 14px;
@@ -270,7 +270,7 @@
     border-radius: 5px;
     background: var(--bg-card);
 }
-.avm-fee-toggle.active .avm-fee-mark { background: var(--navy); border-color: var(--navy); }
+.avm-fee-toggle.active .avm-fee-mark { background: var(--dark-navy-fill, var(--navy)); border-color: var(--navy); }
 .avm-fee-mark svg {
     width: 13px;
     height: 13px;
@@ -361,7 +361,7 @@
 }
 
     .avm-fee-check.checked {
-        background: var(--navy);
+        background: var(--dark-navy-fill, var(--navy));
         border-color: var(--navy);
     }
 
@@ -402,7 +402,7 @@
     }
 
         .avm-fee-toggle-water.active .avm-fee-check {
-            background: var(--navy);
+            background: var(--dark-navy-fill, var(--navy));
             border-color: var(--navy);
         }
 
@@ -558,7 +558,7 @@
     justify-content: space-between;
     gap: 12px;
     padding: 11px 12px;
-    background: var(--surface-2, #f4f6f9);
+    background: var(--surface-2, var(--dark-surface-muted, #f4f6f9));
     border: 1px solid var(--border, #d6dde5);
     border-radius: 6px;
     font-size: 12.5px;
@@ -583,8 +583,8 @@
 
 .avm-fee-toggle.active .avm-fee-mark, .avm-fee-check.checked, .avm-fee-toggle-water.active .avm-fee-check {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 .avm-util-hint {

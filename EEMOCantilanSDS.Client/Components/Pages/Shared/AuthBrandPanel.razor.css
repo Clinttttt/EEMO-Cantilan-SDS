@@ -111,7 +111,7 @@
 }
 
 .setup-brand-title {
-    color: #e4bf52;
+    color: var(--dark-amber-text, #e4bf52);
     font-size: clamp(52px, 5vw, 68px);
     font-weight: 800;
     letter-spacing: 0.1em;

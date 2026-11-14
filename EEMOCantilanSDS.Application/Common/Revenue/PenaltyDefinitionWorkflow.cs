@@ -82,9 +82,9 @@ public sealed class PenaltyDefinitionWorkflow(
             if (!register.IsSuccess) return Result<PenaltyWorkspaceSummaryDto>.Failure(register.Error!, register.Status);
             var rows = register.Value!;
             var assessed = await db.FineAssessments.AsNoTracking().Where(x => x.MunicipalityId == actor.TenantId)
-                .Select(x => new { x.Id, x.AssessedAmount }).ToListAsync(ct);
+                .Select(x => new { x.Id, AmountDue = x.AdjustedAmount ?? x.AssessedAmount }).ToListAsync(ct);
             var settled = await new FineAssessmentCollectionSource(db).SettledAsync(actor.TenantId, assessed.Select(x => x.Id).ToArray(), ct);
-            var unpaid = assessed.Select(x => x.AssessedAmount - settled.GetValueOrDefault(x.Id)).Where(x => x > 0m).ToList();
+            var unpaid = assessed.Select(x => x.AmountDue - settled.GetValueOrDefault(x.Id)).Where(x => x > 0m).ToList();
             return Result<PenaltyWorkspaceSummaryDto>.Success(new(from, to, rows.Sum(x => x.EffectiveAmount ?? 0m),
                 rows.Where(x => x.Kind == PenaltyRegisterKinds.Direct).Sum(x => x.EffectiveAmount ?? 0m), unpaid.Sum(), unpaid.Count));
         }, ct);

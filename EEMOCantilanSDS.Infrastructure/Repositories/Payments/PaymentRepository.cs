@@ -223,7 +223,10 @@ public partial class PaymentRepository(AppDbContext context, IFeeRateResolver fe
 
     public async Task UpdateAsync(PaymentRecord payment, CancellationToken ct)
     {
-        _context.PaymentRecords.Update(payment);
+        // A tracked record saves its own changes, and a receipt it just gained is found as new. Update() would mark that
+        // receipt (its key already set) as an existing row to modify, and the save would fail.
+        if (_context.Entry(payment).State == EntityState.Detached)
+            _context.PaymentRecords.Update(payment);
         await Task.CompletedTask;
     }
 }

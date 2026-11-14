@@ -102,6 +102,34 @@ public sealed class CollectionManagerMonthlyReceiptTests : TestContext
     }
 
     [Fact]
+    public void A_month_to_come_offers_Pay_ahead_so_a_paid_up_payor_can_be_recorded()
+    {
+        Arrange(SettlementAuthority.Legacy);
+        var nextYear = PhilippineTime.Today.Year + 1;
+        _payments.Setup(x => x.GetMonthlyExceptionsAsync(StallId, It.IsAny<int>())).ReturnsAsync(Result<IReadOnlyList<int>>.Success([]));
+        _payments.Setup(x => x.GetPaymentRecordAsync(StallId, It.IsAny<int>(), It.IsAny<int>())).ReturnsAsync(Result<PaymentRecordDto>.Failure("none"));
+        _payments.Setup(x => x.GetOutstandingMonthsAsync(StallId, null, null, null)).ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success([]));
+        _payments.Setup(x => x.GetPayAheadOptionsAsync(StallId)).ReturnsAsync(Result<PayAheadOptionsDto>.Success(new([new(nextYear, 1, 1200m)], [1], null)));
+
+        var cut = RenderComponent<CollectionExceptions>();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ce-stall")), Timeout);
+        cut.Find(".ce-stall").Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ce-month")), Timeout);
+
+        // The label states a year, so its arrow moves a year: one click, and every month is still to come.
+        cut.Find("button.ce-nav[aria-label='Next']").Click();
+        cut.WaitForAssertion(() => Assert.Equal(nextYear.ToString(), cut.Find(".ce-period-lbl").TextContent.Trim()), Timeout);
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ce-month")), Timeout);
+        cut.FindAll(".ce-month")[0].Click();
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ce-drawer")), Timeout);
+
+        cut.FindAll(".ce-receipt button").Single(b => b.TextContent.Trim() == "Pay ahead").Click();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("#pb-ahead-or")), Timeout);
+        _payments.Verify(x => x.RecordPaymentAsync(It.IsAny<RecordPaymentCommand>()), Times.Never);
+    }
+
+    [Fact]
     public void A_legacy_month_keeps_the_status_editor_unchanged()
     {
         Arrange(SettlementAuthority.Legacy);

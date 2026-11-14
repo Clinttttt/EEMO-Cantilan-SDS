@@ -12,10 +12,10 @@
 .rd-title h1 { margin: 0; color: #ffffff; font-size: 1.5rem; font-weight: 700; letter-spacing: -.01em; }
 .rd-header p { margin: 4px 0 0; font-size: .8125rem; color: rgba(255, 255, 255, 0.85); }
 .rm-header-actions { display: flex; gap: 8px; flex-shrink: 0; }
-.rm-header-actions .v3-btn { border-color: #ffffff; background: #ffffff; color: var(--navy); }
+.rm-header-actions .v3-btn { border-color: var(--dark-surface, #ffffff); background: var(--dark-surface, #ffffff); color: var(--navy); }
 .rm-header-actions .v3-btn-primary { border-color: rgba(255, 255, 255, 0.9); background: rgba(255, 255, 255, 0.16); color: #ffffff; }
 .rm-header-actions .v3-btn-primary:hover { background: rgba(255, 255, 255, 0.26); }
-.rd-status { padding: 3px 10px; border: 1px solid #e2bcbc; border-radius: 999px; color: #842626; background: #fff5f5; font-size: .75rem; font-weight: 700; }
+.rd-status { padding: 3px 10px; border: 1px solid var(--dark-red-border, #e2bcbc); border-radius: 999px; color: var(--dark-red-text, #842626); background: var(--dark-surface-muted, #fff5f5); font-size: .75rem; font-weight: 700; }
 /* One compact grid: label above value, left-aligned, as many columns as fit. */
 .rd-facts { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px 32px; padding: 16px 20px 20px; }
 .rd-facts > div { flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; }
@@ -80,7 +80,7 @@
 }
 
 .rm-diff-flag {
-    color: var(--danger, #b42318);
+    color: var(--danger, var(--dark-red-text, #b42318));
     font-weight: 600;
 }
 
@@ -148,7 +148,7 @@
 }
 
 .rm-trace {
-    color: var(--v3-text-muted, #475467);
+    color: var(--v3-text-muted, var(--dark-text-secondary, #475467));
     font-size: 0.75rem;
     white-space: nowrap;
 }
@@ -170,7 +170,7 @@
 .rm-group:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .rm-group-title { display: inline-flex; align-items: center; gap: 6px; }
 .rm-chevron { display: inline-block; width: 12px; color: var(--accent); }
-.rm-child td { background: var(--surface-subtle, #f7f9fc); }
+.rm-child td { background: var(--surface-subtle, var(--dark-surface-muted, #f7f9fc)); }
 .rm-child .rm-child-source { padding-left: 28px; }
 .rm-child[hidden] { display: none; }
 @media print { .rm-child[hidden] { display: table-row; } .rm-child td { background: none; } }

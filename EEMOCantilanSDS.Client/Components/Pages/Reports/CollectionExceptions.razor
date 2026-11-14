@@ -468,6 +468,14 @@
                                     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                                     Future periods can only be scheduled as <strong>Excused</strong>.
                                 </div>
+                                @if (!IsNpm && eff != "collected")
+                                {
+                                    @* Follow-up rows list only accounts that owe, so this is how a paid-up payor's early rent is reached. *@
+                                    <div class="ce-receipt">
+                                        <div class="ce-receipt-text">Rent paid early for a month to come is recorded through Pay ahead.</div>
+                                        <button class="ce-cbtn ce-cbtn-primary" type="button" @onclick="OpenPayAhead">Pay ahead</button>
+                                    </div>
+                                }
                             }
 
                             @if (eff == "partial")
@@ -485,7 +493,7 @@
                                 </div>
                             }
 
-                            @if (eff == "collected" || eff == "partial")
+                            @if ((eff == "collected" || eff == "partial") && !DrawerIsFuture())
                             {
                                 <div class="ce-or">
                                     <label class="ce-or-label">OR Number</label>
@@ -554,19 +562,22 @@
                   Facility="receiptFacility"
                   StallNo="@SelectedStall.StallNo"
                   Occupant="@SelectedStall.Occupant"
-                  PeriodYear="_year" PeriodMonth="_drawerMonth"
+                  PeriodYear="@(_receiptAhead ? null : _year)" PeriodMonth="@(_receiptAhead ? null : _drawerMonth)"
+                  StartAhead="_receiptAhead"
                   OnClose="CloseReceipt"
                   OnChanged="ReceiptRecorded" />
 }
 
 @code {
     private bool _receiptOpen;
+    private bool _receiptAhead;
 
     // The month's record when a receipt-based writer owns it (Canonical or mid-cutover); null for Legacy months.
     private PaymentRecordDto? SourceOwnedRecord() =>
         !IsNpm && _drawerKind == "month" && DrawerRecord() is { SettlementAuthority: not SettlementAuthority.Legacy } r ? r : null;
 
-    private void OpenReceipt() => _receiptOpen = true;
+    private void OpenReceipt() { _receiptAhead = false; _receiptOpen = true; }
+    private void OpenPayAhead() { _receiptAhead = true; _receiptOpen = true; }
     private void CloseReceipt() => _receiptOpen = false;
     private async Task ReceiptRecorded()
     {
@@ -800,7 +811,8 @@
     private async Task PrevMonth()
     {
         var oldYear = _year;
-        var d = new DateTime(_year, _month, 1).AddMonths(-1);
+        // Monthly facilities show a year here, so the arrow moves a year; a market's daily view shows a month.
+        var d = new DateTime(_year, _month, 1).AddMonths(IsNpm ? -1 : -12);
         _year = d.Year; _month = d.Month;
         CloseDrawer();
         if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();
@@ -808,7 +820,7 @@
     private async Task NextMonth()
     {
         var oldYear = _year;
-        var d = new DateTime(_year, _month, 1).AddMonths(1);
+        var d = new DateTime(_year, _month, 1).AddMonths(IsNpm ? 1 : 12);
         _year = d.Year; _month = d.Month;
         CloseDrawer();
         if (SelectedStall is not null && (IsNpm || _year != oldYear)) await LoadPeriod();

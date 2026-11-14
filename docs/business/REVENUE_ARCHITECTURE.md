@@ -69,7 +69,7 @@ A collection may have multiple classified lines and may relate to multiple histo
 - **DECISION GATE:** the exact age/status boundary for old/lapsed qualification is unresolved.
 - **CONFIRMED TARGET:** when a debt qualifies as old/lapsed and is recovered, its revenue classification is **Arrears** while its source obligation remains identifiable as TCC, NCC, NPM or another original source. Preserve both; do not infer either from display text or report-time string matching.
 - The older 3+-months/1–2-months rule recorded in `EEMO_BUSINESS_RULES.md` is superseded as a business assumption. Current production now applies the one-fully-elapsed-unpaid-month delinquency threshold; one to two months remain lower-age/Normal follow-up and three-plus months higher-age/Critical follow-up. This runtime change does **not** resolve the separate old/lapsed Arrears qualification boundary or complete the later Arrears recovery/reporting cutover.
-- **REPORTING DECISION GATE:** the target collection classification for qualifying recovery is confirmed as Arrears. Separately, whether Monthly Income should display recovered cash under ARREARS or group it under its originating TCC/NCC/NPM category remains unresolved; do not choose a report-time override or grouping without explicit approval.
+- **REPORTING:** the target collection classification for qualifying recovery is confirmed as Arrears. Whether Monthly Income displays recovered cash under ARREARS or under its originating TCC/NCC/NPM category was unresolved until StallTrack Rule IA-076 (2026-11-05, on `feat/panel-compliance-20261104`, not deployed): it reports under ARREARS by read-time placement, the origin stays stated, and MEEDO may rule otherwise.
 
 ### Monthly obligations and flexible installments
 
@@ -344,7 +344,7 @@ Phase 2A has not introduced `CollectionAllocation`, `ReceivableObligation`, `Acc
 | Decision gate | Blocks or constrains |
 |---|---|
 | Exact old/lapsed Arrears qualification boundary | Determines which debts qualify for the confirmed Arrears recovery classification and blocks the remaining Arrears status/recovery/reporting cutover. The one-month Delinquent runtime threshold is already deployed. |
-| Monthly Income presentation of recovered qualifying Arrears (ARREARS vs originating TCC/NCC/NPM grouping) | Blocks final report presentation decisions. Collection classification remains Arrears; the report display/grouping treatment is not approved here. |
+| Monthly Income presentation of recovered qualifying Arrears (ARREARS vs originating TCC/NCC/NPM grouping) | Answered by StallTrack Rule IA-076 until MEEDO rules otherwise. Not deployed. |
 | Final complete official revenue-classification catalog/codes | Adding unresolved catalog entries and completing official classified-report coverage in later phases. Phase 1 includes only confirmed sources; do not invent the remainder. |
 | Automatic allocation policy for partial or multi-obligation collections | Any automatic allocation behavior in Phase 5. The model may support explicit allocations; do not guess ordering or split rules. |
 | Lot Rental OR/CT instrument | Issuing Lot Rental documents and production collection flow for that source in Phase 7/later operations. |

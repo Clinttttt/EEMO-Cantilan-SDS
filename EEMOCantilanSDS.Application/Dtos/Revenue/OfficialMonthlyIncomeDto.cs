@@ -25,7 +25,10 @@ public sealed record OfficialMonthlyIncomeRowDto(
     // Null unless an approved annual target exists for the row. No target is ever invented.
     decimal? AnnualTarget,
     // YTD actual divided by the annual target. Null without a target; it is never a collection-efficiency figure.
-    decimal? Attainment);
+    decimal? Attainment,
+    // Display-only: the official printable statement omits inactive, unconfigured zero rows for other LGUs.
+    // Source-performance/accounting readers still receive the full stable row-key catalog.
+    bool ShowOnOfficialReport = true);
 
 public sealed record OfficialMonthlyIncomeGroupDto(
     string Key,
@@ -52,4 +55,8 @@ public sealed record OfficialMonthlyIncomeDto(
     IReadOnlyList<string> Notes,
     DateTime GeneratedAtUtc, TargetCoverageDto? TargetCoverage = null,
     IReadOnlyList<OfficialMonthlyIncomeSectionDto>? Sections = null,
-    IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? Signatories = null);
+    IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto>? Signatories = null,
+    IReadOnlyList<RecoveredArrearsDto>? RecoveredArrears = null);
+
+/// <summary>What a facility's old rent added to the Arrears row in the period read. The row states one figure; this keeps where it came from.</summary>
+public sealed record RecoveredArrearsDto(EEMOCantilanSDS.Domain.Enums.FacilityCode Facility, decimal Amount);

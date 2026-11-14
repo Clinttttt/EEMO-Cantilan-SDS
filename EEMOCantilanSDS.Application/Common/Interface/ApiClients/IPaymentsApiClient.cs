@@ -1,11 +1,13 @@
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportDailyHistory;
 using EEMOCantilanSDS.Application.Command.Payments.BulkImportPaymentHistory;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
 using EEMOCantilanSDS.Application.Command.Payments.SaveOrNumber;
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMonthlyException;
 using EEMOCantilanSDS.Application.Command.Payments.SetMarketClosure;
 using EEMOCantilanSDS.Application.Command.Payments.ClearMarketClosure;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Queries.Payments.GetCollectableDays;
 using EEMOCantilanSDS.Domain.Common;
@@ -46,7 +48,10 @@ public interface IPaymentsApiClient
     Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetOutstandingMonthsAsync(
         Guid stallId, Guid? contractId = null, int? year = null, int? month = null);
     Task<Result<StallLedgerSummaryDto>> GetStallLedgerSummaryAsync(Guid stallId);
+    Task<Result<StallStatementDto>> GetStallStatementAsync(Guid stallId);
     Task<Result<bool>> RecordPaymentAsync(RecordPaymentCommand command);
+    Task<Result<PayAheadOptionsDto>> GetPayAheadOptionsAsync(Guid stallId);
+    Task<Result<bool>> RecordPayAheadAsync(RecordPayAheadCommand command);
     Task<Result<bool>> SaveOrNumberAsync(SaveOrNumberCommand command);
 
     Task<Result<IReadOnlyList<int>>> GetMonthlyExceptionsAsync(Guid stallId, int year);

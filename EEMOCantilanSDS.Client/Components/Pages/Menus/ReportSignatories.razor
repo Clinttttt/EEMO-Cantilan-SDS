@@ -8,23 +8,26 @@
 @inject ISettingsApiClient SettingsApi
 @inject BrandingState BrandingStore
 
-<PageTitle>StallTrack — Report signatories</PageTitle>
+<PageTitle>StallTrack — Report Signatories</PageTitle>
 
 @* The names and positions printed at the foot of the official Monthly Income. They are the office's own settings, never hard-coded; a role left
    blank prints as an empty signature line. Any other signatory line the office already keeps is left as it is. *@
 <header class="topbar">
     <div class="topbar-left">
-        <div class="topbar-title">Report signatories</div>
+        <div class="topbar-title">Report Signatories</div>
         <div class="topbar-breadcrumb">
             <span>@Branding.OfficeAcronym Admin</span>
             <span class="breadcrumb-sep">/</span>
             <a class="breadcrumb-link" href="/settings">Settings</a>
             <span class="breadcrumb-sep">/</span>
-            <span class="breadcrumb-active">Report signatories</span>
+            <span class="breadcrumb-active">Report Signatories</span>
         </div>
     </div>
     <div class="topbar-right">
-        <div class="topbar-date">@PhilippineTime.Now.ToString("MMMM d, yyyy")</div>
+        <div class="topbar-date">
+            <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+            @PhilippineTime.Now.ToString("MMMM d, yyyy")
+        </div>
         <AccountChip />
     </div>
 </header>
@@ -33,7 +36,7 @@
     <div class="v3-page rs-page">
         <section class="v3-panel" aria-labelledby="rs-title">
             <header class="v3-panel-header"><h2 id="rs-title">Official Monthly Income</h2><span class="v3-panel-meta">Printed at the foot of the statement</span></header>
-            <form class="rs-form" aria-label="Report signatories" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+            <form class="rs-form" aria-label="Report Signatories" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
                 @foreach (var role in OfficialSignatories.OfficialRoles)
                 {
                     var entry = _entries[role];

@@ -78,6 +78,38 @@ public sealed class OfficialReportPanelsTests : TestContext
         }, Timeout);
     }
 
+    [Theory]
+    [InlineData(9)]
+    [InlineData(null)]
+    public void MonthlyIncome_EmbeddedStatementHidesNonAdoptedZeroRowsWithoutChangingTotals(int? month)
+    {
+        var original = Statement(month);
+        var hidden = Row("TABO", "Unselected Tabo", 0m, 0m, "None") with { ShowOnOfficialReport = false };
+        var zeroSpace = Row("KANMANGGAY_SPACE_RENTAL", "Unselected Space Rental", 0m, 0m, "None")
+            with { ShowOnOfficialReport = false };
+        var groups = original.Groups.Select(g => g.Key == "MARKET"
+                ? g with { Rows = g.Rows.Append(hidden).ToArray() }
+                : g).Append(new OfficialMonthlyIncomeGroupDto("SPACE", "Space Rental", [zeroSpace],
+                    Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m))).ToArray();
+        var report = original with { Groups = groups };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2026, month))
+            .ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(report));
+
+        var cut = RenderComponent<OfficialMonthlyIncomePanel>(p => p
+            .Add(x => x.Year, 2026).Add(x => x.Month, month));
+
+        cut.WaitForAssertion(() =>
+        {
+            var text = cut.Find("table.mi-table").TextContent;
+            Assert.Contains("Market Fees", text);
+            Assert.Contains("Tampak Commercial Center", text);
+            Assert.DoesNotContain("Unselected Tabo", text);
+            Assert.DoesNotContain("Unselected Space Rental", text);
+            Assert.DoesNotContain("SPACE RENTAL", text);
+            Assert.Contains("1,030.00", cut.Find("tfoot").TextContent);
+        }, Timeout);
+    }
+
     [Fact]
     public void MonthlyIncome_FollowsTheOfficeStatement_NotTheFacilities_AndNeverInventsATarget()
     {
@@ -581,6 +613,27 @@ public sealed class OfficialReportPanelsTests : TestContext
     }
 
     [Fact]
+    public void Unconfigured_zero_only_rental_line_is_not_printed_but_report_totals_are_preserved()
+    {
+        var original = Statement(null) with { Year = 2025 };
+        var rows = original.Groups.Select(g => g with
+        {
+            Rows = g.Rows.Select(r => r.Key == "RENT_TCC"
+                ? r with { ShowOnOfficialReport = false } : r).ToArray()
+        }).ToArray();
+        var statement = original with { Groups = rows };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null))
+            .ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+        var cut = RenderOfficial(2025);
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("Market Fees", cut.Markup);
+            Assert.DoesNotContain("Tampak Commercial Center", cut.Find("[data-report-page='1']").TextContent);
+            Assert.Equal(1030m, statement.GrandTotal.Total);
+        }, Timeout);
+    }
+
+    [Fact]
     public void TheOfficialStatement_LettersTheOfficeLines_ShowsTheFullYear_AndNeverInventsATargetOrSubtotal()
     {
         var statement = Statement(null) with { Year = 2025 };
@@ -969,7 +1022,7 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.Equal(headers, report.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Equal(headers, overview.FindAll("table.rsp-table thead th").Select(h => h.TextContent.Trim()).ToArray());
             Assert.Contains("Revenue source performance — October 2026", report.Find("#rsp-title").TextContent);
-            Assert.Equal("Actual collections and operating activity by revenue source. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
+            Assert.Equal("Money received in this period by revenue source, including rent of earlier months. Target attainment uses adjusted official income.", report.Find(".rsp-sub").TextContent.Trim());
             Assert.DoesNotContain("Targets partially configured", report.Markup);
             Assert.DoesNotContain("Targets partially configured", overview.Markup);
             Assert.Empty(report.FindAll(".rsp-cov"));
@@ -1154,6 +1207,37 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.DoesNotContain("Awaiting an approved official grouping", cut.Markup);
             Assert.Contains("Prepared by", cut.Find("footer.omi-sign").TextContent);         // the two official roles come from office settings
             Assert.Contains("Certified Correct", cut.Find("footer.omi-sign").TextContent);
+        }, Timeout);
+    }
+
+    [Fact]
+    public void AFamilyWithNoLineOnThisOfficesSheet_IsNotPrinted_AndTheOverallTotalIsUnchanged()
+    {
+        // IA-080: an office with a terminal but no slaughterhouse gets its slaughterhouse line flagged hidden by the server.
+        var statement = Statement(null) with { Year = 2025 };
+        var terminal = new OfficialMonthlyIncomeGroupDto("TERMINAL", "B. Income From Terminal",
+            [Row("COMFORT_ROOM", "Comfort Room", 0m, 40m, "Canonical")], Months(0m, 40m), new MonthlyIncomeCellDto(0m, 40m));
+        var slaughter = new OfficialMonthlyIncomeGroupDto("SLAUGHTERHOUSE", "Slaughterhouse",
+            [Row("SLAUGHTERHOUSE", "Income from Slaughterhouse", 0m, 0m, "None") with { ShowOnOfficialReport = false }],
+            Months(0m, 0m), new MonthlyIncomeCellDto(0m, 0m));
+        OfficialMonthlyIncomeSectionDto Section(string key, string label, params string[] keys) => new(key, label, keys,
+            key == "B" ? terminal.MonthTotals : Months(0m, 0m), key == "B" ? terminal.Total : new MonthlyIncomeCellDto(0m, 0m));
+        statement = statement with
+        {
+            Groups = statement.Groups.Append(terminal).Append(slaughter).ToList(),
+            Sections = [Section("A", "Income From Market", "MARKET", "RENT"), Section("B", "Income From Terminal", "TERMINAL"), Section("C", "Income from Slaughterhouse", "SLAUGHTERHOUSE")],
+        };
+        _reports.Setup(x => x.GetMonthlyIncomeAsync(2025, null)).ReturnsAsync(Result<OfficialMonthlyIncomeDto>.Success(statement));
+
+        var cut = RenderOfficial(2025);
+
+        cut.WaitForAssertion(() =>
+        {
+            var continuation = cut.Find("[data-report-page='2']");
+            Assert.Contains("B. Income From Terminal", continuation.TextContent);
+            Assert.DoesNotContain("C. Income from Slaughterhouse", cut.Markup);
+            Assert.Contains("OVERALL TOTAL MARKET COLLECTION", continuation.TextContent);
+            Assert.Contains(statement.GrandTotal.Total.ToString("N2", System.Globalization.CultureInfo.InvariantCulture), continuation.QuerySelector("tfoot")!.TextContent);
         }, Timeout);
     }
 

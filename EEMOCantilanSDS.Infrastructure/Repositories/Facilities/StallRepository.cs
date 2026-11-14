@@ -215,6 +215,7 @@ public partial class StallRepository(
     /// </summary>
     public async Task<Stall?> GetByIdWithContractsAsync(Guid id, CancellationToken ct)
     {        return await _context.Stalls
+            .Include(s => s.Facility)
             .Include(s => s.Contracts)
             .FirstOrDefaultAsync(s => s.Id == id, ct);
     }

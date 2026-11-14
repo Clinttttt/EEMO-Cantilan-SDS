@@ -42,6 +42,12 @@ public interface IOnlinePaymentRepository
     /// restricted to the requesting municipality.</summary>
     Task<bool> HasCapturedReconciliationAsync(Guid municipalityId, CancellationToken ct = default);
 
+    /// <summary>True while this monthly record has captured money waiting for the office, so the period must not be charged again.</summary>
+    Task<bool> HasUnresolvedCaptureForRecordAsync(Guid paymentRecordId, CancellationToken ct = default);
+
+    /// <summary>The office's work list: captures awaiting a decision, checkouts the gateway never confirmed, failed attempts, and recent decisions.</summary>
+    Task<IReadOnlyList<OnlinePaymentExceptionDto>> GetExceptionsAsync(DateTime nowUtc, CancellationToken ct = default);
+
     /// <summary>Get tracked outstanding gateway-backed transactions for Head-confirmed TEST expiry.
     /// Returns up to <paramref name="limit"/> plus one for bounded-work safety.</summary>
     Task<IReadOnlyList<OnlinePaymentTransaction>> GetUnsettledMerchantCheckoutsAsync(

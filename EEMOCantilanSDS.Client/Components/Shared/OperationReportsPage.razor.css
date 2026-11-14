@@ -23,7 +23,7 @@
 }
 .orp-back { width: 34px; height: 34px; border-radius: 8px; }
 .orp-back:hover { background: rgba(255, 255, 255, .16); }
-.orp-back:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.orp-back:focus-visible { outline: 2px solid var(--dark-surface, #fff); outline-offset: 2px; }
 .orp-back svg,
 .orp-topbar-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .orp-titles { min-width: 0; }
@@ -68,7 +68,7 @@
 }
 .orp-tab:last-child { border-right: 0; }
 .orp-tab:hover { background: var(--bg); color: var(--navy); }
-.orp-tab.active { background: var(--accent); color: #fff; }
+.orp-tab.active { background: var(--dark-accent-fill, var(--accent)); color: #fff; }
 .orp-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 .orp-tab svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -135,7 +135,7 @@
 .orp-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .orp-legend i { width: 9px; height: 9px; border-radius: 50%; }
 .orp-legend .lg-rent { background: #2d7a5f; }
-.orp-legend .lg-current { background: var(--accent); }
+.orp-legend .lg-current { background: var(--dark-accent-fill, var(--accent)); }
 
 .orp-doc-actions { display: flex; justify-content: flex-end; }
 

@@ -116,6 +116,22 @@ public class MonthlyCollectionReportTests
     }
 
     [Fact]
+    public void RecoveredArrearsCountTowardTheFacilityTheyCameFrom_SoNoFalseDifferenceAppears()
+    {
+        var official = Official(
+            Row("RENT_TCC", RevenueSourceCatalog.RentGroup, RevenueSourceModel.RecurringObligation, 1500m),
+            Row("ARREARS", RevenueSourceCatalog.ReceivableGroup, RevenueSourceModel.Receivable, 500m)) with { RecoveredArrears = [new(FacilityCode.TCC, 500m)] };
+        var detail = Detail(Facility(FacilityCode.TCC, 2000m));
+
+        var result = MonthlyCollectionReport.Reconcile(detail, official);
+
+        var tcc = Assert.Single(result.Rows);
+        Assert.True(tcc.Agrees);
+        Assert.Contains("₱500.00", tcc.Scope);
+        Assert.Equal((2000m, 2000m, 0m), (result.OfficialTotal, result.OfficialWithDetail, result.WithoutDetail));
+    }
+
+    [Fact]
     public void LegacyTerminalTripsAreComparedOnlyWithTheLegacyPartOfTheTerminalRows()
     {
         var official = Official(

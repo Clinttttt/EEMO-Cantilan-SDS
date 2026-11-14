@@ -47,6 +47,15 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
 
         var rowFacts = facts.GroupBy(x => OfficialMonthlyIncomeStructure.RowKeyFor(x.Code, x.Facility))
             .ToDictionary(g => g.Key, g => g.ToList());
+        // Official row keys are stable for reconciliation and approved report revisions; only the
+        // displayed facility labels are taken from this municipality's own registry.
+        var facilityNames = await db.Facilities.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenantId)
+            .Select(f => new { f.Code, f.Name })
+            .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
+        var activeSources = (await db.RevenueClassifications.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && x.IsActive)
+            .Select(x => x.SemanticCode).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
         var defined = OfficialMonthlyIncomeStructure.Rows.ToDictionary(x => x.Key);
         var pendingExtras = rowFacts.Keys.Where(k => !defined.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal)
             .Select(k => new OfficialMonthlyIncomeStructure.Row(k, k.Replace("OTHER_", string.Empty), OfficialMonthlyIncomeStructure.Pending,
@@ -57,17 +66,39 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             x.MunicipalityId == tenantId && x.Year == request.Year).ToListAsync(ct);
         var currentRevisions = revisions.GroupBy(x => (x.Kind, x.RowKey, x.Month))
             .ToDictionary(g => g.Key, g => g.OrderByDescending(x => x.Revision).First());
+        // The sheet's own office is Cantilan by tenant code, not the sign-in default (IsDefault), which a standalone
+        // deployment gives to its only office.
+        var office = await OfficeLinesAsync(tenantId, ct);
         foreach (var group in OfficialMonthlyIncomeStructure.Groups)
         {
             var rows = OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey == group.Key)
-                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key)).ToList();
+                .Concat(pendingExtras.Where(r => r.GroupKey == group.Key))
+                // Keep every official row key for the source-performance register, including zero rows. Another office reads each
+                // line under its own name (IA-080); a facility line it never registered never borrows another municipality's name.
+                .Select(r => office?.Names.GetValueOrDefault(r.Key) is { } name ? r with { Label = name }
+                    : r.Facility is { } facility && facilityNames.TryGetValue(facility, out var tenantName)
+                        ? r with { Label = $"{tenantName} ({facility})" }
+                        : r.Facility is { } fallbackCode
+                            ? r with { Label = $"{fallbackCode} rental (historical)" }
+                            : r)
+                .ToList();
             var rowDtos = rows.Select(row => ToRow(row, rowFacts.GetValueOrDefault(row.Key) ?? [], currentRevisions,
-                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0))).ToList();
+                request.Month ?? (request.Year < clock.PhilippineToday.Year ? 12 : request.Year == clock.PhilippineToday.Year ? clock.PhilippineToday.Month : 0),
+                // Hide only zero-only, unapproved template entries on a nondefault office's sheet; a line the office holds is shown
+                // (IA-080). The DTO stays in the query response for downstream source-performance reconciliation.
+                office is null || rowFacts.ContainsKey(row.Key)
+                    || currentRevisions.Keys.Any(k => k.RowKey == row.Key)
+                    || office.Held.Contains(row.Key)
+                    || (row.Facility is { } facility && facilityNames.ContainsKey(facility))
+                    || (row.Facility is null && row.ClassificationCode is { } code && activeSources.Contains(code)))).ToList();
             // Pending rows with no cash are not listed: nothing has been recorded that needs a home.
-            if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(r =>
-                r.Total.Total != 0m || r.AnnualTarget.HasValue || r.Months.Any(m => m.IsAdjusted)).ToList();
+            if (group.Key == OfficialMonthlyIncomeStructure.Pending) rowDtos = rowDtos.Where(Carries).ToList();
             if (rowDtos.Count == 0) continue;
-            groups.Add(new(group.Key, group.Label, rowDtos, SumMonths(rowDtos.Select(r => r.Months)), SumCell(rowDtos.Select(r => r.Total))));
+            // Fines alone are not space rental: on another office's sheet that group reads as Others, as Revenue Sources groups it.
+            var shown = rowDtos.Where(r => r.ShowOnOfficialReport).ToList();
+            var groupLabel = office is not null && group.Key == OfficialMonthlyIncomeStructure.Space && shown.Count > 0
+                && shown.All(r => r.ClassificationCode == RevenueClassificationCodes.PenaltiesAndFines) ? "Others" : group.Label;
+            groups.Add(new(group.Key, groupLabel, rowDtos, SumMonths(rowDtos.Select(r => r.Months)), SumCell(rowDtos.Select(r => r.Total))));
         }
         var monthTotals = SumMonths(groups.Select(g => g.MonthTotals));
         var notes = new List<string>
@@ -92,6 +123,9 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             var members = groups.Where(g => keys.Contains(g.Key)).ToArray();
             sections.Add(new(key, label, keys, SumMonths(members.Select(g => g.MonthTotals)), SumCell(members.Select(g => g.Total))));
         }
+        // The facility each recovered Arrears amount came from, for the period read: it reports on one row but its origin stays stated (Rulebook, Arrears).
+        var recoveredArrears = facts.Where(f => f.Code == RevenueClassificationCodes.Arrears && f.Facility is not null && (request.Month is null || f.Month == request.Month))
+            .GroupBy(f => f.Facility!.Value).Select(g => new RecoveredArrearsDto(g.Key, g.Sum(f => f.Amount))).Where(x => x.Amount != 0m).OrderBy(x => x.Facility).ToList();
         var configured = await db.Municipalities.AsNoTracking().Where(x => x.Id == tenantId).Select(x => x.ReportSignatories).SingleOrDefaultAsync(ct);
         IReadOnlyList<EEMOCantilanSDS.Application.Command.Municipalities.SetReportSignatories.ReportSignatoryDto> signatories = [];
         if (!string.IsNullOrWhiteSpace(configured))
@@ -109,11 +143,12 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         return Result<OfficialMonthlyIncomeDto>.Success(new OfficialMonthlyIncomeDto(
             request.Year, request.Month, groups, monthTotals, SumCell(monthTotals), targeted.Length > 0, notes, clock.UtcNow,
             new(coverage, targeted.Length, allRows.Length, targetTotal, coveredActual,
-                coverage == TargetCoverageState.Complete && targetTotal > 0m ? coveredActual / targetTotal * 100m : null), sections, signatories));
+                coverage == TargetCoverageState.Complete && targetTotal > 0m ? coveredActual / targetTotal * 100m : null), sections, signatories, recoveredArrears));
     }
 
     private static OfficialMonthlyIncomeRowDto ToRow(OfficialMonthlyIncomeStructure.Row row, List<Fact> facts,
-        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through)
+        Dictionary<(OfficialReportRevisionKind Kind, string RowKey, int Month), OfficialReportRevision> revisions, int through,
+        bool showOnOfficialReport)
     {
         var months = Enumerable.Range(1, 12).Select(m => new MonthlyIncomeCellDto(
             facts.Where(f => f.Month == m && !f.Canonical).Sum(f => f.Amount),
@@ -126,7 +161,73 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
             : total.Canonical != 0m ? "Canonical" : total.Legacy != 0m ? "Legacy" : "None";
         var target = revisions.GetValueOrDefault((OfficialReportRevisionKind.AnnualTarget, row.Key, 0))?.Amount;
         return new(row.Key, row.Label, row.ClassificationCode, months, total, authority, target,
-            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null);
+            target is > 0m ? months.Take(through).Sum(c => c.Total) / target.Value * 100m : null,
+            showOnOfficialReport);
+    }
+
+    private static bool Carries(OfficialMonthlyIncomeRowDto row) =>
+        row.AnnualTarget.HasValue || row.Months.Any(m => m.Legacy != 0m || m.Canonical != 0m || m.IsAdjusted);
+
+    /// <summary>The lines an office other than the sheet's own holds, and its names for them. Null for the sheet's own office.</summary>
+    private sealed record OfficeLines(IReadOnlySet<string> Held, IReadOnlyDictionary<string, string> Names);
+
+    /// <summary>
+    /// IA-080. A line is held when the office has its facility (stall rent, Ice Plant, Tabo, Slaughterhouse), its revenue source,
+    /// the operation listed, or the terminal section enabled; Arrears when it has a stall-rent facility. Its name is the office's
+    /// own: the facility's name, then the name it gave the operation or section, then its source's policy name, then the neutral
+    /// standard name. Presentation only: placement, totals and classifications are untouched.
+    /// </summary>
+    private async Task<OfficeLines?> OfficeLinesAsync(Guid tenantId, CancellationToken ct)
+    {
+        var code = await db.Municipalities.AsNoTracking().Where(m => m.Id == tenantId).Select(m => m.Code).SingleOrDefaultAsync(ct);
+        if (string.Equals(code, OfficialMonthlyIncomeStructure.SheetOfficeCode, StringComparison.OrdinalIgnoreCase)) return null;
+
+        var today = clock.PhilippineToday;
+        // Every facility names its line, an archived one too (its money is still reported); only an active one holds a line.
+        var facilities = await db.Facilities.AsNoTracking().Where(f => f.MunicipalityId == tenantId)
+            .Select(f => new { f.Code, f.Name, f.ShortName, f.IsActive }).ToListAsync(ct);
+        var sources = await db.RevenueClassifications.AsNoTracking().Where(c => c.MunicipalityId == tenantId && c.IsActive)
+            .Select(c => new
+            {
+                c.SemanticCode,
+                Name = db.RevenueClassificationPolicies.Where(p => p.MunicipalityId == tenantId && p.RevenueClassificationId == c.Id && p.EffectiveDate <= today)
+                    .OrderByDescending(p => p.EffectiveDate).Select(p => p.DisplayName).FirstOrDefault()
+            }).ToListAsync(ct);
+        var operations = await db.TenantOperationSettings.AsNoTracking().Where(s => s.MunicipalityId == tenantId)
+            .Select(s => new { s.OperationCode, s.IsListed, s.LocalDisplayName }).ToListAsync(ct);
+        var terminals = (await db.TerminalSectionSettings.AsNoTracking().Where(s => s.MunicipalityId == tenantId && s.IsEnabled)
+            .Select(s => new { s.Section, s.LocalDisplayName }).ToListAsync(ct))
+            .ToDictionary(s => OfficeCollectionWorkflow.SectionCode(s.Section), s => s.LocalDisplayName, StringComparer.Ordinal);
+
+        static string? Real(string? name, string? code = null) =>
+            string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), code, StringComparison.Ordinal) ? null : name.Trim();
+
+        var held = new HashSet<string>(StringComparer.Ordinal);
+        var names = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var row in OfficialMonthlyIncomeStructure.Rows.Where(r => r.GroupKey != OfficialMonthlyIncomeStructure.Pending))
+        {
+            var facilityCode = row.Facility ?? row.Key switch
+            {
+                "ICE_PLANT" => FacilityCode.ICE, "TABO" => FacilityCode.TPM, "SLAUGHTERHOUSE" => FacilityCode.SLH, _ => (FacilityCode?)null
+            };
+            var facility = facilityCode is { } fc ? facilities.OrderByDescending(f => f.IsActive).FirstOrDefault(f => f.Code == fc) : null;
+            var source = row.Facility is null ? sources.FirstOrDefault(s => s.SemanticCode == row.ClassificationCode) : null;
+            var entry = TenantOperationCatalog.FindBySourceKey(row.ClassificationCode);
+            var operation = entry is null ? null : operations.FirstOrDefault(o => o.OperationCode == entry.Code);
+            string? terminalName = null;
+            var terminal = row.ClassificationCode is { } rc && terminals.TryGetValue(rc, out terminalName);
+
+            var holdsRent = row.Key == "ARREARS" && facilities.Any(f => f.IsActive && (f.Code is FacilityCode.NPM or FacilityCode.NCC or FacilityCode.TCC or FacilityCode.BBQ || (int)f.Code >= 101));
+            if (facility?.IsActive == true || source is not null || operation?.IsListed == true || terminal || holdsRent) held.Add(row.Key);
+
+            var name = facility is not null
+                ? row.Facility is not null && !string.IsNullOrWhiteSpace(facility.ShortName) ? $"{facility.Name} ({facility.ShortName})" : facility.Name
+                : Real(operation?.LocalDisplayName) ?? Real(terminalName) ?? Real(source?.Name, row.ClassificationCode) ?? entry?.DefaultLabel
+                    ?? (row.GroupKey == OfficialMonthlyIncomeStructure.Terminal
+                        ? System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(row.Label.ToLowerInvariant()) : null);
+            if (name is not null) names[row.Key] = name;
+        }
+        return new OfficeLines(held, names);
     }
 
     private static MonthlyIncomeCellDto SumCell(IEnumerable<MonthlyIncomeCellDto> cells)
@@ -175,54 +276,20 @@ public sealed class GetOfficialMonthlyIncomeQueryHandler(
         foreach (var effect in lineCorrections.Where(x => !rentIds.Contains(x.RevenueClassificationId)))
             facts.Add(new(effect.BusinessDate.Month, CodeOf(codes, effect.RevenueClassificationId), null, effect.FinancialEffectAmount, true));
 
-        // Stall rent is read at allocation level so each period is placed on its own facility's row.
+        // Stall rent is read at allocation level so each period is placed on its own row: its facility's, or Arrears when it was old rent when collected (IA-076).
         var rentLineIds = lines.Where(x => rentIds.Contains(x.RevenueClassificationId)).Select(x => x.Id).ToHashSet();
-        if (rentLineIds.Count > 0)
+        var placed = await RecoveredArrears.PlaceAsync(db, tenantId, rentLineIds, ct);
+        var allocationIds = placed.Select(x => x.Id).ToList();
+        var allocationCorrections = allocationIds.Count == 0 ? [] : await db.CollectionCorrectionAllocations.AsNoTracking()
+            .Where(x => x.MunicipalityId == tenantId && allocationIds.Contains(x.OriginalAllocationId))
+            .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct);
+        var byId = placed.ToDictionary(x => x.Id);
+        foreach (var a in placed)
+            facts.Add(new(a.BusinessDate.Month, a.ClassificationCode, a.Facility, a.Amount, true));
+        foreach (var c in allocationCorrections)
         {
-            var allocations = await (
-                from allocation in db.CollectionAllocations.AsNoTracking()
-                join line in db.CollectionLines.AsNoTracking() on new { allocation.MunicipalityId, Id = allocation.CollectionLineId } equals new { line.MunicipalityId, line.Id }
-                join collection in db.Collections.AsNoTracking() on new { line.MunicipalityId, Id = line.CollectionId } equals new { collection.MunicipalityId, collection.Id }
-                where allocation.MunicipalityId == tenantId && collection.BusinessDate >= first && collection.BusinessDate <= last
-                    && (allocation.SourceKind == CollectionSourceKind.PaymentRecord || allocation.SourceKind == CollectionSourceKind.DailyCollection
-                        || allocation.SourceKind == CollectionSourceKind.NpmRentMonth)
-                select new { allocation.Id, allocation.SourceId, allocation.SourceKind, collection.BusinessDate, allocation.Amount, line.RevenueClassificationId }).ToListAsync(ct);
-            var rentAllocations = allocations.Where(x => rentIds.Contains(x.RevenueClassificationId)).ToList();
-            var recordIds = rentAllocations.Select(x => x.SourceId).Distinct().ToList();
-            var facilityOf = await (
-                from record in db.PaymentRecords.AsNoTracking()
-                join stall in db.Stalls.AsNoTracking() on record.StallId equals stall.Id
-                join facility in db.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
-                where record.MunicipalityId == tenantId && recordIds.Contains(record.Id)
-                select new { record.Id, facility.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, ct);
-            // A canonical NPM daily stall fee is stall rent too: its day row names the stall, hence the facility's row.
-            foreach (var day in await (
-                from daily in db.DailyCollections.AsNoTracking()
-                join stall in db.Stalls.AsNoTracking() on daily.StallId equals stall.Id
-                join facility in db.Facilities.AsNoTracking() on stall.FacilityId equals facility.Id
-                where daily.MunicipalityId == tenantId && recordIds.Contains(daily.Id)
-                select new { daily.Id, facility.Code }).ToListAsync(ct))
-                facilityOf[day.Id] = day.Code;
-            var allocationIds = rentAllocations.Select(x => x.Id).ToList();
-            var monthIds = rentAllocations.Where(x => x.SourceKind == CollectionSourceKind.NpmRentMonth).Select(x => x.SourceId).ToArray();
-            var monthFacility = await (from source in db.NpmRentMonths.AsNoTracking()
-                join facility in db.Facilities.AsNoTracking() on new { source.MunicipalityId, Id = source.FacilityId }
-                    equals new { facility.MunicipalityId, facility.Id }
-                where source.MunicipalityId == tenantId && monthIds.Contains(source.Id)
-                select new { source.Id, facility.Code }).ToDictionaryAsync(x => x.Id, x => x.Code, ct);
-            var allocationCorrections = allocationIds.Count == 0 ? [] : await db.CollectionCorrectionAllocations.AsNoTracking()
-                .Where(x => x.MunicipalityId == tenantId && allocationIds.Contains(x.OriginalAllocationId))
-                .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct);
-            var byId = rentAllocations.ToDictionary(x => x.Id);
-            foreach (var a in rentAllocations)
-                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent,
-                    (a.SourceKind == CollectionSourceKind.NpmRentMonth ? monthFacility : facilityOf).GetValueOrDefault(a.SourceId), a.Amount, true));
-            foreach (var c in allocationCorrections)
-            {
-                var a = byId[c.OriginalAllocationId];
-                facts.Add(new(a.BusinessDate.Month, RevenueClassificationCodes.PermanentStallRent,
-                    (a.SourceKind == CollectionSourceKind.NpmRentMonth ? monthFacility : facilityOf).GetValueOrDefault(a.SourceId), c.FinancialEffectAmount, true));
-            }
+            var a = byId[c.OriginalAllocationId];
+            facts.Add(new(a.BusinessDate.Month, a.ClassificationCode, a.Facility, c.FinancialEffectAmount, true));
         }
         return facts;
     }

@@ -42,7 +42,7 @@
 /* ── Hero Banner ─────────────────────────────────────────── */
 .ncc-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -230,7 +230,7 @@
 }
 
 .ncc-mini-stat.partial-stat .ncc-mini-val {
-    color: #b87333;
+    color: var(--dark-amber-text, #b87333);
 }
 
 .fee-chips {
@@ -369,7 +369,7 @@
 
 .hist-unpaid {
     background: var(--red-bg);
-    border-color: #d9b0b0;
+    border-color: var(--dark-red-border, #d9b0b0);
 }
 
 .hist-month-name {
@@ -459,14 +459,14 @@
 }
 
 .btn-primary {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: #fff;
     border-color: var(--navy);
 }
 
 .btn-primary:hover {
     background: #051219;
-    border-color: #051219;
+    border-color: var(--dark-border-strong, #051219);
 }
 
 
@@ -516,7 +516,7 @@
 }
 
 .action-btn:hover {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     color: var(--gold-light);
     border-color: var(--navy);
 }

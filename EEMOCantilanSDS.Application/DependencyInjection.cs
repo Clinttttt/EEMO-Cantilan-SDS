@@ -34,6 +34,7 @@ namespace EEMOCantilanSDS.Application
                 Common.Payments.OnlinePaymentSettlementService>();
 
             services.AddScoped<Common.Payments.OnlineRentCanonicalPoster>();
+            services.AddScoped<Common.Payments.OnlinePaymentReconciler>();
             services.AddScoped<Common.Payments.NpmMonthSettlementService>();
             services.AddScoped<Common.Payments.INpmMonthSettlementService, Common.Payments.NpmMonthSettlementBridge>();
             // Deliberately not bound to configuration: no setting can activate an unfinished source.
@@ -84,6 +85,11 @@ namespace EEMOCantilanSDS.Application
             services.AddScoped<Common.Revenue.PenaltyDefinitionWorkflow>();
             services.AddScoped<Common.Revenue.DirectFineCollectionWorkflow>();
             services.AddScoped<Common.Revenue.FineAssessmentWorkflow>();
+            services.AddScoped<Common.Revenue.BillingPolicyWorkflow>();
+            services.AddScoped<Common.Revenue.BillingRules>();
+            services.AddScoped<Common.Revenue.LatePenaltyAssessor>();
+            services.AddScoped<Common.Notifications.NotificationInbox>();
+            services.AddScoped<Common.Notifications.NotificationSweep>();
             services.AddScoped<Common.Revenue.ObligationWorkflow>();
             services.AddScoped<Common.Revenue.FishMeatVendorFeeCollectionWorkflow>();
             services.AddScoped<Common.Revenue.VehicleClassWorkflow>();

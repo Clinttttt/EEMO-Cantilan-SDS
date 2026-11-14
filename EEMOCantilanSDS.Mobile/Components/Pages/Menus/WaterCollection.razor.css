@@ -497,65 +497,6 @@
     background: var(--mobile-blue-subtle);
 }
 
-/* Open Water obligations: a compact selectable register. */
-.wcf-list {
-    margin: 0 0 12px;
-    padding: 0;
-    list-style: none;
-    overflow: hidden;
-    border: 1px solid var(--mobile-border);
-    border-radius: 12px;
-    background: var(--mobile-surface);
-}
-
-.wcf-list li + li {
-    border-top: 1px solid var(--mobile-border);
-}
-
-.wcf-option {
-    display: flex;
-    width: 100%;
-    min-height: 56px;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 14px;
-    border: 0;
-    background: transparent;
-    color: var(--mobile-text);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.wcf-option.selected {
-    background: var(--mobile-blue-subtle);
-    box-shadow: inset 3px 0 0 var(--mobile-blue);
-}
-
-.wcf-option:focus-visible {
-    outline: 2px solid var(--mobile-focus);
-    outline-offset: -2px;
-}
-
-.wcf-option-main {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.wcf-option-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--mobile-navy);
-}
-
-.wcf-option-sub {
-    font-size: 12px;
-    color: var(--mobile-text-secondary);
-}
-
 .wcf-option-amount {
     font-size: 14px;
     font-weight: 700;

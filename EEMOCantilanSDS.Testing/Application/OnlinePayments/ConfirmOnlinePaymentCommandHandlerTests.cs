@@ -115,17 +115,122 @@ public class ConfirmOnlinePaymentCommandHandlerTests
     }
 
     [Fact]
-    public async Task Paid_AmountMismatch_IsRejected_DoesNotSettle()
+    public async Task Paid_AmountMismatch_IsReportedAsUnderReview_NotAsCredited()
     {
         var (txn, record) = PendingPair();
         var (handler, uow, _, _) = Build(txn, record, PaidEvent(Amount - 1m));   // underpayment
 
         var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
 
-        Assert.Equal(ResultStatus.Conflict, result.Status);
-        Assert.Equal(OnlinePaymentStatus.Pending, txn.Status);
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.Settled);
+        Assert.Equal("UnderReview", result.Value.Status);
+        Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
         Assert.Equal(PaymentStatus.Unpaid, record.Status);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task ACaptureAlreadyInReconciliation_IsNeverReportedAsCredited()
+    {
+        // IsSettled is true for this state (it only means "do not settle again"), and the portal used to tell the payor
+        // their account had been credited while the balance still showed as owing.
+        var (txn, record) = PendingPair();
+        txn.MarkPaid("pay_x", "gcash", DateTime.UtcNow, "{}");
+        txn.MarkSettlementReconciliationRequired("needs treasury review");
+        var (handler, uow, gateway, _) = Build(txn, record, evt: null);
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.Settled);
+        Assert.Equal("UnderReview", result.Value.Status);
+        gateway.Verify(g => g.RetrievePaymentStatusAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task ADecidedCapture_ReportsWhatTheHeadDecided()
+    {
+        var (refunded, record) = PendingPair();
+        refunded.MarkPaid("pay_x", "gcash", DateTime.UtcNow, "{}");
+        refunded.MarkSettlementReconciliationRequired("duplicate");
+        refunded.RecordOfficeDecision(OnlinePaymentDisposition.Refunded, "ref_1", null, "head", DateTime.UtcNow);
+        var (handler, _, _, _) = Build(refunded, record, evt: null);
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.Equal("Refunded", result.Value!.Status);
+        Assert.False(result.Value.Settled);
+
+        var (applied, appliedRecord) = PendingPair();
+        applied.MarkPaid("pay_y", "gcash", DateTime.UtcNow, "{}");
+        applied.MarkSettlementReconciliationRequired("mismatch");
+        applied.RecordOfficeDecision(OnlinePaymentDisposition.Applied, "OR-1", null, "head", DateTime.UtcNow);
+        var (appliedHandler, _, _, _) = Build(applied, appliedRecord, evt: null);
+
+        var appliedResult = await appliedHandler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.Equal("Paid", appliedResult.Value!.Status);
+        Assert.True(appliedResult.Value.Settled);
+    }
+
+    [Theory]
+    [InlineData(OnlinePaymentStatus.Failed)]
+    [InlineData(OnlinePaymentStatus.Expired)]
+    public async Task AFailedOrExpiredRow_IsAskedAboutAgain_SoALateCaptureIsNotLost(OnlinePaymentStatus status)
+    {
+        // A payor can retry after a failed attempt, and a missed webhook leaves only this path to find the money.
+        var (txn, record) = PendingPair();
+        if (status == OnlinePaymentStatus.Failed) txn.MarkFailed("{}"); else txn.MarkExpired("{}");
+        var (handler, _, gateway, _) = Build(txn, record, PaidEvent(Amount));
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.True(result.Value!.Settled);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+        gateway.Verify(g => g.RetrievePaymentStatusAsync(GatewayRef, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AFailedRowWithNothingPaidAtTheGateway_StaysFailed()
+    {
+        var (txn, record) = PendingPair();
+        txn.MarkFailed("{}");
+        var (handler, _, _, _) = Build(txn, record, PendingEvent());
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.Equal("Failed", result.Value!.Status);
+        Assert.False(result.Value.Settled);
+        Assert.Equal(OnlinePaymentStatus.Failed, txn.Status);
+    }
+
+    [Fact]
+    public async Task LosingTheRaceToAWebhook_DoesNotClaimPaidBeforeReadingTheOutcome()
+    {
+        // The winner may have stored a reconciliation rather than a settlement, so the next confirm has to read it.
+        var (txn, _) = PendingPair();
+        var gateway = new Mock<IPaymentGateway>();
+        gateway.Setup(g => g.RetrievePaymentStatusAsync(GatewayRef, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<PaymentGatewayEvent>.Success(PaidEvent(Amount)));
+        var onlineRepo = new Mock<IOnlinePaymentRepository>();
+        onlineRepo.Setup(r => r.GetByReferenceAsync(Reference, It.IsAny<CancellationToken>())).ReturnsAsync(txn);
+        var currentUser = new Mock<ICurrentUserService>();
+        currentUser.SetupGet(c => c.Role).Returns("Payor");
+        currentUser.SetupGet(c => c.UserId).Returns(txn.PayorUserId);
+        var settlement = new Mock<IOnlinePaymentSettlementService>();
+        settlement.Setup(s => s.SettleAsync(txn, It.IsAny<PaymentGatewayEvent>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException());
+        var handler = new ConfirmOnlinePaymentCommandHandler(
+            onlineRepo.Object, gateway.Object, settlement.Object, currentUser.Object, new Mock<IUnitOfWork>().Object);
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.Settled);
+        Assert.Equal("Pending", result.Value.Status);
     }
 
     [Fact]
@@ -154,6 +259,22 @@ public class ConfirmOnlinePaymentCommandHandlerTests
         Assert.True(result.Value!.Settled);
         Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
         uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AFailedAttempt_IsReported_ButTheCheckoutStaysOpenForARetry()
+    {
+        // Marking the row Failed would let the next payment open a second session while this one can still take money.
+        var (txn, record) = PendingPair();
+        var failed = new PaymentGatewayEvent(PaymentGatewayEventType.Failed, GatewayRef, 0m, null, null, null, "{}");
+        var (handler, uow, _, _) = Build(txn, record, failed);
+
+        var result = await handler.Handle(new ConfirmOnlinePaymentCommand(Reference), CancellationToken.None);
+
+        Assert.Equal("Failed", result.Value!.Status);
+        Assert.False(result.Value.Settled);
+        Assert.True(txn.IsResumable);
+        uow.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

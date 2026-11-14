@@ -130,6 +130,7 @@ public class GetFinancialReportQueryHandler(
 
         decimal collected = 0m, unpaid = 0m;
         int paidRecords = 0, expectedRecords = 0;
+        var earlierMonths = EarlierMonthsOfTheYear(request, clock.PhilippineToday);
 
         // ── Stall facilities — full canonical report (collected, unpaid, compliance, trend) ──
         foreach (var code in StallFacilities.Where(InScope))
@@ -248,6 +249,19 @@ public class GetFinancialReportQueryHandler(
                 var acc = stallTrend.GetValueOrDefault(t.PeriodLabel);
                 stallTrend[t.PeriodLabel] = (acc.Collected + t.Revenue, acc.Unpaid + periodUnpaid);
             }
+
+            // The chart shows six months; year to date needs the months of this year before them. One report six months
+            // back states the six before, which reaches January from any month.
+            if (earlierMonths.Count > 0)
+            {
+                var earlier = await reportsRepository.GetFacilityReportsAsync(
+                    code, request.Period, request.Year, earlierMonths[^1].Month, null, ct);
+                foreach (var t in earlier.RevenueTrend)
+                {
+                    var acc = stallTrend.GetValueOrDefault(t.PeriodLabel);
+                    stallTrend[t.PeriodLabel] = (acc.Collected + t.Revenue, acc.Unpaid);
+                }
+            }
         }
 
         // ── Service facilities — collected from their own month records (no unpaid, paid on service) ──
@@ -315,7 +329,28 @@ public class GetFinancialReportQueryHandler(
             }
             trend.Add(new ReportTrendPointDto(label, py, pm ?? 0, periodCollected, periodUnpaid, isSelected));
         }
-        var ytdCollected = trend.Sum(t => t.Collected);
+
+        // January through the selected period of the selected year. The chart's window is not that: summing it dropped the
+        // year's first months from July on, counted last year's money before June, and added five years on an annual view.
+        var ytdCollected = await YearToDateAsync();
+
+        async Task<decimal> YearToDateAsync()
+        {
+            if (request.Period == ReportPeriod.Yearly) return collected;
+            var total = trend.Where(t => t.Year == request.Year).Sum(t => t.Collected);
+            foreach (var (label, month) in earlierMonths)
+            {
+                total += stallTrend.GetValueOrDefault(label).Collected;
+                if (InScope(FacilityCode.NPM))
+                {
+                    var (elec, water, _) = await NpmUtilitiesAsync(request.Year, month, ct);
+                    total += elec + water;
+                }
+                foreach (var svc in ServiceFacilities.Where(InScope))
+                    total += (await ServiceMonthAsync(svc, request.Year, month, ct)).Collected;
+            }
+            return total;
+        }
 
         // Month-over-month: the trend bar immediately before the selected one already holds the previous
         // period's all-facility collected (service is folded into prior monthly bars), so the delta is
@@ -761,6 +796,16 @@ public class GetFinancialReportQueryHandler(
             }
         }
         return window;
+    }
+
+    /// <summary>The months of the selected year before the six-month trend window; the last is the latest of them.</summary>
+    private static IReadOnlyList<(string Label, int Month)> EarlierMonthsOfTheYear(GetFinancialReportQuery request, DateOnly today)
+    {
+        if (request.Period != ReportPeriod.Monthly) return [];
+        var anchorMonth = request.Month ?? today.Month;
+        return Enumerable.Range(1, Math.Max(0, anchorMonth - 6))
+            .Select(m => (new DateTime(request.Year, m, 1).ToString("MMM yyyy"), m))
+            .ToList();
     }
 
     /// <summary>

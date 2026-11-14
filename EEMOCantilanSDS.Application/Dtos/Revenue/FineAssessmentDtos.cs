@@ -17,7 +17,8 @@ public sealed record CreateFineAssessmentRequest(Guid ClientOperationId, FineAcc
 public sealed record FineAssessmentDto(Guid Id, FineAccountRef Account, string Occupant, string Unit, string Source,
     string Penalty, string Description, DateOnly ViolationDate, DateOnly AssessmentDate, string? IncidentReference,
     decimal Assessed, decimal Settled, decimal Remaining, string Status, long Version, string GoverningReference,
-    DateTime RecordedAtUtc, string? DuplicateWarning, FinePeriodOption? RelatedPeriod = null);
+    DateTime RecordedAtUtc, string? DuplicateWarning, FinePeriodOption? RelatedPeriod = null, bool CanAdjust = false);
+public sealed record AdjustFineAssessmentRequest(decimal Amount, string Reason, long ExpectedVersion);
 public sealed record FineAssessmentEventDto(Guid Id, string Kind, decimal Previous, decimal Resulting, Guid ActorId,
     DateTime RecordedAtUtc, string Evidence);
 public sealed record FineSettlementQuoteDto(Guid AssessmentId, FineAccountRef Account, string Occupant, string Source, string Unit,

@@ -5,6 +5,7 @@ using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Dtos.Vendors;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Fees;
 using EEMOCantilanSDS.Infrastructure.Persistence;
@@ -30,7 +31,8 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
         var stalls = await context.Stalls
             .AsNoTracking()
             .Include(s => s.Facility)
-            .Include(s => s.Contracts.Where(c => c.IsActive))
+            // Every term, not only the live one: a lessee who left this month still answers for this month.
+            .Include(s => s.Contracts)
             .Include(s => s.PaymentRecords.Where(p => p.BillingYear == year && p.BillingMonth == month))
             .ToListAsync(cancellationToken);
 
@@ -52,7 +54,11 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
         // Monthly rent collection metrics apply only to monthly-billed facilities.
         // NPM is collected daily (DailyCollection), so it is excluded from the monthly
         // paid/unpaid/outstanding/target figures to avoid falsely counting NPM vendors as unpaid.
-        var monthlyStalls = activeStalls.Where(s => s.Facility!.Code != FacilityCode.NPM).ToList();
+        // A vacant space has a rate but no account, so it owes nothing: the reports' rule, so the two totals agree.
+        var monthStart = new DateOnly(year, month, 1);
+        var monthEnd = new DateOnly(year, month, DateTime.DaysInMonth(year, month));
+        bool IsHeld(Stall stall) => stall.OccupanciesOverlapping(monthStart, monthEnd, today).Count > 0;
+        var monthlyStalls = activeStalls.Where(s => s.Facility!.Code != FacilityCode.NPM && IsHeld(s)).ToList();
 
         var paidCount = monthlyStalls.Count(s =>
         {
@@ -80,14 +86,14 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
         {
             var payment = s.PaymentRecords.FirstOrDefault(p => p.BillingYear == year && p.BillingMonth == month);
             if (payment == null)
-                return s.MonthlyRate;
+                return s.MonthlyRentFor(year, month, today);
 
             var totalBill = payment.BaseRentalAmount + (payment.ElecAmount ?? 0) + (payment.WaterAmount ?? 0) + (payment.FishKilos.HasValue ? payment.FishKilos.Value * npmFish : 0);
             var amountPaid = payment.Status == PaymentStatus.Paid ? totalBill : payment.Status == PaymentStatus.Partial ? payment.PartialAmount : 0;
             return totalBill - amountPaid;
         });
 
-        var monthlyTarget = monthlyStalls.Sum(s => s.MonthlyRate);
+        var monthlyTarget = monthlyStalls.Sum(s => s.MonthlyRentFor(year, month, today));
 
         var rateAsOf = clock.PhilippineToday;
 
@@ -132,7 +138,8 @@ public sealed class VendorRepository(AppDbContext context, IFeeRateResolver feeR
                 s.Facility!.Code == FacilityCode.NPM ? NpmDailyFee.ForStallOrNull(s, rateSnapshot, rateAsOf) : null,
                 // Its section is closed, so this row states its status and refuses to reopen on its own.
                 !string.IsNullOrWhiteSpace(s.CustomSectionName)
-                    && closedSections.Any(n => string.Equals(n.Trim(), s.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase))
+                    && closedSections.Any(n => string.Equals(n.Trim(), s.CustomSectionName!.Trim(), StringComparison.OrdinalIgnoreCase)),
+                !IsHeld(s)
             );
         }).ToList();
 

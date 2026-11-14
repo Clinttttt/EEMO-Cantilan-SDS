@@ -42,7 +42,98 @@ public class OnlinePaymentRepository(AppDbContext context) : IOnlinePaymentRepos
     public async Task<bool> HasCapturedReconciliationAsync(Guid municipalityId, CancellationToken ct = default)
         => await context.OnlinePaymentTransactions
             .AnyAsync(t => t.MunicipalityId == municipalityId && !t.IsDeleted
-                && t.Status == OnlinePaymentStatus.ReconciliationRequired, ct);
+                && t.Status == OnlinePaymentStatus.ReconciliationRequired && t.Disposition == null, ct);
+
+    public async Task<bool> HasUnresolvedCaptureForRecordAsync(Guid paymentRecordId, CancellationToken ct = default)
+        => await context.OnlinePaymentTransactions
+            .AnyAsync(t => t.PaymentRecordId == paymentRecordId
+                && t.Status == OnlinePaymentStatus.ReconciliationRequired && t.Disposition == null, ct);
+
+    public async Task<IReadOnlyList<OnlinePaymentExceptionDto>> GetExceptionsAsync(DateTime nowUtc, CancellationToken ct = default)
+    {
+        var unconfirmedBefore = nowUtc - OnlinePaymentExceptionWindows.UnconfirmedAfter;
+        var recentSince = nowUtc - OnlinePaymentExceptionWindows.RecentHistory;
+
+        // Tenant-scoped by the global filter. Bounded: this is a work queue, and anything older than the cap surfaces as the rows above it clear.
+        var rows = await context.OnlinePaymentTransactions.AsNoTracking()
+            .Where(t =>
+                (t.Status == OnlinePaymentStatus.ReconciliationRequired
+                    && (t.Disposition == null || t.DispositionAtUtc >= recentSince))
+                || ((t.Status == OnlinePaymentStatus.Pending || t.Status == OnlinePaymentStatus.Initiated)
+                    && t.GatewayReference != null && t.CreatedAt < unconfirmedBefore)
+                || (t.Status == OnlinePaymentStatus.Failed && t.CreatedAt >= recentSince))
+            .OrderByDescending(t => t.CreatedAt)
+            .Take(OnlinePaymentExceptionWindows.MaxRows)
+            .ToListAsync(ct);
+        if (rows.Count == 0) return [];
+
+        var recordIds = rows.Where(t => t.PaymentRecordId is not null).Select(t => t.PaymentRecordId!.Value).Distinct().ToList();
+        var records = await context.PaymentRecords.AsNoTracking()
+            .Where(r => recordIds.Contains(r.Id))
+            .Select(r => new { r.Id, r.StallId, r.BillingYear, r.BillingMonth })
+            .ToDictionaryAsync(r => r.Id, ct);
+        // A failed attempt followed by a successful one on the same period is history, not work for anybody.
+        var settledRecords = (await context.OnlinePaymentTransactions.AsNoTracking()
+                .Where(t => t.PaymentRecordId != null && recordIds.Contains(t.PaymentRecordId.Value)
+                    && (t.Status == OnlinePaymentStatus.Paid || t.Status == OnlinePaymentStatus.Completed))
+                .Select(t => t.PaymentRecordId!.Value)
+                .ToListAsync(ct))
+            .ToHashSet();
+
+        var stallIds = rows.Select(t => t.TargetStallId)
+            .Concat(records.Values.Select(r => (Guid?)r.StallId))
+            .Where(id => id is not null).Select(id => id!.Value).Distinct().ToList();
+        var stalls = await context.Stalls.AsNoTracking()
+            .Where(s => stallIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.StallNo, Facility = s.Facility!.Name })
+            .ToDictionaryAsync(s => s.Id, ct);
+        var payorIds = rows.Select(t => t.PayorUserId).Distinct().ToList();
+        var payors = await context.PayorUsers.AsNoTracking()
+            .Where(u => payorIds.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName })
+            .ToDictionaryAsync(u => u.Id, u => u.FullName, ct);
+
+        var items = new List<OnlinePaymentExceptionDto>(rows.Count);
+        foreach (var t in rows)
+        {
+            if (t.Status == OnlinePaymentStatus.Failed && t.PaymentRecordId is { } failedOn && settledRecords.Contains(failedOn))
+                continue;
+
+            var record = t.PaymentRecordId is { } recordId && records.TryGetValue(recordId, out var found) ? found : null;
+            var stallId = record?.StallId ?? t.TargetStallId;
+            var stall = stallId is { } id && stalls.TryGetValue(id, out var s) ? s : null;
+            var (year, month) = record is not null ? (record.BillingYear, record.BillingMonth) : (t.TargetYear ?? 0, t.TargetMonth ?? 0);
+
+            items.Add(new OnlinePaymentExceptionDto(
+                t.Id,
+                t.Reference,
+                t.Status switch
+                {
+                    OnlinePaymentStatus.ReconciliationRequired when t.Disposition is null => OnlinePaymentExceptionKind.NeedsDecision,
+                    OnlinePaymentStatus.ReconciliationRequired => OnlinePaymentExceptionKind.Resolved,
+                    OnlinePaymentStatus.Failed => OnlinePaymentExceptionKind.Failed,
+                    _ => OnlinePaymentExceptionKind.Unconfirmed
+                },
+                stall?.Facility ?? "—",
+                stall?.StallNo ?? "—",
+                payors.GetValueOrDefault(t.PayorUserId, "—"),
+                year > 0 && month > 0 ? $"{year:0000}-{month:00}" : "—",
+                t.Amount,
+                t.CapturedAmount,
+                t.Method,
+                t.CreatedAt,
+                t.PaidAt,
+                t.ReconciliationReason,
+                t.Disposition,
+                t.DispositionReference,
+                t.DispositionNote,
+                t.DispositionBy,
+                t.DispositionAtUtc));
+        }
+
+        // What needs a decision first, then what needs checking, then history.
+        return items.OrderBy(i => i.Kind).ThenByDescending(i => i.CreatedAt).ToList();
+    }
 
     public async Task<IReadOnlyList<OnlinePaymentTransaction>> GetUnsettledMerchantCheckoutsAsync(
         Guid municipalityId, int limit, CancellationToken ct = default)

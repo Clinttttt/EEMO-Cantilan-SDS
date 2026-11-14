@@ -413,8 +413,14 @@ public sealed class RemittanceWorkflow(
 
             var forms = (await FormPositionsAsync(tenantId, ct))
                 .Where(k => onlyCollector is null || k.Key.CollectorId == onlyCollector).ToDictionary(k => k.Key, k => k.Value);
+            // A collector can have only pre-SRC historical payments. Keep that collector visible
+            // for accountability without promoting old payments into remittable Collections.
+            var legacyCollectorIds = legacyQueries is null ? Array.Empty<Guid>()
+                : onlyCollector is { } one ? [one]
+                : await db.CollectorUsers.AsNoTracking().Where(x => x.MunicipalityId == tenantId)
+                    .Select(x => x.Id).ToArrayAsync(ct);
             var collectorIds = facts.Select(x => x.CollectorId!.Value).Concat(forms.Keys.Select(k => k.CollectorId))
-                .Concat(remittances.Select(x => x.CollectorId)).Distinct().ToArray();
+                .Concat(remittances.Select(x => x.CollectorId)).Concat(legacyCollectorIds).Distinct().ToArray();
             var names = await CollectorNamesAsync(tenantId, collectorIds, ct);
 
             var rows = new List<CollectorPositionDto>();
@@ -435,7 +441,8 @@ public sealed class RemittanceWorkflow(
                     collected, remitted, collected - remitted, review, legacy,
                     forms.Where(k => k.Key.CollectorId == collectorId).Select(k => k.Value).OrderBy(x => x.Instrument).ToList()));
             }
-            rows = rows.Where(x => x.Collected != 0m || x.Forms.Any(f => f.Assigned > 0) || x.NeedsReviewCount > 0)
+            rows = rows.Where(x => x.Collected != 0m || x.LegacyCollectionsOutsideRemittance != 0m
+                || x.Forms.Any(f => f.Assigned > 0) || x.NeedsReviewCount > 0)
                 .OrderBy(x => x.CollectorName, StringComparer.OrdinalIgnoreCase).ToList();
             // Office-origin cash: the same canonical Collections, read apart (no collector), never added to a collector or marked remitted.
             var officeTotal = 0m; var officeCount = 0;
@@ -668,12 +675,12 @@ public sealed class RemittanceWorkflow(
     private static RemittanceRowDto ToRow(CollectionRemittance x, Dictionary<Guid, string> names) => new(
         x.Id, x.RemittanceDate, x.CollectorId, names.GetValueOrDefault(x.CollectorId, "Collector"), x.Instrument,
         x.CollectionCount, x.ExpectedAmount, x.RemittedAmount, x.DifferenceAmount, x.Reference, x.Status, x.RecordedAtUtc,
-        x.SubmissionId);
+        x.SubmissionId, x.RecordedBy, x.Remarks, x.VoidedBy, x.VoidedAtUtc, x.VoidReason);
 
     private static string GroupStatus(IReadOnlyCollection<CollectionRemittance> members) =>
         members.All(x => x.Status == RemittanceStatus.Voided) ? "Voided"
         : members.Any(x => x.Status == RemittanceStatus.Voided) ? "Partly voided"
-        : members.Any(x => x.NeedsReview) ? "Needs review" : "Recorded";
+        : "Recorded";
 
     private static string? Validate(DateOnly from, DateOnly to) =>
         from > to || to.DayNumber - from.DayNumber > 366 ? "Choose a valid period of no more than 367 days." : null;

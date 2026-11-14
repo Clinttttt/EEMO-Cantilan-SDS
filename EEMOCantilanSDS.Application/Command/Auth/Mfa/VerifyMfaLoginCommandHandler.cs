@@ -88,6 +88,7 @@ namespace EEMOCantilanSDS.Application.Command.Auth.Mfa
             // Success: consume the challenge and clear any failed-attempt streak, then mint the session.
             user.ClearMfaChallenge();
             user.RecordLogin();
+            user.RecordSessionIssued(clock.UtcNow);
 
             var tokens = await tokenService.CreateTokenResponse(user);
             await context.SaveChangesAsync(ct);

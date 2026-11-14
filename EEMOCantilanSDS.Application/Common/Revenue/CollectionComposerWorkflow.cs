@@ -31,7 +31,8 @@ public sealed partial class CollectionComposerWorkflow(
     IClock? clock = null,
     Microsoft.Extensions.Logging.ILogger<CollectionComposerWorkflow>? logger = null,
     EEMOCantilanSDS.Application.Common.Caching.IEemoCacheInvalidator? cache = null,
-    MonthlyRentReceiptOptions? rentOptions = null)
+    MonthlyRentReceiptOptions? rentOptions = null,
+    BillingRules? billingRules = null)
 {
     private const string WebOrigin = "Web";
     private const int IntentVersion = 1;
@@ -360,6 +361,15 @@ public sealed partial class CollectionComposerWorkflow(
             .Sum(x => x.Amount);
         if (alreadyAllocated + request.ProposedAmount > facts.Quote.OutstandingAmount)
             throw Problem("The proposed rent allocation exceeds this period's remaining outstanding amount.", ResultStatus.Conflict);
+        if (billingRules is not null)
+        {
+            // An older month already on this receipt is being paid with it.
+            var onReceipt = existingAllocations.Where(x => x.SourceKind == CollectionSourceKind.PaymentRecord).Select(x => x.SourceId).ToList();
+            var covered = (await db.PaymentRecords.AsNoTracking().Where(x => x.StallId == request.StallId && onReceipt.Contains(x.Id))
+                .Select(x => new { x.BillingYear, x.BillingMonth }).ToListAsync(ct)).Select(x => (x.BillingYear, x.BillingMonth)).ToList();
+            if (await billingRules.RefusalAsync(request.StallId, request.BillingYear, request.BillingMonth, ct, covered) is { } refusal)
+                throw Problem(refusal, ResultStatus.Conflict);
+        }
 
         if (draft is null)
         {

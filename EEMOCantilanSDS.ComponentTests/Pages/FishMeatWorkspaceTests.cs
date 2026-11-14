@@ -199,8 +199,32 @@ public sealed class FishMeatWorkspaceTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Contains("No Meat weighing was recorded", cut.Markup);
+            Assert.Contains("No historical NPM meat weighing records for", cut.Markup);
             Assert.Empty(cut.FindAll("dl.wm-meat-facts"));
+        }, Timeout);
+    }
+
+    [Theory]
+    [InlineData(typeof(WeightAndMeasure))]
+    [InlineData(typeof(WeightAndMeasureReport))]
+    public void EmptyHistoricalEvidenceDoesNotClaimRegisteredWeighingsAreMissing(Type page)
+    {
+        Services.AddSingleton(Mock.Of<IOfficialReportsApiClient>());
+        SourceCollections();
+        _facilities.Setup(x => x.GetFacilityReportsAsync(FacilityCode.NPM, ReportPeriod.Monthly, It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<int?>()))
+            .ReturnsAsync(Result<FacilityReportsDto>.Success(Report(0m)));
+        var cut = Render(builder => { builder.OpenComponent(0, page); builder.CloseComponent(); });
+        if (page == typeof(WeightAndMeasureReport)) cut.OpenStatusReport();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("SRC-FISH", cut.Markup);
+            Assert.Contains("SRC-MEAT", cut.Markup);
+            Assert.Contains("No historical NPM fish weighing records for", cut.Markup);
+            Assert.DoesNotContain("No fish weighing was recorded", cut.Markup);
+            Assert.DoesNotContain("No Meat weighing was recorded", cut.Markup);
+            if (page == typeof(WeightAndMeasure))
+                Assert.Contains("No historical NPM meat weighing records for", cut.Markup);
         }, Timeout);
     }
 

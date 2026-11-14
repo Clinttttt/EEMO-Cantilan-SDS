@@ -93,7 +93,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
     {
         ServePosition(Position(0m, 0m) with { Collectors = [] });
         var cut = RenderComponent<Remittances>();
-        cut.WaitForAssertion(() => Assert.Contains("No collections ready to remit.", cut.Markup), Timeout);
+        cut.WaitForAssertion(() => Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup), Timeout);
         Assert.Single(cut.FindAll(".rm-workspace"));
         Assert.Empty(cut.FindAll(".v3h .rm-ctl"));
         Assert.Equal("Print", cut.Find(".rm-nav .rm-ctl button").TextContent.Trim());
@@ -105,6 +105,51 @@ public sealed class RemittanceWorkspaceTests : TestContext
             Assert.NotNull(panel.QuerySelector(".v3-table-wrap table thead"));
             Assert.NotNull(panel.QuerySelector("tbody .v3-empty"));
         }
+    }
+
+    [Fact]
+    public void Office_and_legacy_receipts_do_not_create_a_banner_or_remittable_cash()
+    {
+        ServePosition(Position(0m, 0m) with
+        {
+            Collectors = [],
+            LegacyCollectionsOutsideRemittance = 875m,
+            OfficeOriginCollected = 1250m,
+            OfficeOriginCount = 2
+        });
+        var cut = RenderComponent<Remittances>();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Empty(cut.FindAll("[aria-label='Receipts outside collector remittance']"));
+            Assert.DoesNotContain("Recorded outside collector remittance", cut.Markup);
+            Assert.DoesNotContain("Identified legacy collector receipts", cut.Markup);
+            Assert.DoesNotContain("Office-origin canonical Collections", cut.Markup);
+            Assert.Contains("No SRC-backed collector Collections ready to remit.", cut.Markup);
+            Assert.Contains("0 ready", cut.Markup);
+        }, Timeout);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
+    }
+
+    [Fact]
+    public void Legacy_only_collector_position_shows_old_amount_without_creating_remittable_cash()
+    {
+        var original = Position(0m, 0m);
+        ServePosition(original with
+        {
+            LegacyCollectionsOutsideRemittance = 2300m,
+            Collectors = [original.Collectors.Single() with { LegacyCollectionsOutsideRemittance = 2300m }]
+        });
+        var cut = RenderComponent<Remittances>();
+        OpenTab(cut, "Collector position");
+        cut.WaitForAssertion(() =>
+        {
+            var table = cut.Find("table.rm-position");
+            Assert.Contains("Legacy recorded (separate)", table.TextContent);
+            Assert.Contains("Ana Reyes", table.TextContent);
+            Assert.Contains("₱2,300.00", table.TextContent);
+            Assert.Contains("₱0.00", table.TextContent);
+        }, Timeout);
+        _api.Verify(x => x.RecordAsync(It.IsAny<RecordRemittanceRequest>()), Times.Never);
     }
 
     [Fact]
@@ -364,7 +409,7 @@ public sealed class RemittanceWorkspaceTests : TestContext
     {
         ServePosition(Position());
         var ana = Member("Ana Reyes", 110m, 100m);
-        ServeHistory(HistoryRow("Needs review", ana));
+        ServeHistory(HistoryRow("Needs review", ana)); // legacy API label cannot override persisted Recorded status
 
         var cut = RenderComponent<Remittances>();
         OpenTab(cut, "Remittance history");
@@ -373,7 +418,9 @@ public sealed class RemittanceWorkspaceTests : TestContext
         {
             var row = Assert.Single(cut.FindAll("[aria-label='Remittance history'] tbody tr"));
             Assert.Contains("₱10.00", row.TextContent);
-            Assert.Contains("Needs review", row.TextContent);
+            Assert.Equal("Recorded", row.QuerySelectorAll("td")[4].TextContent.Trim());
+            Assert.Contains("10.00", row.QuerySelectorAll("td")[5].TextContent);
+            Assert.DoesNotContain("Needs review", row.TextContent);
             Assert.Equal($"/remittances/{ana.RemittanceId}", row.QuerySelector("a")!.GetAttribute("href"));
             var actions = row.QuerySelectorAll(".rm-row-action a").Select(a => (a.TextContent.Trim(), a.GetAttribute("href"))).ToList();
             Assert.Equal(("View", $"/remittances/{ana.RemittanceId}"), actions[0]);

@@ -5,7 +5,7 @@
 .oo-field { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; font-weight: 600; color: var(--text-subtle); }
 .oo-input { border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; min-height: 40px; font: inherit; font-size: 14px; color: var(--navy); background: var(--bg-card); min-width: 220px; }
 .oo-input:focus-visible, .oo-link:focus-visible, .oo-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.oo-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
+.oo-link { display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 8px; background: var(--dark-accent-fill, var(--accent)); color: #fff; font-size: 13px; font-weight: 600; text-decoration: none; }
 .oo-link:hover { filter: brightness(.94); }
 .oo-warn { margin: 0; padding: 10px 12px; border-left: 3px solid var(--text-muted); background: var(--bg); font-size: 13px; color: var(--text-subtle); }
 .oo-note { margin: 0; font-size: 13px; color: var(--text-subtle); }

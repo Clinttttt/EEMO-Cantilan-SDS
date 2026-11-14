@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Command.Payments.SetMonthlyException;
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Enums;
@@ -22,19 +23,47 @@ public class SetStallMonthlyExceptionCommandHandlerTests
         return stall;
     }
 
-    private static (SetStallMonthlyExceptionCommandHandler handler, Mock<IStallMonthlyExceptionRepository> repo) Build(Stall stall)
+    private static (SetStallMonthlyExceptionCommandHandler handler, Mock<IStallMonthlyExceptionRepository> repo) Build(Stall stall, PaymentStatus? recorded = null)
     {
         var repo = new Mock<IStallMonthlyExceptionRepository>();
         var stallRepo = new Mock<IStallRepository>();
+        var payments = new Mock<IPaymentRepository>();
         var currentUser = new Mock<ICurrentUserService>();
         var uow = new Mock<IUnitOfWork>();
 
         stallRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(stall);
+        payments.Setup(p => p.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(recorded is { } status ? new PaymentRecordDto(Guid.NewGuid(), status, "OR-1", 2400m, null, null, null, 2400m, 0m) : null);
         repo.Setup(r => r.GetAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((StallMonthlyException?)null);
         currentUser.SetupGet(c => c.Username).Returns("tester");
 
-        return (new SetStallMonthlyExceptionCommandHandler(repo.Object, stallRepo.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), repo);
+        return (new SetStallMonthlyExceptionCommandHandler(repo.Object, stallRepo.Object, payments.Object, currentUser.Object, uow.Object, CacheTestDoubles.Invalidator, CacheTestDoubles.Tenant), repo);
+    }
+
+    [Theory]
+    [InlineData(PaymentStatus.Paid)]
+    [InlineData(PaymentStatus.Partial)]
+    public async Task AMonthWithRecordedMoney_CannotBeExcused(PaymentStatus recorded)
+    {
+        var (handler, repo) = Build(StallInFacility(FacilityCode.TCC), recorded);
+
+        var result = await handler.Handle(new SetStallMonthlyExceptionCommand(Guid.NewGuid(), 2026, 6), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("recorded payment", result.Error);
+        repo.Verify(r => r.AddAsync(It.IsAny<StallMonthlyException>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AnUnpaidRecord_CanStillBeExcused()
+    {
+        var (handler, repo) = Build(StallInFacility(FacilityCode.TCC), PaymentStatus.Unpaid);
+
+        var result = await handler.Handle(new SetStallMonthlyExceptionCommand(Guid.NewGuid(), 2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        repo.Verify(r => r.AddAsync(It.IsAny<StallMonthlyException>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]

@@ -48,7 +48,7 @@ public sealed partial class CollectionSessionSources
         var settled = await new FineAssessmentCollectionSource(db)
             .SettledAsync(Tenant, candidates.Select(x => x.Id).ToArray(), ct);
         var choices = new List<CollectionSessionSourceChoice>();
-        foreach (var fine in candidates.Where(x => x.AssessedAmount > settled.GetValueOrDefault(x.Id)))
+        foreach (var fine in candidates.Where(x => x.AmountDue > settled.GetValueOrDefault(x.Id)))
         {
             var facts = await CollectibleFineAsync(fine.Id, businessDate, false, ct);
             if (facts is null || facts.Quote.Remaining <= 0m) continue;

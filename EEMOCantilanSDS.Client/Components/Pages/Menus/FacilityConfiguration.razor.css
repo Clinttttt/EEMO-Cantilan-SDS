@@ -201,7 +201,7 @@
 .avail-body {
     display: flex;
     min-width: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     flex-direction: column;
 }
 
@@ -315,7 +315,7 @@
     font-size: 12.5px;
     color: var(--red);
     background: var(--red-bg);
-    border: 1px solid #e6c4c4;
+    border: 1px solid var(--dark-red-border, #e6c4c4);
     border-radius: 9px;
     padding: 9px 12px;
 }
@@ -342,8 +342,8 @@
 
 .fac-btn:disabled { opacity: .6; cursor: not-allowed; }
 
-.fac-btn-primary { background: var(--accent); color: #fff; }
-.fac-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.fac-btn-primary { background: var(--dark-accent-fill, var(--accent)); color: #fff; }
+.fac-btn-primary:hover:not(:disabled) { background: var(--dark-accent-hover-fill, var(--accent-hover)); }
 
 .fac-btn-ghost { background: transparent; color: var(--text-subtle); border-color: var(--border); }
 .fac-btn-ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--navy); }
@@ -380,7 +380,7 @@
 
 .cfg-head {
     position: relative;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     padding: 22px 24px 18px;
     flex: 0 0 auto;
@@ -619,7 +619,7 @@
 
 .cfg-error {
     font-size: 12.5px; color: var(--red);
-    background: var(--red-bg); border: 1px solid #e6c4c4; border-radius: 9px; padding: 9px 12px;
+    background: var(--red-bg); border: 1px solid var(--dark-red-border, #e6c4c4); border-radius: 9px; padding: 9px 12px;
 }
 .cfg-success {
     font-size: 12.5px; color: var(--green);
@@ -666,7 +666,7 @@
     font-weight: 600;
     color: var(--red);
     background: transparent;
-    border: 1px solid #e6c4c4;
+    border: 1px solid var(--dark-red-border, #e6c4c4);
     border-radius: 9px;
     padding: 8px 14px;
     cursor: pointer;
@@ -676,7 +676,7 @@
 .cfg-deactivate:disabled { opacity: .6; cursor: not-allowed; }
 
 .cfg-danger {
-    border: 1px solid #e6c4c4;
+    border: 1px solid var(--dark-red-border, #e6c4c4);
     background: var(--red-bg);
     border-radius: 11px;
     padding: 13px;
@@ -686,7 +686,7 @@
 }
 .cfg-danger-text { font-size: 12.5px; color: var(--red); line-height: 1.45; }
 .cfg-danger-actions { display: flex; justify-content: flex-end; gap: 10px; }
-.fac-btn-danger { background: var(--red); color: #fff; }
+.fac-btn-danger { background: var(--dark-red-fill, var(--red)); color: #fff; }
 .fac-btn-danger:hover:not(:disabled) { filter: brightness(1.05); }
 
 .cfg-inactive-note {
@@ -727,7 +727,7 @@
     align-items: center;
     gap: 16px;
     padding: 18px 22px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
     flex: 0 0 auto;
 }
@@ -790,7 +790,7 @@
     background: var(--bg-icon); color: var(--text-subtle);
 }
 .hist-paid { background: var(--green-bg); color: var(--green); }
-.hist-partial { background: #fdf4e3; color: #9a6b00; }
+.hist-partial { background: var(--dark-amber-tint, #fdf4e3); color: var(--dark-amber-text, #9a6b00); }
 .hist-unpaid, .hist-delinquent { background: var(--red-bg); color: var(--red); }
 
 @media (max-width: 560px) {
@@ -938,7 +938,7 @@
 }
 .cfg-choice-item:last-child { border-right: 0; }
 .cfg-choice-item:hover { background: var(--surface-hover); color: var(--navy); }
-.cfg-choice-item.is-on { background: var(--accent); color: #fff; }
+.cfg-choice-item.is-on { background: var(--dark-accent-fill, var(--accent)); color: #fff; }
 .cfg-choice-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -3px; }
 .cfg-rule {
     display: flex;

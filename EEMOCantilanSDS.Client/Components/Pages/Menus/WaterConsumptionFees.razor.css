@@ -193,11 +193,11 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 .is-active .wcf-mobile-dot {
-    background: var(--green);
+    background: var(--dark-green-fill, var(--green));
 }
 
 .is-blocked .wcf-mobile-dot {

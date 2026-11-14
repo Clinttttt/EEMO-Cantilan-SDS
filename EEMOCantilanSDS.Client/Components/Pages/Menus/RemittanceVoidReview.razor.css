@@ -44,13 +44,13 @@
 /* Destructive styling appears only here, on the one action that voids. */
 .rvr-danger {
     border-color: var(--red);
-    background: var(--red);
+    background: var(--dark-red-fill, var(--red));
     color: #ffffff;
 }
 
     .rvr-danger:hover:not(:disabled) {
         border-color: var(--red);
-        background: var(--red);
+        background: var(--dark-red-fill, var(--red));
         filter: brightness(0.92);
         color: #ffffff;
     }

@@ -24,7 +24,7 @@
 
 
 /* ── Import results / errors ── */
-.imp-state-badge.warn { background: rgba(200, 168, 75, .16); color: #8a6d1b; }
+.imp-state-badge.warn { background: rgba(200, 168, 75, .16); color: var(--dark-amber-text, #8a6d1b); }
 
 .imp-result-errors {
     width: 100%; max-width: 720px; margin-top: 8px;

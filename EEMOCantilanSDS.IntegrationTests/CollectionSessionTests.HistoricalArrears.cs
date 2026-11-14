@@ -75,6 +75,30 @@ public sealed partial class CollectionSessionTests
     }
 
     [SkippableFact]
+    public async Task The_quote_takes_the_oldest_month_first_but_never_refuses_money_queued_from_an_earlier_day()
+    {
+        var w = await SeedAsync(linked: false);
+        await using var db = database.CreateContext(w.TenantId);
+        var rent = await SeedRentStallAsync(db, w, relet: false, (2026, 1, 0m), (2026, 2, 0m), (2026, 3, 0m));
+        db.Add(BillingPolicyVersion.Create(w.TenantId, Today, Today, BillingPolicy.StallTrackDefaults with { CountsMonthsFrom = new DateOnly(2026, 1, 1) }, null, w.CollectorId, DateTime.UtcNow));
+        await db.SaveChangesAsync();
+        var caller = new Caller(w.CollectorId, w.TenantId);
+        var rules = new Application.Common.Revenue.BillingRules(new(db, caller, new Tenant(w.TenantId), new Clock()), new Infrastructure.Repositories.FacilityReportsRepository(db), db, new Clock());
+        var sources = new CollectionSessionSources(db, caller, new Tenant(w.TenantId), new Clock(), new DiscoverySender(db, w), new NoMarketDays(), billingRules: rules);
+        var flow = Workflow(db, w, sources);
+        var identity = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, rent.CurrentContractId);
+        var discovery = await sources.DiscoverNativeAsync(identity, Today, default);
+        var january = RentIntent(discovery, identity, 2026, 1, 1_000m);
+        var february = RentIntent(discovery, identity, 2026, 2, 1_000m);
+        static bool Held(CollectionSessionQuote q) => q.Problems.Any(p => p.Code == "OlderMonthOpen");
+
+        Assert.True(Held((await flow.QuoteAsync(february)).Value!));
+        Assert.False(Held((await flow.QuoteAsync(january)).Value!));
+        Assert.False(Held((await flow.QuoteAsync(january with { Items = [.. january.Items, .. february.Items] })).Value!));
+        Assert.False(Held((await flow.QuoteAsync(february with { BusinessDate = Today.AddDays(-1) })).Value!));
+    }
+
+    [SkippableFact]
     public async Task NewCollection_covers_every_canonical_month_of_the_same_contract_and_a_successor_never_sees_a_former_lessees_months()
     {
         var w = await SeedAsync(linked: false);

@@ -100,7 +100,7 @@
 }
 
 .tcc-mini-stat.partial-stat .tcc-mini-val {
-    color: #9a6a1f;
+    color: var(--dark-amber-text, #9a6a1f);
 }
 
 @media (prefers-reduced-motion: reduce) {

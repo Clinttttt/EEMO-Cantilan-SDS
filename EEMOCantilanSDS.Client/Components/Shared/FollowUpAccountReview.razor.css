@@ -12,7 +12,7 @@ p { font-size: .8125rem; line-height: 1.5; }
 .review-year { border: 1px solid var(--border); border-radius: 8px; margin: 10px 0; }
 .review-year > summary { padding: 12px; cursor: pointer; font-weight: 600; font-size: .875rem; }
 .review-year > summary .review-year-heading { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: calc(100% - 22px); vertical-align: middle; }
-.review-year > summary .review-year-badge { display: inline-block; font-size: .6875rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-app, #f5f7fa); padding: 3px 8px; border-radius: 5px; white-space: nowrap; }
+.review-year > summary .review-year-badge { display: inline-block; font-size: .6875rem; font-weight: 600; color: var(--text-secondary); background: var(--bg-app, var(--dark-surface-muted, #f5f7fa)); padding: 3px 8px; border-radius: 5px; white-space: nowrap; }
 .review-year > summary .review-year-total { display: block; margin: 4px 0 0 16px; font-weight: 400; color: var(--text-secondary); font-size: .75rem; }
 .review-year .review-facts { padding: 0 12px; }
 .review-table-wrap { overflow-x: auto; }
@@ -23,11 +23,11 @@ p { font-size: .8125rem; line-height: 1.5; }
 .review-period-toggle:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: 3px; }
 .review-period-detail { font-weight: 400; text-align: left; white-space: normal; padding: 4px 8px; }
 .review-period-detail p { font-size: .75rem; }
-.review-detail-row { background: var(--bg-app, #f5f7fa); }
+.review-detail-row { background: var(--bg-app, var(--dark-surface-muted, #f5f7fa)); }
 .review-days { margin-top: 10px; max-height: 220px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
 .review-day-table { width: 100%; border-collapse: collapse; }
 .review-day-table th, .review-day-table td { text-align: left; padding: 8px; }
-.review-day-table th { position: sticky; top: 0; background: var(--bg-app, #f5f7fa); }
+.review-day-table th { position: sticky; top: 0; background: var(--bg-app, var(--dark-surface-muted, #f5f7fa)); }
 .review-days p { margin: 8px; }
 .review-charges { border-top: 1px solid var(--border); margin-top: 18px; }
 .review-charges h3 { margin-top: 14px; }

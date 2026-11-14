@@ -47,7 +47,7 @@
 /* ── Hero ────────────────────────────────────────────────── */
 .lsh-hero {
     position: relative;
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-radius: 14px;
     padding: 28px 32px 20px;
     margin-bottom: 20px;
@@ -225,7 +225,7 @@
 
 .btn-outline:hover {
         border-color: var(--gold);
-        background: #fffbf0;
+        background: var(--dark-amber-tint, #fffbf0);
         color: var(--navy);
     }
 
@@ -233,8 +233,8 @@
 
 /* ── Document Panel ──────────────────────────────────────── */
 .lsh-doc-panel {
-    background: #fff;
-    border: 1px solid #d5dde5;
+    background: var(--dark-surface, #fff);
+    border: 1px solid var(--dark-border, #d5dde5);
     border-radius: 0;
     padding: 30px 28px 40px;
     margin-bottom: 24px;
@@ -242,7 +242,7 @@
     min-height: 900px;
     box-sizing: border-box;
     box-shadow: 0 18px 38px rgba(9, 31, 52, .08);
-    color: #111827;
+    color: var(--dark-text, #111827);
 }
 
 
@@ -252,7 +252,7 @@
     text-align: center;
     margin-bottom: 22px;
     padding-bottom: 18px;
-    border-bottom: 2px solid #111827;
+    border-bottom: 2px solid var(--dark-border-strong, #111827);
 }
 
 
@@ -269,7 +269,7 @@
     text-transform: uppercase;
     letter-spacing: .12em;
     font-size: 11px;
-    color: #374151;
+    color: var(--dark-text, #374151);
 }
 
 
@@ -278,13 +278,13 @@
     font-family: Georgia, "Times New Roman", serif;
     font-size: 22px;
     line-height: 1.15;
-    color: #111827;
+    color: var(--dark-text, #111827);
 }
 
 
 .lsh-doc-gov {
     font-size: 12px;
-    color: #4b5563;
+    color: var(--dark-text-secondary, #4b5563);
     font-weight: 400;
 }
 
@@ -293,7 +293,7 @@
     margin-top: 18px;
     font-size: 13px;
     font-weight: 800;
-    color: #111827;
+    color: var(--dark-text, #111827);
     text-transform: uppercase;
     letter-spacing: .08em;
 }
@@ -303,7 +303,7 @@
     margin-top: 5px;
     font-size: 11px;
     font-weight: 700;
-    color: #b98f27;
+    color: var(--dark-amber-text, #b98f27);
     text-transform: uppercase;
     letter-spacing: .1em;
 }
@@ -458,14 +458,14 @@
 
 
 .lsh-btn-primary {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-color: var(--navy);
     color: #fff;
 }
 
 
 .lsh-btn-primary:hover {
-    background: var(--navy-2);
+    background: var(--dark-navy-2-fill, var(--navy-2));
     border-color: var(--navy-2);
 }
 
@@ -538,7 +538,7 @@
 
 
 .page-toolbar ::deep .lsh-seg-item.active {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-color: var(--navy);
     color: #fff;
 }
@@ -741,29 +741,29 @@
 
 
 .lsh-hero-progress-fill {
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
 }
 
 
 .lsh-btn-primary {
     border-color: var(--accent);
     border-radius: 6px;
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 
 .lsh-btn-primary:hover {
     border-color: var(--accent-hover);
-    background: var(--accent-hover);
-    color: var(--surface);
+    background: var(--dark-accent-hover-fill, var(--accent-hover));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 
 .page-toolbar ::deep .lsh-seg-item.active {
     border-color: var(--accent);
-    background: var(--accent);
-    color: var(--surface);
+    background: var(--dark-accent-fill, var(--accent));
+    color: var(--dark-on-fill, var(--surface));
 }
 
 
@@ -808,8 +808,8 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #f3f6f9;
-    border: 1px solid #cfd6de;
+    background: var(--dark-surface-muted, #f3f6f9);
+    border: 1px solid var(--dark-border, #cfd6de);
     border-bottom: none;
     border-radius: 0;
     padding: 9px 12px;
@@ -820,14 +820,14 @@
     font-size: 11px;
     font-weight: 800;
     letter-spacing: .07em;
-    color: #111827;
+    color: var(--dark-text, #111827);
     text-transform: uppercase;
 }
 
 
 .lsh-doc-panel ::deep .lsh-section-count {
     font-size: 11px;
-    color: #6b7280;
+    color: var(--dark-text-tertiary, #6b7280);
     text-transform: uppercase;
     letter-spacing: .05em;
 }
@@ -841,15 +841,15 @@
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    color: #111827;
-    border: 1px solid #cfd6de;
+    color: var(--dark-text, #111827);
+    border: 1px solid var(--dark-border, #cfd6de);
     border-top: none;
     table-layout: fixed;
 }
 
 
 .lsh-doc-panel ::deep .lsh-table thead tr {
-        background: #f3f6f9;
+        background: var(--dark-surface-muted, #f3f6f9);
     }
 
 
@@ -857,11 +857,11 @@
         padding: 9px 10px;
         font-size: 11px;
         font-weight: 700;
-        color: #374151;
+        color: var(--dark-text, #374151);
         text-transform: uppercase;
         letter-spacing: .04em;
-        border-bottom: 1px solid #cfd6de;
-        border-right: 1px solid #cfd6de;
+        border-bottom: 1px solid var(--dark-border, #cfd6de);
+        border-right: 1px solid var(--dark-border, #cfd6de);
         text-align: center;
         line-height: 1.35;
         overflow-wrap: anywhere;
@@ -876,7 +876,7 @@
 .lsh-doc-panel ::deep .th-sub {
     font-size: 11px;
     font-weight: 500;
-    color: #6b7280;
+    color: var(--dark-text-tertiary, #6b7280);
     text-transform: none;
     letter-spacing: 0;
     display: block;
@@ -885,13 +885,13 @@
 
 .lsh-doc-panel ::deep .lsh-table td {
     padding: 9px 10px;
-    border-bottom: 1px solid #cfd6de;
-    border-right: 1px solid #cfd6de;
+    border-bottom: 1px solid var(--dark-border, #cfd6de);
+    border-right: 1px solid var(--dark-border, #cfd6de);
     vertical-align: middle;
     line-height: 1.35;
     font-family: inherit;
     font-weight: 400;
-    color: #111827;
+    color: var(--dark-text, #111827);
     overflow-wrap: anywhere;
     word-break: normal;
 }
@@ -908,7 +908,7 @@
 
 
 .lsh-doc-panel ::deep .lsh-table tbody tr:hover {
-    background: #f8fafc;
+    background: var(--dark-surface-muted, #f8fafc);
 }
 
 
@@ -934,7 +934,7 @@
 
 .lsh-doc-panel ::deep .fw {
     font-weight: 400;
-    color: #111827;
+    color: var(--dark-text, #111827);
 }
 
 
@@ -966,7 +966,7 @@
 
 
 .lsh-doc-panel ::deep .txt-partial {
-    color: #b87333;
+    color: var(--dark-amber-text, #b87333);
     font-weight: 600;
 }
 
@@ -985,7 +985,7 @@
 
 /* ── Table Footer (section totals) ──────────────────────── */
 .lsh-doc-panel ::deep .tfoot-row {
-    background: #f8fafc;
+    background: var(--dark-surface-muted, #f8fafc);
 }
 
 
@@ -993,18 +993,18 @@
     padding: 8px 8px;
     font-size: 11px;
     font-weight: 700;
-    color: #111827;
+    color: var(--dark-text, #111827);
     text-transform: uppercase;
     letter-spacing: .04em;
     text-align: right;
-    border-top: 1px solid #cfd6de;
+    border-top: 1px solid var(--dark-border, #cfd6de);
 }
 
 
 .lsh-doc-panel ::deep .tfoot-val {
     font-weight: 700;
-    color: #111827;
-    border-top: 1px solid #cfd6de;
+    color: var(--dark-text, #111827);
+    border-top: 1px solid var(--dark-border, #cfd6de);
     font-family: inherit;
 }
 
@@ -1015,17 +1015,17 @@
 /* ── Grand Total ─────────────────────────────────────────── */
 .lsh-doc-panel ::deep .lsh-grand-total {
     margin-top: 8px;
-    border: 1px solid #cfd6de;
+    border: 1px solid var(--dark-border, #cfd6de);
     border-radius: 0;
     padding: 14px 16px;
-    background: #f8fafc;
+    background: var(--dark-surface-muted, #f8fafc);
 }
 
 
 .lsh-doc-panel ::deep .lsh-grand-label {
     font-size: 11px;
     font-weight: 700;
-    color: #111827;
+    color: var(--dark-text, #111827);
     text-transform: uppercase;
     letter-spacing: .06em;
     margin-bottom: 12px;
@@ -1042,14 +1042,14 @@
 .lsh-doc-panel ::deep .lsh-grand-val {
     font-size: 14px;
     font-weight: 700;
-    color: #111827;
+    color: var(--dark-text, #111827);
     font-family: inherit;
 }
 
 
 .lsh-doc-panel ::deep .lsh-grand-key {
     font-size: 11px;
-    color: #6b7280;
+    color: var(--dark-text-tertiary, #6b7280);
     text-transform: uppercase;
     letter-spacing: .05em;
     margin-top: 2px;
@@ -1234,7 +1234,7 @@
 
 /* Close the table under the total, as the paper form does. */
 .lsh-doc-panel ::deep .lsh-table tfoot td {
-    border-bottom: 1px solid #cfd6de;
+    border-bottom: 1px solid var(--dark-border, #cfd6de);
 }
 
 
@@ -1270,7 +1270,7 @@
 .page-toolbar ::deep .lsh-input:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 
 /* An honest empty or failed state inside the document, and a printed footnote. */
-.lsh-doc-panel ::deep .lsh-state { margin: 28px 0; text-align: center; color: #4b5563; font-size: 13px; }
+.lsh-doc-panel ::deep .lsh-state { margin: 28px 0; text-align: center; color: var(--dark-text-secondary, #4b5563); font-size: 13px; }
 .lsh-doc-panel ::deep .lsh-state button { margin-left: 8px; }
-.lsh-doc-panel ::deep .lsh-footnote { margin: 12px 0 0; font-size: 11px; color: #4b5563; }
+.lsh-doc-panel ::deep .lsh-footnote { margin: 12px 0 0; font-size: 11px; color: var(--dark-text-secondary, #4b5563); }
 @media print { .lsh-doc-panel ::deep .lsh-state button { display: none !important; } }

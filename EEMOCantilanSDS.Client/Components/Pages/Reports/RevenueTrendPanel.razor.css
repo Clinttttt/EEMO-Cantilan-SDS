@@ -107,7 +107,7 @@
 .rpt-grid-line {
     width: 100%;
     height: 1px;
-    background: #eef2f6;
+    background: var(--dark-surface-sunken, #eef2f6);
 }
 
 .bar-chart {
@@ -241,11 +241,11 @@
 }
 
 /* Series colours, one per official revenue group. */
-.rtp-s0 { background: var(--navy); }
-.rtp-s1 { background: var(--accent); }
+.rtp-s0 { background: var(--dark-navy-fill, var(--navy)); }
+.rtp-s1 { background: var(--dark-accent-fill, var(--accent)); }
 .rtp-s2 { background: var(--gold); }
-.rtp-s3 { background: color-mix(in srgb, var(--accent) 45%, #ffffff); }
-.rtp-s4 { background: color-mix(in srgb, var(--navy) 55%, #ffffff); }
+.rtp-s3 { background: color-mix(in srgb, var(--dark-accent-fill, var(--accent)) 45%, var(--dark-surface, #ffffff)); }
+.rtp-s4 { background: color-mix(in srgb, var(--dark-navy-fill, var(--navy)) 55%, var(--dark-surface, #ffffff)); }
 .rtp-s5 { background: var(--border-strong); }
 
 /* Hover and keyboard figures. */
@@ -258,7 +258,7 @@
     padding: 10px 12px;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     box-shadow: 0 10px 28px rgba(13, 33, 55, 0.14);
     color: var(--navy);
     opacity: 0;

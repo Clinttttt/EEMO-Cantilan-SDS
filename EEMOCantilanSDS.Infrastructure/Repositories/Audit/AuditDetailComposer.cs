@@ -64,6 +64,14 @@ public static class AuditDetailComposer
     /// supplies this LGU's own section labels, so a renamed section reads by its own name.
     /// </summary>
     public static IReadOnlyList<string> Changes(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null)
+        => ChangesInternal(oldValuesJson, newValuesJson, lookup, MaxChanges);
+
+    // The explicitly reviewed field allowlist, uncapped for an event opened by the Head.
+    // Never send raw old/new JSON: older snapshots may contain secrets saved before redaction.
+    public static IReadOnlyList<string> ChangesAll(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null)
+        => ChangesInternal(oldValuesJson, newValuesJson, lookup, int.MaxValue);
+
+    private static IReadOnlyList<string> ChangesInternal(string? oldValuesJson, string? newValuesJson, Lookup? lookup, int limit)
     {
         var before = Parse(oldValuesJson);
         var after = Parse(newValuesJson);
@@ -81,7 +89,7 @@ public static class AuditDetailComposer
             var to = string.IsNullOrWhiteSpace(newText) ? "—" : newText;
             changes.Add($"{label} {from} → {to}");
 
-            if (changes.Count == MaxChanges) break;
+            if (changes.Count == limit) break;
         }
 
         return changes;

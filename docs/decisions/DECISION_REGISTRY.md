@@ -975,7 +975,134 @@ Two cross-document distinctions are explicit at this baseline:
 - **REPORTING / COLLECTION:** Recovered qualifying Arrears use the existing dedicated Arrears revenue classification under IA-020 while retaining original facility, payer, occupancy/contract, obligation month and collection evidence. The initial debt classification is not itself a new cash Collection or SRC.
 - **SUPERSESSION / CONSISTENCY:** This clarifies the ambiguous conjunctive wording in IA-020: **prior-calendar-year unpaid rent OR qualifying ended occupancy/contract debt** is sufficient; contract lapse is *not* required for prior-year rent. IA-019's fully elapsed-month delinquency threshold and follow-up severity are unchanged, as is the distinction between debt qualification and collection/report cutover.
 - **EVIDENCE:** Direct project-owner clarification in the StallTrack Core Brain conversation on 2026-10-19, interpreting the prior EEMO Head old/lapsed-debt ruling recorded in IA-020. This is not represented as a newly obtained EEMO-office or Treasury document.
-- **IMPLEMENTATION BOUNDARY:** No historical posting, classification backfill, SRC change, migration, official report cutover or retained-database mutation is authorized merely by recording this decision. Any implementation must use authoritative rental-period/occupancy facts, preserve correction/cutover authority, and be verified and reconciled separately.
+- **IMPLEMENTATION BOUNDARY:** No historical posting, classification backfill, SRC change, migration, official report cutover or retained-database mutation is authorized merely by recording this decision. Any implementation must use authoritative rental-period/occupancy facts, preserve correction/cutover authority, and be verified and reconciled separately. IA-076 implements the report placement at read time and mutates no retained data.
+
+### IA-070 - Online-payment exceptions: who sees and who decides (StallTrack Rule, 2026-11-04)
+
+- **ID:** IA-070
+- **STATUS:** CONFIRMED by the project owner on 2026-11-04 as a **StallTrack Rule**. This is not a MEEDO or Treasury ruling.
+- **TYPE:** PRODUCT DECISION + OPERATIONAL OWNERSHIP.
+- **DECISION:** Head (`SuperAdmin`) and Admin both see online-payment exceptions and can check a payment with the gateway. Only the Head records the decision on a captured payment that could not be applied. The decision is either **Applied** (with the receipt reference) or **Refunded** (with the refund reference). It records the outcome and moves no money.
+- **SUPERSESSION / CONSISTENCY:** Answers the IA-022 ownership question until MEEDO rules otherwise. Payment status stays `ReconciliationRequired`, so history is not rewritten.
+- **EVIDENCE:** Project-owner direction on 2026-11-04, following the INF-4D panel comments of 2026-10-28.
+- **IMPLEMENTATION BOUNDARY:** The receipt reference is free text, audited, and not checked against the OR register.
+
+### IA-071 - Billing rules run by default and each LGU can change them (StallTrack Rule, 2026-11-04)
+
+- **ID:** IA-071
+- **STATUS:** CONFIRMED by the project owner on 2026-11-04 as a **StallTrack Rule**. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** PRODUCT DECISION + BILLING POLICY.
+- **DECISION:** Due dates, oldest-month-first payment, advance payment and annual payment are the main path (on), not optional features. They are configurable per LGU, so each office can set what fits its own rules. A missing MEEDO answer does not block them.
+- **DEFAULTS (with no version recorded):** rent is due on the last day of the month, with no grace days. The oldest unpaid month is paid first. Rent can be paid up to 3 months ahead. A 12-month annual payment is allowed, under its own permission, so it does not contradict the 3-month limit. No penalty applies (IA-072).
+- **SUPERSESSION / CONSISTENCY:** Applies prospectively only, and from the start month in IA-075. The Delinquent and Arrears classifications in IA-019, IA-020 and IA-069 are unchanged. A due date drives display, reminders and penalties, and does not redefine Delinquent.
+- **EVIDENCE:** Project-owner direction on 2026-11-04, following the INF-4D panel comments of 2026-10-28.
+- **IMPLEMENTATION BOUNDARY:** No historical rewrite or backfill. Posted Collections are untouched. Production rollout needs separate authorization. Versions are append-only and effective-dated, and a new version cannot start before today. Money collected and queued while offline has already changed hands, so it is recorded without the oldest-first check. Only the office and the portal take rent ahead; the Collector app does not.
+
+### IA-072 - Automatic penalties, reviewed by the Head (StallTrack Rule, 2026-11-04)
+
+- **ID:** IA-072
+- **STATUS:** CONFIRMED by the project owner on 2026-11-04 as a **StallTrack Rule**. This is not a MEEDO or Treasury ruling, and it is not independent ordinance verification. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** PRODUCT DECISION + FINANCIAL POLICY.
+- **DECISION:** Overdue penalties are created automatically, and the Head can review and update them. A penalty is a liability (`FineAssessment`), not cash. A rate is never invented: if the LGU's Head has not set one, no penalty is created and the system says it is not configured. A rate needs a governing reference.
+- **SUPERSESSION / CONSISTENCY:** Prospectively supersedes "Delinquency never creates an automatic fine" in the operational rulebook (2026-10-10 product approval). Existing assessments are not rewritten.
+- **EVIDENCE:** Project-owner direction on 2026-11-04, following the INF-4D panel comments of 2026-10-28.
+- **IMPLEMENTATION BOUNDARY:** One penalty per billed month by default, with no duplicates, compounding or retroactive recalculation. An office may choose to repeat the charge each month a billed month stays unpaid, with an optional ceiling per month. That choice is off by default and is worked on the rent, never on an earlier penalty. The version in force on a month's due date governs that month. The Head can update or waive an automatic penalty through an audited path, down to no less than what was already paid; a manually assessed fine stays immutable. Day-billed markets are not charged yet.
+
+### IA-073 - Retired checkout links are closed at the gateway, including live keys (owner decision, 2026-11-04)
+
+- **ID:** IA-073
+- **STATUS:** CONFIRMED by the project owner on 2026-11-04. The 24-hour limit below is a **StallTrack Rule**.
+- **TYPE:** TECHNICAL + PAYMENT SAFETY.
+- **DECISION:** When a payor's unpaid checkout is replaced, the old session is expired at the gateway, under live keys as well as test keys, so an old link cannot take a second payment. An unpaid checkout is also closed at the gateway after 24 hours, because a PayMongo session stays open after its QR code lapses. A payor who returns later gets a new checkout. The Head's bulk close of abandoned checkouts stays test-key only.
+- **EVIDENCE:** Project-owner direction on 2026-11-04; [PayMongo Hosted Checkout documentation](https://docs.paymongo.com/docs/payment-channels-hosted-checkout), read 2026-11-04.
+- **IMPLEMENTATION BOUNDARY:** PayMongo refuses to expire a session with a paid or ongoing payment. In that case no second checkout opens, the local status does not change, and the reconciler checks again. A capture that does not fit is held for the office under IA-070.
+
+### IA-074 - What the inbox says, to whom and when (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-074
+- **STATUS:** CONFIRMED as a **StallTrack Rule** under the project owner's 2026-11-04 direction, not a MEEDO ruling. MEEDO may change the timings.
+- **TYPE:** PRODUCT + COMMUNICATION.
+- **DECISION:** The Head and each Admin get one message per online payment needing review, and one message a month when automatic late penalties were added. A payor gets one message for each change on their own online payment (received, official receipt issued, under review, review finished, failed, checkout closed) and each late penalty on their current space. Rent reminders go to linked payors: once per month of rent within 3 days before its due date, and once per calendar month per space while rent is past due, stating the months, the total and the oldest month.
+- **EVIDENCE:** Panel comments in the INF-4D minutes; project-owner direction on 2026-11-04.
+- **IMPLEMENTATION BOUNDARY:** Messages are written by a background pass that reads the owning records and writes nothing else, so a message is never evidence of a payment, a charge or a receipt. A failed or expired checkout's message never says nothing was charged. Payment and penalty messages look back 7 days, so a first run does not announce old activity. The timings are fixed in code and are not a Head setting yet. Push delivery to the collector app stays on its own existing path.
+
+### IA-075 - Unpaid months count from a start month each office sets (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-075
+- **STATUS:** CONFIRMED as a **StallTrack Rule**. The project owner left this decision to the developer on 2026-11-05. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** PRODUCT DECISION + BILLING POLICY.
+- **DECISION:** Oldest-month-first stays on (IA-071). Each billing policy version states the month unpaid rent is counted from. An earlier month stays on the office's statement and can still be paid. It holds up no later rent and earns no late penalty. A payor is asked for it only if it has a record, and a recorded older month holds nothing up either. The month in progress always stands in line, even while the start month is still ahead, so next month's rent is never taken over this month's.
+- **DEFAULTS:** December 2026 with no version recorded. A new office starts at the month it goes live. The Head can move the month, including backward.
+- **WHY:** A `PaymentRecord` is only written when a month is first touched, so a month with no record says nothing about whether it was paid. As first built, the rule held up 74 of 75 monthly accounts on the local Cantilan copy from day one: 1,140 open months and ₱1,129,900, of which 976 months on 28 accounts had no record at all. Only 3 of the 102 paid months on that copy had been paid past an open month. Wiping data would not remove the problem, because real terms begin years before an office starts here, and any new LGU would meet it too. These figures are from a local copy and may differ from production.
+- **REJECTED:** Reviewing every account first or turning the rule off (neither meets the panel's FIFO comment); treating an account's first record as its start (a gap-free record says nothing about the months before it); current year only (ignores recorded prior-year debt); recorded months only (a month nobody touched would never be owed); cutting old months from the office's statement (an earlier decision keeps "37 months where 37 months are owed").
+- **SUPERSESSION / CONSISTENCY:** Narrows where IA-071's oldest-first and IA-072's penalties reach. Delinquent and Arrears (IA-019, IA-020, IA-069) are unchanged, and the office's whole-account total is not reduced.
+- **IMPLEMENTATION BOUNDARY:** Migration `BillingRulesCountFromMonth20261105` adds one column, and existing versions read December 2026. The office's total can exceed the portal's by the older months, and the statement states that amount. The office's month list still shows every open month, starting with the oldest. A mistaken start month is corrected by recording a new version.
+
+### IA-076 - Recovered old rent reports on the Arrears line (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-076
+- **STATUS:** CONFIRMED as a **StallTrack Rule**. The project owner left this decision to the developer on 2026-11-05. It applies IA-020 and IA-069, and it is not a new MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** REPORT PRESENTATION + FINANCIAL PLACEMENT.
+- **DECISION:** On the Monthly Income, stall rent that was already Arrears on the day its cash came in reports on the Arrears row: a month from an earlier calendar year, or a month whose term had ended by then. All other rent stays on its facility's row. Legacy and canonical money follow one rule. Placement is worked out when the report is read, so no Collection, line, receipt or source record changes, and totals do not move. The reconciliation adds a facility's recovered part back to its comparison and states the amount, so no false difference appears.
+- **WHY:** IA-020 and IA-069 already say recovered Arrears report under the dedicated line, and the row existed with nothing placed on it. On the local Cantilan copy, 31 prior-year records (₱27,900 of ₱152,700 collected in 2026) sat on facility rows.
+- **REJECTED:** Writing an Arrears classification on `CollectionLine` (the seeded policy has no Official Receipt instrument, so old rent could not be collected until each tenant had one, and it would only reach canonical rows); a memo line only (leaves the sheet disagreeing with IA-020); a cut-off date (one sheet would mix two rules).
+- **SUPERSESSION / CONSISTENCY:** Answers the Monthly Income presentation gate in `REVENUE_ARCHITECTURE.md` until MEEDO rules otherwise. A term counts as ended by its dates, never by its present active flag, because that flag would turn rent paid on time into Arrears the moment the term was later renewed.
+- **IMPLEMENTATION BOUNDARY:** The Ice Plant keeps its own Market row: it is not stall rent and no ruling sends its old rent to Arrears. With no read-model cut-off, 2026 sheets already printed differ in placement from a fresh read, though not in total. A source that cannot be read stays on its facility's row, so no money is dropped.
+
+### IA-077 - A month with no record is owed at its term's rate (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-077
+- **STATUS:** CONFIRMED as a **StallTrack Rule**. The project owner left this decision to the developer on 2026-11-05. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** BILLING POLICY + DATA CONSISTENCY.
+- **DECISION:** A month with no record is owed at the rate of the term that answers for it, or the space's own rate if no term does. The statement, compliance reports, ledger, collector lists, vendor register, portal and checkout all state that figure. A month with a record keeps its recorded amount. While a term runs on a monthly-billed space, the space's own rate cannot be changed, because that would leave two figures for one space. A new rate goes in when the term is renewed or after it has run out.
+- **WHY:** The contract is what the occupant agreed to. The office's reports used the space's rate while the portal and checkout used the term's, so the two could state different totals for one account. On the local Cantilan copy, 0 of 109 current terms differ from their space's rate, so no figure moves there today.
+- **REJECTED:** The space's current rate winning (a rate change would silently reprice unpaid months of a running contract); changing the contract's rate when the space's rate is edited (rewrites an agreement); `ActualMonthlyRental` (differs only on 3 day-billed market stalls, which this rule does not reach).
+- **SUPERSESSION / CONSISTENCY:** Answers the two-rates conflict in the panel tracking document. Day-billed markets keep their own settlement path.
+- **IMPLEMENTATION BOUNDARY:** A wrong rate on a running term can only be corrected by renewal. Edit forms, and the vendor registry and stall list rows bound to them, show the space's own rate. No contract or recorded month is rewritten.
+
+### IA-078 - A fine that can be assessed can be collected (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-078
+- **STATUS:** CONFIRMED as a **StallTrack Rule**. Proposed by the developer and approved by the project owner on 2026-11-06. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** PRODUCT DECISION + REVENUE SOURCE SETUP.
+- **DECISION:** When an office's first fine is assessed, automatically or by hand, StallTrack makes sure the office has a Fines revenue source with an Official Receipt policy. A source the office already has, including a retired one, and a policy it already has are left as they are.
+- **WHY:** End-to-end testing on 2026-11-05 found that automatic penalties (IA-072) could be created and shown to a payor as "paid at the office", but the office could not record the payment. The platform seeds revenue sources only for Cantilan, and no screen lets another office's Head add one, so every other office hit "Fines/Penalties classification is unavailable."
+- **REJECTED:** Asking the Head to choose an instrument (fines take only an Official Receipt, so there is nothing to choose); seeding Cantilan's whole catalog into every office (its rulings are not another office's); a new setup screen for one fixed answer.
+- **SUPERSESSION / CONSISTENCY:** Narrows "an office has no revenue source until it sets one up" for Fines only. Every other operation still stays Setup required with no instrument chosen for it.
+- **IMPLEMENTATION BOUNDARY:** No migration and no backfill. An office with no assessed fine gets nothing, so a direct fine in such an office is still refused until its first assessment. Offices that already hold assessments without a source get one at their next new assessment.
+
+### IA-079 - A month with a recorded payment cannot be excused (StallTrack Rule, 2026-11-05)
+
+- **ID:** IA-079
+- **STATUS:** CONFIRMED as a **StallTrack Rule**. Proposed by the developer and approved by the project owner on 2026-11-06. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** BILLING POLICY + DATA CONSISTENCY.
+- **DECISION:** The office cannot mark a month Excused while it holds a Paid or Partial payment record. It corrects the payment first, then excuses the month.
+- **WHY:** End-to-end testing on 2026-11-05 marked a receipted month Excused. The expected bill fell by the month's rent while the payment, its OR and its place in Monthly Income stayed, so one month read as both paid and owing nothing.
+- **REJECTED:** Voiding the payment automatically when a month is excused (an excuse must not silently undo received money); leaving it allowed behind the existing confirm box (the box warns about editing a past month, not about the receipt).
+- **SUPERSESSION / CONSISTENCY:** Monthly-rental months only. A market day keeps its own Absent rule. Recording a payment on an excused month still clears the excuse first, as it did.
+- **IMPLEMENTATION BOUNDARY:** No migration and no data change. A month already both paid and excused stays as it is until the office corrects it.
+
+### IA-080 - Each office's Monthly Income shows its own lines under its own names (StallTrack Rule, 2026-11-06)
+
+- **ID:** IA-080
+- **STATUS:** Direction given by the project owner on 2026-11-06 (another municipality must see its own operations, not Cantilan's). The rule text below is the developer's and awaits the owner's review. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** REPORT PRESENTATION + TENANCY.
+- **DECISION:** The confirmed sheet of IA-050 (rows, groups, order) is Cantilan's, matched by tenant code `CANTILAN` (`OfficialMonthlyIncomeStructure.SheetOfficeCode`), and every row shows; its facility rows take the names in its own facility register (V18, already on `master`). The sign-in default (`IsDefault`) does not decide this: a standalone deployment makes its only office the default, and that office still sees its own lines. Every other office sees only the lines it holds, in the same order and groups, under its own names. An office holds a line when it has the facility (active or archived), the revenue source, the listed operation or the enabled terminal section. Names come from its facility name and short name, then its local operation name, its terminal section name, its policy name, then the catalog name; a facility line it never registered reads "<code> rental (historical)". A line that carries money, a target or an adjustment is always shown, so no money is hidden. Lines are hidden, not removed: every official row key stays in the response with `ShowOnOfficialReport` false (V18), so reconciliation and the source-performance register keep the full catalog. The office's pages leave out a group or section with no shown line, and the Space group reads "Others" when Fines is its only shown line.
+- **WHY:** End-to-end testing on 2026-11-06 showed the demo office's Monthly Income, Menu and Operations listing Cantilan-only names and lines (Kanmanggay, Tampak Commercial Center, Fiesta / Araw, the Terminal rows) that the office does not run.
+- **REJECTED:** A second hard-coded sheet per office (it does not scale and needs a release per municipality); hiding lines by zero amount (a line with money would vanish in a quiet month, and a real line would come and go).
+- **SUPERSESSION / CONSISTENCY:** Builds on V18's display-only visibility flag (`master`, 2026-10-28) rather than replacing it. Cantilan's sheet keeps every row, group and section (a test pins its keys and its non-facility labels). Arithmetic, classifications and the legacy/canonical split are unchanged; only which rows another office sees and their labels change.
+- **IMPLEMENTATION BOUNDARY:** No migration. The Monthly Income history page still labels a line by the sheet's name; that affects only another office that records a target or adjustment.
+
+### IA-081 - A month paid in more than one receipt keeps every receipt (StallTrack Rule, 2026-11-06)
+
+- **ID:** IA-081
+- **STATUS:** Direction given by the project owner on 2026-11-06 (fix partial-month reporting). The rule text below is the developer's and awaits the owner's review. This is not a MEEDO or Treasury ruling. Implemented on `feat/panel-compliance-20261104`; not deployed.
+- **TYPE:** COLLECTION RECORD + REPORTING.
+- **DECISION:** When a monthly rent record that already holds money receives more, the receipt it holds (amount, date, OR, collector) is kept as a `PaymentInstalment`, and the new money becomes its own receipt with its own OR, date and collector. The receipts always add up to the record's amount paid; a correction lowers the newest receipt first and never deletes one. Monthly Income, the collector's report and the collection activity list each read such a month receipt by receipt, in the month and on the day each came in, rent before weighing, never more than the month's fee part. An earlier receipt's OR stays used. A month paid in one receipt keeps no list and reads exactly as before.
+- **WHY:** Finishing a partial month reported the whole rent in the month it was finished and overwrote the first OR, date and collector, so the earlier month under-reported, the later one over-reported and the first OR could be issued again.
+- **REJECTED:** A separate payment record per receipt (it would break the one-record-per-stall-month rule every report and the ledger rely on); reporting the whole month at its first receipt (it overstates the first month).
+- **SUPERSESSION / CONSISTENCY:** The record's status, amount paid, balance and billing-month reports are unchanged. Canonical (converted) records are untouched; their Collections already keep each receipt.
+- **IMPLEMENTATION BOUNDARY:** Additive migration `AddPaymentInstalments` (one table). No backfill: a month finished before this change keeps the single receipt it holds. Importing history with a backdated receipt moves only the record's date, not its kept receipts.
 
 ## 4. Decision-gate summary
 
@@ -983,7 +1110,7 @@ The following items still require MEEDO/Treasury input, a UX decision, authorita
 
 | ID | Gate | Blocks or constrains |
 |---|---|---|
-| IA-022 | Online-payment operational ownership | Queue ownership, escalation, and messaging |
+| IA-022 | Online-payment operational ownership | **Answered by StallTrack Rule IA-070 until MEEDO rules otherwise.** Escalation and messaging remain open. |
 | IA-024 | Historical remittance/RCD sequence question | **Remittance portion superseded by IA-052.** Only any still-unconfirmed official RCD/signatory/turnover detail remains outside the approved remittance ledger. |
 | IA-025 | Official report/document set | Report consolidation and print authority |
 | IA-026 | Facility name/code display | Headers, switchers, Mobile, and official documents |

@@ -20,6 +20,45 @@ public sealed record OnlinePaymentAwaitingOrDto(
     string? Method,
     DateTime? PaidAt);
 
+/// <summary>Ordered by how much it needs someone: sorting by this puts the money waiting on a decision first.</summary>
+public enum OnlinePaymentExceptionKind
+{
+    NeedsDecision = 1,
+    Unconfirmed = 2,
+    Failed = 3,
+    Resolved = 4
+}
+
+public static class OnlinePaymentExceptionWindows
+{
+    /// <summary>A hosted checkout still open after this long is worth asking the gateway about.</summary>
+    // Past OnlinePaymentReconciler.CloseAfter, so this only lists a checkout the reconciler could not settle or close, not one a payor just left open.
+    public static readonly TimeSpan UnconfirmedAfter = TimeSpan.FromHours(25);
+    public static readonly TimeSpan RecentHistory = TimeSpan.FromDays(30);
+    public const int MaxRows = 200;
+}
+
+/// <summary>One row of the office's online-payment exceptions. <c>Amount</c> is what the checkout asked for; <c>CapturedAmount</c> is set only when the gateway took something else.</summary>
+public sealed record OnlinePaymentExceptionDto(
+    Guid TransactionId,
+    string Reference,
+    OnlinePaymentExceptionKind Kind,
+    string Facility,
+    string StallNo,
+    string PayorName,
+    string Period,
+    decimal Amount,
+    decimal? CapturedAmount,
+    string? Method,
+    DateTime CreatedAt,
+    DateTime? PaidAt,
+    string? Reason,
+    OnlinePaymentDisposition? Disposition,
+    string? DispositionReference,
+    string? DispositionNote,
+    string? DispositionBy,
+    DateTime? DispositionAtUtc);
+
 /// <summary>
 /// Treasury overview + recent history for the admin Online Payments page. All figures are drawn from the
 /// LGU's OWN settled online-payment records (not the payment gateway), so they reconcile to the treasury

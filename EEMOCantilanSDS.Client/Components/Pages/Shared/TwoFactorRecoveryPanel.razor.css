@@ -206,12 +206,12 @@
 .mfa-btn:disabled { opacity: .6; cursor: not-allowed; }
 
 .mfa-btn-primary {
-    background: var(--navy);
+    background: var(--dark-navy-fill, var(--navy));
     border-color: var(--navy);
     color: #fff;
 }
 
-.mfa-btn-primary:hover:not(:disabled) { background: var(--navy-2); }
+.mfa-btn-primary:hover:not(:disabled) { background: var(--dark-navy-2-fill, var(--navy-2)); }
 
 .mfa-btn-danger {
     border-color: color-mix(in srgb, var(--red) 40%, transparent);
@@ -319,7 +319,7 @@
     padding: 1px 7px;
     border-radius: 999px;
     background: color-mix(in srgb, var(--gold) 18%, transparent);
-    color: #7a5f13;
+    color: var(--dark-amber-text, #7a5f13);
     font-size: 10px;
     font-weight: 800;
     text-transform: uppercase;

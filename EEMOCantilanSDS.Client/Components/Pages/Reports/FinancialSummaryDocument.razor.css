@@ -16,7 +16,7 @@
     gap: 16px;
     flex-wrap: wrap;
     padding: 16px 24px;
-    background: var(--accent);
+    background: var(--dark-accent-fill, var(--accent));
     color: #fff;
 }
 
@@ -74,13 +74,13 @@
     width: 210mm;
     max-width: 100%;
     margin: 24px auto;
-    background: #fff;
+    background: var(--dark-surface, #fff);
     box-shadow: 0 2px 16px rgba(15, 35, 65, .12);
 }
 
 .doc-body {
     padding: 14mm 16mm;
-    color: #111827;
+    color: var(--dark-text, #111827);
     font-size: 10.5pt;
     line-height: 1.5;
 }
@@ -90,7 +90,7 @@
     text-align: center;
     padding-bottom: 12px;
     margin-bottom: 18px;
-    border-bottom: 2px solid #111827;
+    border-bottom: 2px solid var(--dark-border-strong, #111827);
 }
 
 .doc-seal {
@@ -105,7 +105,7 @@
     text-transform: uppercase;
     letter-spacing: .12em;
     font-size: 9pt;
-    color: #374151;
+    color: var(--dark-text, #374151);
 }
 
 .doc-office {
@@ -116,7 +116,7 @@
 
 .doc-muni {
     font-size: 10pt;
-    color: #4b5563;
+    color: var(--dark-text-secondary, #4b5563);
 }
 
 .doc-title {
@@ -130,7 +130,7 @@
 .doc-period {
     margin-top: 4px;
     font-size: 10pt;
-    color: #374151;
+    color: var(--dark-text, #374151);
 }
 
 /* ── Sections ─────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -144,8 +144,8 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .06em;
-    color: #111827;
-    border-bottom: 1px solid #d1d5db;
+    color: var(--dark-text, #111827);
+    border-bottom: 1px solid var(--dark-border, #d1d5db);
     padding-bottom: 3px;
 }
 
@@ -153,7 +153,7 @@
     margin: 12px 0 4px;
     font-size: 9.5pt;
     font-weight: 700;
-    color: #374151;
+    color: var(--dark-text, #374151);
 }
 
 .doc-table {
@@ -165,7 +165,7 @@
     .doc-table th,
     .doc-table td {
         padding: 5px 8px;
-        border-bottom: 1px solid #e5e7eb;
+        border-bottom: 1px solid var(--dark-border, #e5e7eb);
         text-align: left;
         vertical-align: top;
     }
@@ -173,8 +173,8 @@
     .doc-table thead th {
         font-size: 8.5pt;
         font-weight: 600;
-        color: #374151;
-        background: #f3f4f6;
+        color: var(--dark-text, #374151);
+        background: var(--dark-surface-muted, #f3f4f6);
         border-bottom: 1px solid #9ca3af;
         white-space: nowrap;
     }
@@ -188,7 +188,7 @@
         font-weight: 700;
         border-top: 1px solid #9ca3af;
         border-bottom: none;
-        background: #f9fafb;
+        background: var(--dark-surface-muted, #f9fafb);
     }
 
 .doc-num {
@@ -205,7 +205,7 @@
 .doc-row-strong th,
 .doc-row-strong td {
     font-weight: 700;
-    background: #f9fafb;
+    background: var(--dark-surface-muted, #f9fafb);
 }
 
 /* A figures table has no column headings — the row states its own name — so its first column carries the weight. */
@@ -218,18 +218,18 @@
     }
 
 .doc-note {
-    color: #6b7280;
+    color: var(--dark-text-tertiary, #6b7280);
     font-size: 8.5pt;
 }
 
 .doc-line {
     margin: 6px 0 0;
     font-size: 9pt;
-    color: #374151;
+    color: var(--dark-text, #374151);
 }
 
 .doc-line-cap {
-    color: #6b7280;
+    color: var(--dark-text-tertiary, #6b7280);
     font-style: italic;
 }
 
@@ -255,7 +255,7 @@
         font-size: 7.5pt;
         text-transform: uppercase;
         letter-spacing: .08em;
-        color: #6b7280;
+        color: var(--dark-text-tertiary, #6b7280);
         margin-bottom: 0;
     }
 
@@ -264,10 +264,10 @@
     .doc-sign ::deep .sig-name {
         margin-top: 9mm;
         padding-top: 3px;
-        border-top: 1px solid #111827;
+        border-top: 1px solid var(--dark-border-strong, #111827);
         font-size: 10pt;
         font-weight: 700;
-        color: #111827;
+        color: var(--dark-text, #111827);
     }
 
 @media print {
