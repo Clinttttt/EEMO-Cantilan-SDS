@@ -50,6 +50,8 @@ The payment cadence does not change the billing basis.
 
 If the month closes with an unpaid remainder, the exact outstanding amount carries forward as debt.
 
+**MEEDO, 2026-11-11** ([evidence](../evidence/2026-11-11_meedo_advance_payment_arrears_carry_over.md)): a stall that has not paid carries its unpaid amount over to January, into the next year, where it is Arrears. The reply names no additional fee for Arrears or Delinquent accounts, so Cantilan has no late-fee rate. Advance payment of stall rent happens, though only occasionally.
+
 ## 3. Revenue grouping: current working model
 
 The **Monthly Income sheet is the official reporting grouping** StallTrack should reproduce for the formal Monthly Income/report structure.

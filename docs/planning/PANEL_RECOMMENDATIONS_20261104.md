@@ -133,6 +133,8 @@ The order is A, B, E, then F, with C and D running alongside. Phases A and B red
 6. Who owns online-payment exceptions (IA-022)?
 7. What is the governing ordinance or section for interest and penalties?
 
+**MEEDO's last answer, 2026-11-11** ([evidence](../evidence/2026-11-11_meedo_advance_payment_arrears_carry_over.md)). The owner asked about overcharges, advance payment and an added fee on Arrears or Delinquent accounts. The office answered that advance payment of stall rent happens, though only occasionally, and that unpaid rent carries over to January; it named no added fee. That supports IA-071's advance payment and IA-069's year-end Arrears, and leaves Cantilan with no penalty rate under IA-072. Overcharges and the seven questions above were not answered. The owner can send no further question, so they stay StallTrack Rules.
+
 ## 8. Progress log
 
 | Date | Item | Result |
