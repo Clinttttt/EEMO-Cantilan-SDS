@@ -175,6 +175,29 @@ public class ApplyHeldOnlinePaymentTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task OnAMonthACollectorPartPaid_TheNewReceiptIsNotTheCollectors()
+    {
+        var seeded = await SeedAsync("HLD-J", ThisMonth);
+        var collector = Guid.NewGuid();
+        var part = PaymentRecord.Create(seeded.Stall, ThisMonth.Year, ThisMonth.Month, Rate, "test");
+        part.UpdateStatus(PaymentStatus.Partial, 400m, null, "test", collector);
+        part.SetOrNumber("OR-COL-1", "test");
+        await AddAsync(seeded.Tenant, part);
+        var next = ThisMonth.AddMonths(1);
+        var payment = await HeldAsync(seeded.Tenant, seeded.Stall, next, 600m);
+
+        var result = await ApplyAsync(seeded.Tenant, payment, (await PlanAsync(seeded.Tenant, payment)).Value!.Months);
+
+        Assert.True(result.IsSuccess, result.Error);
+        await using var read = db.CreateContext(seeded.Tenant);
+        var month = await read.PaymentRecords.AsNoTracking().SingleAsync(r => r.StallId == seeded.Stall && r.BillingYear == ThisMonth.Year && r.BillingMonth == ThisMonth.Month);
+        Assert.Equal(PaymentStatus.Paid, month.Status);
+        // Online money reaches no collector's remittance; the collector's own receipt keeps its OR and collector (IA-081).
+        Assert.Equal([(400m, "OR-COL-1", (Guid?)collector), (600m, "OR-77", null)],
+            month.Instalments.OrderBy(i => i.ReceivedAt).Select(i => (i.Amount, i.ORNumber, i.CollectorId)));
+    }
+
+    [SkippableFact]
     public async Task AppliedTwiceAtOnce_PaysOnce()
     {
         var seeded = await SeedAsync("HLD-B", ThisMonth);

@@ -91,8 +91,11 @@ public class ApplyHeldOnlinePaymentCommandHandler(
             var existing = await payments.GetPaymentRecordAsync(stall.Id, month.Year, month.Month, ct);
             var record = existing is null ? PaymentRecord.Create(stall.Id, month.Year, month.Month, month.Due, recordedBy) : await payments.GetByIdAsync(existing.Id, ct);
             if (record is null) return Result<bool>.NotFound();
-            // Partial takes the month's whole amount paid, and becomes Paid by itself once that reaches the bill.
-            record.UpdateStatus(PaymentStatus.Partial, record.AmountPaid + month.Applied, remarks, recordedBy, user.CollectorId);
+            // The online writers, because online money has no collector: the office writer would hand this receipt to whoever collected the
+            // month's earlier part, putting it in their remittance. That earlier receipt keeps its own OR and collector (IA-081).
+            var paidSoFar = record.AmountPaid + month.Applied;
+            if (paidSoFar >= record.TotalBill) record.MarkPaidOnline(remarks, recordedBy);
+            else record.MarkPartiallyPaidOnline(paidSoFar, remarks, recordedBy);
             record.SetOrNumber(or, recordedBy);
             if (existing is null) await payments.AddAsync(record, ct);
             else await payments.UpdateAsync(record, ct);
