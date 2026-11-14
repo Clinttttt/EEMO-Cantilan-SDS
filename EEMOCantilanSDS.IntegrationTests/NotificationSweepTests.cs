@@ -306,6 +306,24 @@ public class NotificationSweepTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task AnAppliedPayment_NeverSaysItPaidTheMonthItWasCheckedOutFor()
+    {
+        // Held money is applied oldest month first (IA-082), so the month the checkout named can still be unpaid.
+        var seeded = await SeedAsync("INB-T");
+        var payor = await PayorAsync(seeded.Tenant, seeded.Stall, "09170000118");
+        var payment = await PaymentAsync(seeded.Tenant, seeded.Stall, payor, Oldest, NeedsReview);
+        await ChangeAsync(seeded.Tenant, payment, t => t.RecordOfficeDecision(OnlinePaymentDisposition.Applied, "OR-9", null, "head", DateTime.UtcNow));
+
+        await RunAsync(seeded.Tenant);
+
+        var decided = (await MessagesAsync(seeded.Tenant, payor)).Single(m => m.Title == "Payment review finished");
+        Assert.Contains("OR-9", decided.Body);
+        Assert.Contains("7", decided.Body);
+        Assert.DoesNotContain($"{Oldest:MMMM yyyy}", decided.Body);
+        Assert.Equal("/balances", decided.Link);
+    }
+
+    [SkippableFact]
     public async Task AClosedOrFailedCheckout_NeverClaimsNothingWasCharged()
     {
         var seeded = await SeedAsync("INB-I");
