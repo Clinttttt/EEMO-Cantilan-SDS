@@ -13,7 +13,8 @@ public sealed record RentActivationRowDto(
 
 public sealed record RentActivationPlanDto(
     FacilityCode Facility, int Year, int Month, IReadOnlyList<RentActivationRowDto> Rows,
-    int EligibleCount, int ExcludedCount, IReadOnlyList<string> FacilityBlockers, bool Ready, string PlanFingerprint);
+    int EligibleCount, int ExcludedCount, IReadOnlyList<string> FacilityBlockers, bool Ready, string PlanFingerprint,
+    IReadOnlyList<Guid>? AffectedCollectorIds = null);
 
 /// <summary>The Head's act: make the reviewed fresh rows of one facility-month canonical. Bound to the reviewed plan, so anything that changed since is refused.</summary>
 public sealed record RentActivationRequest(
