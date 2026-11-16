@@ -137,6 +137,10 @@ The same oldest-month rule applies to same-day rent. You cannot take rent for a 
 
 **"Under review"** means the gateway reported money and the office is checking it. Do not pay that month again. You will be told what was decided.
 
+**If the QR code ran out of time** (30 minutes) before you paid, press **Pay** again. The same checkout gives you a new code.
+
+**If part of a month was already paid** at the office or to a collector, **Pay** takes only the rest. The office issues a separate receipt for it, and the first receipt stays as it was.
+
 **If a checkout failed or closed** and money left your account anyway, contact the office with the reference shown.
 
 ## 11. When something looks wrong
