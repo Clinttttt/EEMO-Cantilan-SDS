@@ -156,7 +156,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 string.IsNullOrWhiteSpace(a.Notes)
                     ? AuditDetailComposer.Describe(a.Action, a.EntityType, a.EntityId, a.NewValues, a.OldValues, lookup)
                     : a.Notes!,
-                AuditDetailComposer.Changes(a.OldValues, a.NewValues, lookup)))
+                AuditDetailComposer.Changes(a.OldValues, a.NewValues, lookup, a.EntityType)))
             .ToList();
 
         // Filter-dropdown options only need (re)building on first load / filter change — not on
@@ -276,7 +276,7 @@ public class AuditRepository(IAppDbContext context, ICurrentMunicipalityAccessor
                 ? AuditDetailComposer.Describe(audit.Action, audit.EntityType, audit.EntityId,
                     audit.NewValues, audit.OldValues, lookup)
                 : audit.Notes!,
-            AuditDetailComposer.ChangesAll(audit.OldValues, audit.NewValues, lookup));
+            AuditDetailComposer.ChangesAll(audit.OldValues, audit.NewValues, lookup, audit.EntityType));
     }
 
     /// <summary>

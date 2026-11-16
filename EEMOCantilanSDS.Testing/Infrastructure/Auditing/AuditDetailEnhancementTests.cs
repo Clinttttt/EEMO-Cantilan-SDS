@@ -74,6 +74,30 @@ public sealed class AuditDetailEnhancementTests
         Assert.Contains("GatewayReference", auditJson);
     }
 
+    [Theory]
+    [InlineData("OnlinePaymentTransaction", 2, 8, "Status Pending → Reconciliation required")]
+    [InlineData("OnlinePaymentTransaction", 1, 3, "Status Initiated → Paid")]
+    [InlineData("Stall", 1, 2, "Status Active → Closed")]
+    [InlineData("PaymentRecord", 1, 3, "Status Unpaid → Paid")]
+    [InlineData(null, 2, 3, "Status Partial → Paid")]
+    public void A_status_reads_in_its_own_entitys_words_never_as_a_rent_status(string? entityType, int from, int to, string expected)
+    {
+        var changes = AuditDetailComposer.ChangesAll($"{{\"Status\":{from}}}", $"{{\"Status\":{to}}}", entityType: entityType);
+
+        Assert.Equal([expected], changes);
+    }
+
+    [Fact]
+    public void An_online_payment_under_review_is_never_described_as_a_partial_rent_payment()
+    {
+        var sentence = AuditDetailComposer.Describe("Updated", "OnlinePaymentTransaction", Guid.NewGuid(),
+            "{\"Amount\":800,\"Status\":2}", null,
+            new AuditDetailComposer.Lookup(new Dictionary<Guid, AuditDetailComposer.StallRef>(), new Dictionary<Guid, string>(), new Dictionary<string, string>()));
+
+        Assert.Contains("Pending", sentence);
+        Assert.DoesNotContain("Partial", sentence);
+    }
+
     [Fact]
     public void DetailComposer_DisplaysAllReviewedChanges_ButNeverRawPayload()
     {

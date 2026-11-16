@@ -63,15 +63,15 @@ public static class AuditDetailComposer
     /// columns are excluded, and the list is capped so one row cannot flood the page. <paramref name="lookup"/>
     /// supplies this LGU's own section labels, so a renamed section reads by its own name.
     /// </summary>
-    public static IReadOnlyList<string> Changes(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null)
-        => ChangesInternal(oldValuesJson, newValuesJson, lookup, MaxChanges);
+    public static IReadOnlyList<string> Changes(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null, string? entityType = null)
+        => ChangesInternal(oldValuesJson, newValuesJson, lookup, MaxChanges, entityType);
 
     // The explicitly reviewed field allowlist, uncapped for an event opened by the Head.
     // Never send raw old/new JSON: older snapshots may contain secrets saved before redaction.
-    public static IReadOnlyList<string> ChangesAll(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null)
-        => ChangesInternal(oldValuesJson, newValuesJson, lookup, int.MaxValue);
+    public static IReadOnlyList<string> ChangesAll(string? oldValuesJson, string? newValuesJson, Lookup? lookup = null, string? entityType = null)
+        => ChangesInternal(oldValuesJson, newValuesJson, lookup, int.MaxValue, entityType);
 
-    private static IReadOnlyList<string> ChangesInternal(string? oldValuesJson, string? newValuesJson, Lookup? lookup, int limit)
+    private static IReadOnlyList<string> ChangesInternal(string? oldValuesJson, string? newValuesJson, Lookup? lookup, int limit, string? entityType)
     {
         var before = Parse(oldValuesJson);
         var after = Parse(newValuesJson);
@@ -81,8 +81,8 @@ public static class AuditDetailComposer
 
         foreach (var (field, label) in TrackedFields)
         {
-            var oldText = Text(before, field, lookup);
-            var newText = Text(after, field, lookup);
+            var oldText = Text(before, field, lookup, entityType);
+            var newText = Text(after, field, lookup, entityType);
             if (oldText == newText) continue;
 
             var from = string.IsNullOrWhiteSpace(oldText) ? "—" : oldText;
@@ -304,7 +304,7 @@ public static class AuditDetailComposer
             case "OnlinePaymentTransaction":
             {
                 parts.AddIfPresent(MoneyPhrase(snapshot, "Amount", "₱{0}"));
-                parts.AddIfPresent(TextPhrase(snapshot, "Status"));
+                parts.AddIfPresent(TextPhrase(snapshot, "Status", entityType));
                 break;
             }
             case "Stall":
@@ -462,9 +462,9 @@ public static class AuditDetailComposer
             : $"{name} ({role})";
     }
 
-    private static string? TextPhrase(JsonElement? snapshot, string field)
+    private static string? TextPhrase(JsonElement? snapshot, string field, string? entityType = null)
     {
-        var value = Text(snapshot, field);
+        var value = Text(snapshot, field, entityType: entityType);
         return string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
@@ -508,9 +508,26 @@ public static class AuditDetailComposer
         ["StallStatus"] = new() { [1] = "Active", [2] = "Closed" },
     };
 
-    private static string Text(JsonElement? snapshot, string field, Lookup? lookup = null)
+    /// <summary>
+    /// Entities whose <c>Status</c> is not the rent status, by the class name the trail stores. The labels above read
+    /// "Status" as Unpaid / Partial / Paid, which turned a pending online payment into "Partial" and a closed stall into "Partial".
+    /// </summary>
+    private static readonly Dictionary<string, Type> OwnStatus = typeof(Domain.Entities.Payments.PaymentRecord).Assembly.GetTypes()
+        .Where(t => t.IsClass && t.GetProperty("Status")?.PropertyType is { IsEnum: true } status
+            && status != typeof(Domain.Enums.PaymentStatus))
+        .GroupBy(t => t.Name).Where(g => g.Count() == 1)
+        .ToDictionary(g => g.Key, g => g.Single().GetProperty("Status")!.PropertyType, StringComparer.Ordinal);
+
+    private static string Text(JsonElement? snapshot, string field, Lookup? lookup = null, string? entityType = null)
     {
         if (!TryGet(snapshot, field, out var value)) return string.Empty;
+
+        if (field == "Status" && entityType is not null && OwnStatus.TryGetValue(entityType, out var own)
+            && value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var code))
+        {
+            var name = Enum.GetName(own, code);
+            return name is null ? value.ToString() : char.ToUpper(name[0]) + Humanise(name)[1..];
+        }
 
         // A market section reads by the LGU's own label for it.
         if (field == "Section"
