@@ -10,6 +10,7 @@ using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
+using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using Moq;
@@ -39,7 +40,8 @@ public class InitiateOnlinePaymentCommandHandlerTests
         Result<CheckoutSessionResult>? gatewayResult = null,
         Mock<IPaymentGateway>? gatewayOut = null,
         Mock<IPayMongoCheckoutExpiryService>? expiryOut = null,
-        Mock<IUnitOfWork>? uowOut = null)
+        Mock<IUnitOfWork>? uowOut = null,
+        Municipality? office = null)
     {
         var onlineRepo = onlineRepoOut ?? new Mock<IOnlinePaymentRepository>();
         onlineRepo.Setup(r => r.ReferenceExistsAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
@@ -76,13 +78,37 @@ public class InitiateOnlinePaymentCommandHandlerTests
 
         var currentUser = new Mock<ICurrentUserService>();
         currentUser.SetupGet(c => c.UserId).Returns(payorId);
+        currentUser.SetupGet(c => c.MunicipalityId).Returns(office?.Id);
+        var municipalities = new Mock<IMunicipalityRepository>();
+        if (office is not null)
+            municipalities.Setup(m => m.GetByIdAsync(office.Id, It.IsAny<CancellationToken>())).ReturnsAsync(office);
 
         var uow = uowOut ?? new Mock<IUnitOfWork>();
 
         return new InitiateOnlinePaymentCommandHandler(
             onlineRepo.Object, paymentRepo.Object, stallRepo.Object, payorRepo.Object,
             gateway.Object, (expiryOut ?? new Mock<IPayMongoCheckoutExpiryService>()).Object,
-            urlBuilder.Object, currentUser.Object, uow.Object, new FixedClock(DateTime.UtcNow));
+            urlBuilder.Object, currentUser.Object, uow.Object, new FixedClock(DateTime.UtcNow),
+            municipalities: municipalities.Object);
+    }
+
+    [Theory]
+    [InlineData("DEO", "Demo Enterprise Office", "DEO online payment · 2026-06")]
+    [InlineData(null, "Demo Enterprise Office", "Demo Enterprise Office online payment · 2026-06")]
+    [InlineData(null, "", "Online payment · 2026-06")]
+    public async Task TheCheckout_NamesThePayorsOwnOffice_NeverAnotherLgus(string? acronym, string officeName, string expected)
+    {
+        var office = Municipality.Create("DEMO", "Demo Town", "Province", MunicipalityStatus.Active,
+            tenantCode: "demo", officeName: officeName, officeAcronym: acronym);
+        var stall = StallInFacility(FacilityCode.TCC);
+        var gateway = new Mock<IPaymentGateway>();
+        var handler = Build(stall, existingRecord: null, Guid.NewGuid(), linked: true, gatewayOut: gateway, office: office);
+
+        var result = await handler.Handle(new InitiateOnlinePaymentCommand(stall.Id, 2026, 6), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        gateway.Verify(g => g.CreateCheckoutSessionAsync(
+            It.Is<CreateCheckoutSessionRequest>(r => r.Description == expected), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
