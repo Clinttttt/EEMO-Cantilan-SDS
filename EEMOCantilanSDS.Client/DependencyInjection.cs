@@ -44,7 +44,7 @@ namespace EEMOCantilanSDS.Client
                     options.ExpireTimeSpan = TimeSpan.FromDays(7);
                     options.SlidingExpiration = true;
                     options.LoginPath = "/login";
-                    options.AccessDeniedPath = "/login";
+                    options.AccessDeniedPath = "/access-denied";
                     options.LogoutPath = "/api/authproxy/logout";
 
                     // Area-aware challenge: a single cookie scheme serves both the admin and payor
@@ -58,10 +58,10 @@ namespace EEMOCantilanSDS.Client
                         context.Response.Redirect($"{loginPath}?ReturnUrl={returnUrl}");
                         return Task.CompletedTask;
                     };
+                    // Signed in, but not in this page's role: say so. The sign-in page told them they were signed out.
                     options.Events.OnRedirectToAccessDenied = context =>
                     {
-                        var loginPath = context.Request.Path.StartsWithSegments("/payor") ? "/payor/login" : "/login";
-                        context.Response.Redirect(loginPath);
+                        context.Response.Redirect("/access-denied");
                         return Task.CompletedTask;
                     };
                 });

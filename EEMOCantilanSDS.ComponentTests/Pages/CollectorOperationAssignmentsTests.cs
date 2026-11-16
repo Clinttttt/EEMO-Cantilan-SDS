@@ -64,6 +64,23 @@ public sealed class CollectorOperationAssignmentsTests : TestContext
         }, Timeout);
     }
 
+    [Fact]
+    public void FacilityChipsUseTheOfficesOwnShortName_NotTheInternalCode()
+    {
+        Services.AddSingleton(FacilityCatalogFixture.NamingTheMarket("Demo Public Market", "DPM", null, null, null));
+        var api = CollectorsApi();
+        api.Setup(x => x.GetCollectionOperationsAsync(CollectorId)).ReturnsAsync(
+            Result<IReadOnlyList<CollectorOperationAssignmentDto>>.Success([]));
+        Services.AddSingleton(api.Object);
+        var cut = RenderComponent<Collector>();
+        cut.WaitForAssertion(() =>
+        {
+            var chips = cut.FindAll(".facility-tags span");
+            Assert.Contains(chips, x => x.TextContent == "DPM" && x.GetAttribute("title") == "Demo Public Market");
+            Assert.DoesNotContain(chips, x => x.TextContent == "NPM");
+        }, Timeout);
+    }
+
     [Theory]
     [InlineData(13, 0)]
     [InlineData(19, 7)]

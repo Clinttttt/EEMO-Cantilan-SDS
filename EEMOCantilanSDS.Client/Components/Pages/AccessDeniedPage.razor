@@ -1,0 +1,9 @@
+@page "/access-denied"
+@layout EEMOCantilanSDS.Client.Components.Layout.MinimalLayout
+@using EEMOCantilanSDS.Client.Components.Shared
+
+@* Where the server sends a signed-in user who opens a page their role cannot use. It used to send them to the sign-in page,
+   which told an Admin who opened a Head-only address that they were signed out. No [Authorize]: the page shows no data. *@
+<PageTitle>Access denied</PageTitle>
+
+<AccessDenied />

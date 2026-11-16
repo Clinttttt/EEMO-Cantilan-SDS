@@ -520,7 +520,7 @@
                                 <tr>
                                     <td class="mono">#@tx.ORNumber</td>
                                     <td>@tx.PayorName</td>
-                                    <td><span class="code-badge">@tx.Facility</span></td>
+                                    <td><span class="code-badge">@FacilityCatalog.ShortNameOf(tx.Facility)</span></td>
                                     <td class="td-nature">@tx.Nature</td>
                                     <td class="amount-val">₱@tx.Amount.ToString("N0")</td>
                                     <td><span class="status-pill @(tx.Status == "Paid" ? "pill-active" : "pill-inactive")">@tx.Status</span></td>
@@ -794,7 +794,7 @@
     // Seven chips per row, two rows; reserve the last slot for overflow when needed.
     (List<(string Label, string Name)> Shown, List<(string Label, string Name)> Hidden) AssignmentChips(CollectorListDto c)
     {
-        var all = c.AssignedFacilities.Select(f => (Label: f.ToString(), Name: f.ToString())).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
+        var all = c.AssignedFacilities.Select(f => (Label: FacilityCatalog.ShortNameOf(f), Name: FacilityCatalog.NameOf(f))).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
         var visible = all.Count <= 14 ? all.Count : 13;
         return (all.Take(visible).ToList(), all.Skip(visible).ToList());
     }
@@ -841,7 +841,8 @@
         bool matchSearch = string.IsNullOrWhiteSpace(SearchQuery)
             || c.FullName.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
             || c.EmployeeId.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
-            || c.AssignedFacilities.Any(f => f.ToString().Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
+            || c.AssignedFacilities.Any(f => f.ToString().Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
+                || FacilityCatalog.ShortNameOf(f).Contains(SearchQuery, StringComparison.OrdinalIgnoreCase))
             || (_opNames.GetValueOrDefault(c.Id)?.Any(o => o.Name.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)
                 || o.Label.Contains(SearchQuery, StringComparison.OrdinalIgnoreCase)) ?? false);
         return matchFilter && matchSearch;
