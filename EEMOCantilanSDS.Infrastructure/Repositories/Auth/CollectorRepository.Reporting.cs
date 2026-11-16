@@ -45,6 +45,7 @@ public partial class CollectorRepository
         var paymentStats = await _context.PaymentRecords
             .Where(p => p.CollectorId != null && collectorIds.Contains(p.CollectorId.Value)
                         && p.Status != PaymentStatus.Unpaid
+                        && !p.Instalments.Any(i => i.Amount > 0m)   // counted receipt by receipt below
                         && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= monthStartUtc
                         && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < monthEndUtc)
             .GroupBy(p => p.CollectorId!.Value)
@@ -62,6 +63,10 @@ public partial class CollectorRepository
                 Count = g.Count()
             })
             .ToDictionaryAsync(x => x.CollectorId, cancellationToken);
+
+        var receiptStats = (await RentReceiptsAsync(collectorIds, monthStartUtc, monthEndUtc, unresolvedLegacyFishRate, cancellationToken))
+            .GroupBy(r => r.CollectorId)
+            .ToDictionary(g => g.Key, g => (Total: g.Sum(r => r.Fee), Count: g.Count()));
 
         // Paid rows only: an absence carries the day's fee, so counting every row made a stall marked absent look like
         // money in hand. DailyFee already includes any month-end difference carried on an installment; fish remains a
@@ -114,6 +119,7 @@ public partial class CollectorRepository
             slaughterStats.TryGetValue(collector.Id, out var slaughter);
             tripStats.TryGetValue(collector.Id, out var trip);
             tpmStats.TryGetValue(collector.Id, out var tpm);
+            receiptStats.TryGetValue(collector.Id, out var receipts);
 
             var lastActive = collector.LastActiveAt;
             if (lastRecorded.TryGetValue(collector.Id, out var recorded) && (lastActive is null || recorded > lastActive))
@@ -125,8 +131,8 @@ public partial class CollectorRepository
                 collector.Email!,
                 collector.EmployeeId!,
                 collector.FacilityAssignments.Select(fa => fa.FacilityCode).ToList(),
-                (payment?.Total ?? 0m) + (daily?.Total ?? 0m) + (slaughter?.Total ?? 0m) + (trip?.Total ?? 0m) + (tpm?.Total ?? 0m),
-                (payment?.Count ?? 0) + (daily?.Count ?? 0) + (slaughter?.Count ?? 0) + (trip?.Count ?? 0) + (tpm?.Count ?? 0),
+                (payment?.Total ?? 0m) + receipts.Total + (daily?.Total ?? 0m) + (slaughter?.Total ?? 0m) + (trip?.Total ?? 0m) + (tpm?.Total ?? 0m),
+                (payment?.Count ?? 0) + receipts.Count + (daily?.Count ?? 0) + (slaughter?.Count ?? 0) + (trip?.Count ?? 0) + (tpm?.Count ?? 0),
                 lastActive,
                 collector.IsActive));
         }
@@ -235,7 +241,9 @@ public partial class CollectorRepository
         // counted its ₱30 as money (absences do carry a fee); the month-end difference was omitted, so a settled short
         // month understated what was taken; and utilities were included, which the office banks separately and the report
         // excludes. All three now match the report exactly.
-        var collectedThisMonth = await _context.DailyCollections
+        var receipts = await RentReceiptsAsync([collector.Id], mStartUtc, mEndUtc, fishRate, cancellationToken);
+
+        var collectedThisMonth = receipts.Sum(r => r.Fee) + await _context.DailyCollections
             .Where(d => d.CollectorId == collector.Id
                         && (d.IsPaid || d.CanonicalSettledAmount > 0m)
                         && (d.UpdatedAt ?? d.CreatedAt) >= mStartUtc
@@ -244,6 +252,7 @@ public partial class CollectorRepository
             await _context.PaymentRecords
             .Where(p => p.CollectorId == collector.Id
                         && p.Status != PaymentStatus.Unpaid
+                        && !p.Instalments.Any(i => i.Amount > 0m)
                         && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= mStartUtc
                         && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < mEndUtc)
             // Fee money only, and a part payment credited to the fee first and capped there — the rule stated once in
@@ -267,9 +276,10 @@ public partial class CollectorRepository
 
         // Counted over the SAME set the total sums, for the same reason: a count on one basis beside money on another
         // invites the office to divide one by the other and get a figure that means nothing.
-        var transactions = await _context.PaymentRecords
+        var transactions = receipts.Count + await _context.PaymentRecords
             .CountAsync(p => p.CollectorId == collector.Id
                             && p.Status != PaymentStatus.Unpaid
+                            && !p.Instalments.Any(i => i.Amount > 0m)
                             && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) >= mStartUtc
                             && (p.PaidAt ?? p.UpdatedAt ?? p.CreatedAt) < mEndUtc, cancellationToken) +
             await _context.DailyCollections
@@ -285,7 +295,7 @@ public partial class CollectorRepository
             .CountAsync(a => a.CollectorId == collector.Id && a.IsPaid && a.MarketDate.Year == year && a.MarketDate.Month == month, cancellationToken);
 
         var recentPayments = await _context.PaymentRecords
-            .Where(p => p.CollectorId == collector.Id && p.Status != PaymentStatus.Unpaid)
+            .Where(p => p.CollectorId == collector.Id && p.Status != PaymentStatus.Unpaid && !p.Instalments.Any(i => i.Amount > 0m))
             .OrderByDescending(p => p.PaidAt ?? p.UpdatedAt)
             .Take(10)
             .Select(p => new RecentTransactionDto(
@@ -360,7 +370,12 @@ public partial class CollectorRepository
                 a.PaidAt ?? a.UpdatedAt ?? a.CreatedAt))
             .ToListAsync(cancellationToken);
 
+        // The collector's own receipts on months paid in more than one, at any time, newest first: each with its own OR and cash.
+        var recentReceipts = (await RentReceiptsAsync([collector.Id], DateTime.UnixEpoch, DateTime.UtcNow.AddDays(1), fishRate, cancellationToken))
+            .Select(r => new RecentTransactionDto(r.ORNumber ?? "—", r.Occupant ?? "—", r.Facility, "Stall Rental", r.Amount, r.Status, r.ReceivedAt));
+
         var recentTransactions = recentPayments
+            .Concat(recentReceipts)
             .Concat(recentDaily)
             .Concat(recentSlaughter)
             .Concat(recentTrips)
@@ -387,5 +402,45 @@ public partial class CollectorRepository
             lastActive,
             recentTransactions,
             collector.Username ?? string.Empty);
+    }
+
+    private sealed record RentReceipt(Guid CollectorId, string? ORNumber, DateTime ReceivedAt, decimal Amount, decimal Fee,
+        string Status, string? Occupant, FacilityCode Facility);
+
+    /// <summary>
+    /// IA-081: each receipt of a month paid in more than one, credited to the collector who took it, in the moment it came in, on
+    /// the Report of Collections' own rule (<see cref="CollectorFeeMoney.PlaceReceipts{T}"/>). Callers leave such months out of
+    /// their row counts, which would credit the whole rent to the month's first collector in the month it was finished.
+    /// </summary>
+    private async Task<List<RentReceipt>> RentReceiptsAsync(
+        IReadOnlyCollection<Guid> collectorIds, DateTime startUtc, DateTime endUtc, decimal fishRate, CancellationToken cancellationToken)
+    {
+        var months = await _context.PaymentRecords
+            .AsNoTracking()
+            .Where(p => p.Status != PaymentStatus.Unpaid
+                        && p.Instalments.Any(i => i.Amount > 0m && i.CollectorId != null && collectorIds.Contains(i.CollectorId.Value)
+                                                  && i.ReceivedAt >= startUtc && i.ReceivedAt < endUtc))
+            .Select(p => new
+            {
+                p.Status, p.BaseRentalAmount, p.PartialAmount, p.FishKilos,
+                Occupant = p.Stall!.Contracts.Where(c => c.IsActive).Select(c => c.ActualOccupant).FirstOrDefault(),
+                Facility = p.Stall.Facility!.Code,
+                Receipts = p.Instalments.OrderBy(i => i.ReceivedAt).Select(i => new { i.ReceivedAt, i.Amount, i.ORNumber, i.CollectorId }).ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        return months
+            .SelectMany(p =>
+            {
+                var placed = CollectorFeeMoney.PlaceReceipts(
+                    CollectorFeeMoney.MonthlyFeePortion(p.Status, p.BaseRentalAmount, p.FishKilos, p.PartialAmount, fishRate),
+                    p.BaseRentalAmount, p.Receipts.Select(r => (r, r.Amount)));
+                return placed.Select((x, n) => new RentReceipt(
+                    x.Receipt.CollectorId ?? Guid.Empty, x.Receipt.ORNumber, x.Receipt.ReceivedAt, x.Receipt.Amount, x.Rent + x.Weighing,
+                    p.Status == PaymentStatus.Paid && n == placed.Count - 1 ? "Paid" : "Partial", p.Occupant, p.Facility));
+            })
+            .Where(r => collectorIds.Contains(r.CollectorId) && r.ReceivedAt >= startUtc && r.ReceivedAt < endUtc)
+            .OrderByDescending(r => r.ReceivedAt)
+            .ToList();
     }
 }
