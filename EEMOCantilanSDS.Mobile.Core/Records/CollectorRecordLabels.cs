@@ -1,4 +1,5 @@
 using System.Globalization;
+using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Enums;
 
 namespace EEMOCantilanSDS.Mobile.Records;
@@ -25,6 +26,10 @@ public static class CollectorRecordLabels
                 : value
         };
     }
+
+    /// <summary>The office's own short name for a facility ("DTC"), as its Web portal shows it; the code when the server sent none.</summary>
+    public static string FacilityShortName(IEnumerable<MobileFacilityMenuItemDto>? facilities, FacilityCode code) =>
+        facilities?.FirstOrDefault(f => f.Code == code)?.ShortName is { Length: > 0 } name ? name : code.ToString();
 
     public static string? InstrumentCode(RevenueInstrumentType? kind) => kind switch
     {

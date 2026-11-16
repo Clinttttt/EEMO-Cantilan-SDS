@@ -36,6 +36,7 @@ public class GetCollectorMobileMenuQueryHandler(
         // Facility display names come from the seeded Facility records (single source of truth),
         // scoped by the global query filter to the collector's OWN municipality.
         var names = await facilityRepository.GetFacilityNamesAsync(cancellationToken);
+        var shortNames = await facilityRepository.GetFacilityShortNamesAsync(cancellationToken);
 
         // Only the facilities THIS municipality actually operates — never the full FacilityCode enum.
         // This drops unconfigured slots (e.g. Custom1–5) and other LGUs' facilities, and always uses the
@@ -86,7 +87,8 @@ public class GetCollectorMobileMenuQueryHandler(
                     archetype,
                     canonical.ContainsKey(kv.Key),
                     canonical.GetValueOrDefault(kv.Key),
-                    customCategories.GetValueOrDefault(kv.Key));
+                    customCategories.GetValueOrDefault(kv.Key),
+                    shortNames?.GetValueOrDefault(kv.Key) is { } shortName && !string.IsNullOrWhiteSpace(shortName) ? shortName.Trim() : null);
             })
             .ToList();
 

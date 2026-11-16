@@ -200,7 +200,7 @@
                             <div class="payee-info">
                                 <div class="payee-name">@p.PayorName</div>
                                 <div class="payee-meta">
-                                    <span class="facility-code">@p.FacilityCode</span>
+                                    <span class="facility-code">@EEMOCantilanSDS.Mobile.Records.CollectorRecordLabels.FacilityShortName(Session.Menu?.Facilities, p.FacilityCode)</span>
                                     @if (!string.IsNullOrWhiteSpace(p.StallNo))
                                     {
                                         <span class="payee-months">Stall @p.StallNo</span>
@@ -413,7 +413,7 @@
                         <div class="facility-info">
                             <div class="facility-name">@f.FacilityName</div>
                             <div class="facility-meta">
-                                <span class="facility-code">@f.FacilityCode</span>
+                                <span class="facility-code">@EEMOCantilanSDS.Mobile.Records.CollectorRecordLabels.FacilityShortName(Session.Menu?.Facilities, f.FacilityCode)</span>
                                 <span class="facility-count">@f.TransactionCount txns · @f.PayeeCount payees</span>
                             </div>
                             <div class="facility-substats">

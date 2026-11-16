@@ -81,7 +81,7 @@
                 @foreach (var fcode in AssignedFacilities)
                 {
                     <div class="filter-tab @(ActiveFacility == fcode ? "active" : "")"
-                         @onclick="() => SetFacilityAsync(fcode)">@(fcode)</div>
+                         @onclick="() => SetFacilityAsync(fcode)">@CollectorRecordLabels.FacilityShortName(Session.Menu?.Facilities, fcode)</div>
                 }
             }
         </div>
@@ -173,7 +173,7 @@
                             Status="@(rec.IsAbsent ? "Excused" : row.AnyPartial ? "Partial" : null)"
                             OnOpen="() => OpenDetail(row)">
                             <Details>
-                                <span>@CollectorRecordLabels.Display(rec.FacilityCode.ToString()) · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? CollectorRecordLabels.Display(rec.Nature) : "Multiple charges")</span>
+                                <span>@CollectorRecordLabels.FacilityShortName(Session.Menu?.Facilities, rec.FacilityCode) · @(rec.IsAbsent ? "Excused" : row.SharesOneNature ? CollectorRecordLabels.Display(rec.Nature) : "Multiple charges")</span>
                             </Details>
                         </CollectionRecordRow>
                     }
