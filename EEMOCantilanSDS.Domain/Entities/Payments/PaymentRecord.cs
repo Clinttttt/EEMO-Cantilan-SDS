@@ -112,7 +112,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = status != PaymentStatus.Unpaid ? DateTime.UtcNow : null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            KeepReceipts(before, updatedBy);
+            KeepReceipts(before, updatedBy, collectorId);
             if (_awaitingOr is { } receipt) receipt.SetOrNumber(orNumber, updatedBy);
             _awaitingOr = null;
             BumpSettlementVersion();
@@ -167,7 +167,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         /// receipts always add up to the amount paid: more money is a new receipt, a correction lowers the newest first. A month
         /// paid in one receipt, or only ever corrected, keeps no list and reads exactly as before.
         /// </summary>
-        private void KeepReceipts((decimal Amount, DateTime? At, string? Or, Guid? Collector) before, string updatedBy)
+        private void KeepReceipts((decimal Amount, DateTime? At, string? Or, Guid? Collector) before, string updatedBy, Guid? takenBy)
         {
             var after = AmountPaid;
             if (_instalments.Count == 0)
@@ -179,7 +179,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             var held = _instalments.Sum(i => i.Amount);
             if (after > held)
             {
-                _awaitingOr = PaymentInstalment.Create(Id, MunicipalityId, after - held, PaidAt ?? DateTime.UtcNow, null, CollectorId, updatedBy);
+                // Whoever took this money, never the month's earlier collector: the office's or a payor's money is in no collector's remittance.
+                _awaitingOr = PaymentInstalment.Create(Id, MunicipalityId, after - held, PaidAt ?? DateTime.UtcNow, null, takenBy, updatedBy);
                 _instalments.Add(_awaitingOr);
             }
             for (var i = _instalments.Count - 1; i >= 0 && held > after; i--)
@@ -204,7 +205,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            KeepReceipts(before, updatedBy);
+            KeepReceipts(before, updatedBy, takenBy: null);
             BumpSettlementVersion();
         }
 
@@ -226,7 +227,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = DateTime.UtcNow;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            KeepReceipts(before, updatedBy);
+            KeepReceipts(before, updatedBy, takenBy: null);
             BumpSettlementVersion();
         }
 
@@ -241,7 +242,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             PaidAt = null;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            KeepReceipts(before, updatedBy);
+            KeepReceipts(before, updatedBy, takenBy: null);
             BumpSettlementVersion();
         }
 
@@ -314,9 +315,11 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             }
             else if (collectorId.HasValue)
                 CollectorId = collectorId.Value;
+            else if (before.Amount <= 0m)
+                CollectorId = null; // the office takes this month's first money; a collector id left on an empty month is nobody's receipt
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            KeepReceipts(before, updatedBy);
+            KeepReceipts(before, updatedBy, collectorId);
             BumpSettlementVersion();
         }
 

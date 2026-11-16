@@ -70,6 +70,37 @@ public class PaymentInstalmentTests
     }
 
     [Fact]
+    public void The_office_finishing_a_collectors_partial_month_takes_its_own_receipt()
+    {
+        // The office's money is nobody's remittance. The collector keeps their receipt and still answers for the month.
+        var collector = Guid.NewGuid();
+        var month = Month();
+        month.UpdateStatus(PaymentStatus.Partial, 1_000m, updatedBy: "collector", collectorId: collector);
+        month.SetOrNumber("OR-1", "collector");
+
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "head");
+        month.SetOrNumber("OR-2", "head");
+
+        Assert.Equal([(1_000m, "OR-1", collector), (1_400m, "OR-2", null)], Receipts(month));
+        Assert.Equal(collector, month.CollectorId);
+    }
+
+    [Fact]
+    public void An_empty_month_the_office_collects_names_no_collector()
+    {
+        // An old row can keep a collector id with no money on it; the receipt the office now takes is not theirs.
+        var month = Month();
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "collector", collectorId: Guid.NewGuid());
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.Status))!.SetValue(month, PaymentStatus.Unpaid);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.PaidAt))!.SetValue(month, null);
+
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "head");
+
+        Assert.Null(month.CollectorId);
+        Assert.Empty(month.Instalments);
+    }
+
+    [Fact]
     public void A_correction_lowers_the_newest_receipt_first_and_keeps_every_OR()
     {
         var month = Month();

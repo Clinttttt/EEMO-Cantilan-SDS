@@ -84,4 +84,51 @@ public sealed class PaymentInstalmentsTests(PostgresFixture db)
                 activity.Select(e => (e.DocumentNumber, e.BusinessDate, e.Amount)));
         }
     }
+
+    [SkippableFact]
+    public async Task The_office_finishing_a_collectors_partial_month_is_not_in_that_collectors_report()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var tenant = Municipality.Create("OFFPART", "OFFPART", "Province", MunicipalityStatus.Active, tenantCode: "offpart");
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Municipalities.Add(tenant);
+            await setup.SaveChangesAsync();
+        }
+
+        var today = PhilippineTime.Today;
+        var collector = Guid.NewGuid();
+        Guid recordId;
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var hall = Facility.Create(FacilityCode.TCC, "Trade Hall", "TH", municipalityId: tenant.Id);
+            var stall = Stall.Create(hall.Id, "O-01", 2_000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
+            var month = PaymentRecord.Create(stall.Id, today.Year, today.Month, 2_000m, "test");
+            month.RecordPayment("O-OR-1", collector, PaymentStatus.Partial, 1_000m, updatedBy: "collector");
+            ctx.AddRange(hall, stall, month);
+            await ctx.SaveChangesAsync();
+            recordId = month.Id;
+        }
+
+        // The Head records the rest at the office, as Record payment does: no collector on the request.
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var repository = new PaymentRepository(ctx);
+            var month = await repository.GetByIdAsync(recordId, default);
+            month!.UpdateStatus(PaymentStatus.Paid, 0m, null, "head", null);
+            month.SetOrNumber("O-OR-2", "head");
+            await repository.UpdateAsync(month, default);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var month = await ctx.PaymentRecords.AsNoTracking().SingleAsync(p => p.Id == recordId);
+            Assert.Equal([(1_000m, "O-OR-1", (Guid?)collector), (1_000m, "O-OR-2", null)],
+                month.Instalments.OrderBy(i => i.ReceivedAt).Select(i => (i.Amount, i.ORNumber, i.CollectorId)));
+            var lines = (await new CollectorReportQueries(ctx).GetCollectionsAsync(collector, today.AddMonths(-1), today)).Lines;
+            Assert.Equal([("O-OR-1", 1_000m)], lines.Select(l => (l.DocumentNumber, l.Amount)));
+        }
+    }
 }

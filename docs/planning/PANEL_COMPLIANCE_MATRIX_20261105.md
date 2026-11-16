@@ -1,6 +1,6 @@
 # Panel compliance matrix
 
-**Source:** INF-4D minutes of 2026-10-28, Group 4 (StallTrack). **Branch:** `feat/panel-compliance-20261104`, committed and up to date with `master`, not yet deployed. **Evidence and limits:** [PANEL_RECOMMENDATIONS_20261104.md](PANEL_RECOMMENDATIONS_20261104.md), section 8.
+**Source:** INF-4D minutes of 2026-10-28, Group 4 (StallTrack). **Released:** merged to `master` (PR #83 on 10 November, PR #85 on 14 November) and promoted to production. **Evidence and limits:** [PANEL_RECOMMENDATIONS_20261104.md](PANEL_RECOMMENDATIONS_20261104.md), section 8.
 
 "StallTrack Rule" means the project owner's ruling, changeable by each office's Head. It is not a MEEDO or Treasury confirmation.
 
@@ -19,7 +19,7 @@
 | Billing policy visible in the system | Flores | Done | The rules in force, their history and their reference on one page, readable by Head and Admin | `/settings/billing-policy` |
 | Failed transactions | Duero | Done, sandbox proof outstanding | 14 online-payment defects addressed: truthful messages, no double payment during review, held mismatches, automatic check every 15 minutes, old links closed at the gateway, one open checkout per month | `/online-payments`; portal payment result |
 | Notifications | Flores | Done for office and portal | Stored inbox for Head, Admin and Payor, with reminders (IA-074). Collector push is merged into this branch and reaches phones only after a release | `/notifications`; portal bell |
-| Dark and light mode | Flores | Done, owner review outstanding | Toggle at the foot of the menu, saved per browser, first visit follows the device, print stays white | Any office page |
+| Dark and light mode | Flores | Done, reviewed by the owner on 16 November | Toggle at the foot of the menu, saved per browser, first visit follows the device, print stays white | Any office page |
 | Audit log with timestamps | Flores | Already existed | Actor, time and before/after values | `/audit-trail` |
 | Rule-based billing | Flores | Already existed, extended | Rates resolved by the server, one figure per month at its term's rate (IA-077), plus the billing policy above | [BILLING_FLOW.md](../manual/BILLING_FLOW.md) |
 | Monthly reports | Flores | Already existed | Month-end, financial summary, Monthly Income, collections register | `/reports` |
@@ -49,7 +49,7 @@ Point the API at the same database through `ConnectionStrings__DefaultConnection
 
 1. **What MEEDO confirmed, and what is a StallTrack Rule.** MEEDO confirmed the existing rules before implementation and, on 11 November, that advance payment happens and unpaid rent carries over to January with no added fee named (see Duero's row below). The remaining rules added for the panel, such as oldest-first, the pay-ahead limit, due dates and the handling of overcharges, run as StallTrack Rules under the owner's direction, each changeable by the Head. No further question can be sent to MEEDO.
 2. **No penalty rate is invented.** The demo office's rate and ordinance are labelled illustrative. Cantilan charges nothing until its Head sets a rate.
-3. **Not deployed.** This is on a branch. Production needs the owner's explicit authorization, and the office should be told first that portal balances may rise and old payment links will stop working.
+3. **Deployed.** In production since the owner's release of 10 November (PR #83), with the held-payment application of 14 November (PR #85). Portal balances can read higher than before, because unrecorded months now count, and payment links opened before the release no longer work.
 4. **Decided by the developer, as the owner directed:** where oldest-first starts (IA-075), recovered old rent on the Arrears line (IA-076), and the term's rate winning (IA-077). These are StallTrack Rules a Head or MEEDO can change. On the local Cantilan copy the Arrears placement moves about ₱27,900 of 2026's collections between rows with no change to the total, so a sheet printed earlier differs in placement.
 5. **Also decided by the developer, after the end-to-end test:** a fine that can be assessed can be collected (IA-078), and a month with a recorded payment cannot be excused (IA-079).
 6. **Fixed on 2026-11-06 (IA-081):** finishing a partial month used to report the whole rent in the month it was finished. Each receipt is now kept and reported in its own month. Months finished before the fix keep their single receipt; there is no backfill.
