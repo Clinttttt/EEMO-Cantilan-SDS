@@ -13,7 +13,9 @@ StallTrack records what a local government's economic enterprise office bills an
 
 ## 1. Getting started
 
-**Signing in.** Use the username and password your office gave you. You may be asked to change the password the first time.
+**Signing in.** Use the username and password your office gave you. You may be asked to change the password the first time. The page shows your office's own name and seal.
+
+![The office portal's sign-in page](screenshots/sign-in.png)
 
 **Moving around.** The left menu holds Overview, Operations, Collection Activity, Online Payments, Spaces & Occupants, Monitoring, Remittance & Liquidation, Reports, Collectors, Audit Trail, Settings and Notifications. Collectors and Audit Trail are locked for an Admin.
 
@@ -149,6 +151,12 @@ Messages appear within about ten minutes of the event, on the Notifications page
 
 The same oldest-month rule applies to same-day rent. You cannot take rent for a month ahead: send the payor to the office. Money you already took offline always posts.
 
+An operation assigned to you that the office has not finished setting up is listed under **Assigned, not available**, with the reason. Ask the Head to set it up (section 11).
+
+![Collector sign-in](screenshots/collector-sign-in.png) ![Today's work on the Menu](screenshots/collector-menu.png)
+
+![Records: what you collected, by month](screenshots/collector-records.png)
+
 ## 10. Payor portal
 
 | Screen | What it shows |
@@ -158,6 +166,12 @@ The same oldest-month rule applies to same-day rent. You cannot take rent for a 
 | History | What you paid, with the receipt number once issued |
 | Notifications (the bell) | Updates from your office |
 | Profile | Your name and number, as the office records them |
+
+![Payor sign-in](screenshots/payor-sign-in.png) ![Accounts](screenshots/payor-accounts.png)
+
+![Balances, oldest month first](screenshots/payor-balances.png) ![History](screenshots/payor-history.png)
+
+![Notifications](screenshots/payor-notifications.png)
 
 **"Pay [month] first"** means your office takes the oldest unpaid month first.
 
