@@ -40,6 +40,7 @@ public class AccountsInvitationTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IMfaApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(FacilityCatalogFixture.WithNoRecord());
         var auth = this.AddTestAuthorization();
         auth.SetAuthorized("Cly Sullano");
         auth.SetRoles("SuperAdmin");

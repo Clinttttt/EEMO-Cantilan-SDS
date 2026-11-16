@@ -118,6 +118,8 @@
                         TotalLabel="Total Paid"
                         TotalValue="@($"₱{ReceiptPaidAmount:N2}")"
                         NoteText="This acknowledges receipt of the monthly rental payment stated above. Keep for your records."
+                        NothingPaid="@(PaymentStall is not null && ReceiptPaidAmount == 0m)"
+                        RecordHref="@(PaymentStall is null ? "/reports/collections" : $"/reports/collections?facility={FacilityCode.TCC}&stall={PaymentStall.StallGuid}")"
                         OnClose="ClosePayment" />
 
 

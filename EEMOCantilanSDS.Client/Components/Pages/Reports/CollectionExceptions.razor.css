@@ -218,7 +218,8 @@
 .ce-sw-open { background: var(--green-bg); border-color: rgba(45,122,95,.5); }
 
 /* ── Detail drawer ── */
-.ce-drawer { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); margin-top: 8px; overflow: hidden; }
+.ce-drawer { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); margin-top: 8px; overflow: hidden; scroll-margin: 16px; }
+.ce-drawer:focus { outline: none; }   /* focused only to bring it into view; its controls carry their own focus ring */
 .ce-drawer-head { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
 .ce-drawer-title { font-size: 14px; font-weight: 800; color: var(--navy); }
 .ce-drawer-status { font-size: 12px; color: var(--text-subtle); margin-top: 3px; }

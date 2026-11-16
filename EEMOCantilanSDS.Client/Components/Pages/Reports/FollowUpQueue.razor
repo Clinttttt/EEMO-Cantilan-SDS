@@ -880,7 +880,7 @@
         _orRows = new();
         _orSavedAny = false;
         if (reload) await Load();   // receipted records drop off the queue → refresh counts
-        _review = _returnReview; _returnReview = null;
+        _review = reload ? _returnReview?.Reloaded(_data?.Items, CanRecordMonthlyPayment) : _returnReview; _returnReview = null;
     }
 
     // ── Utility bill payment from Miscellaneous follow-up rows ──
@@ -895,7 +895,7 @@
     private Task CloseUtilityBill()
     {
         _utilityItem = null;
-        _review = _returnReview; _returnReview = null;
+        _review = _returnReview?.Reloaded(_data?.Items, CanRecordMonthlyPayment); _returnReview = null;
         return Task.CompletedTask;
     }
 
@@ -957,7 +957,7 @@
     {
         _payItem = null;
         await Load();
-        _review = _returnReview; _returnReview = null;
+        _review = _returnReview?.Reloaded(_data?.Items, CanRecordMonthlyPayment); _returnReview = null;
     }
 
     private static bool CanRecordMonthlyPayment(FollowUpItemDto item) =>
