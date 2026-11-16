@@ -115,7 +115,7 @@
 
             <div class="ce-list-head">
                 <span>@stalls.Count Payor@(stalls.Count != 1 ? "s" : "")</span>
-                <span class="ce-list-head-fac">@_facility</span>
+                <span class="ce-list-head-fac">@FacilityCatalog.ShortNameOf(CurrentFacility)</span>
             </div>
 
             <div class="ce-list">
@@ -183,7 +183,7 @@
                     <div class="ce-main-id">
                         <div class="ce-main-title">@SelectedStall.Occupant</div>
                         <div class="ce-main-sub">
-                            <span class="ce-tag">@_facility</span>
+                            <span class="ce-tag">@FacilityCatalog.ShortNameOf(CurrentFacility)</span>
                             @SpaceNumber.Line(SpaceNumber.Describe(SelectedStall.StallNo), SelectedStall.Section)
                         </div>
                     </div>
