@@ -545,6 +545,12 @@
         catch { /* keep current branding on any failure */ }
     }
 
+    /// <summary>The office an unscoped sign-in is branded as: the default office, unless that is Cantilan, whose page the defaults are.</summary>
+    static string? DefaultOfficeToBrand(IReadOnlyList<MunicipalityDto>? offices) =>
+        offices?.FirstOrDefault(m => m.IsDefault) is { } home && !string.Equals(home.Code, "CANTILAN", StringComparison.OrdinalIgnoreCase)
+            ? home.Code
+            : null;
+
     static string DeriveIdentifier(string? username)
     {
         var u = (username ?? string.Empty).Trim();
@@ -719,6 +725,27 @@
                         ApplyBranding(branding.Value);
                         PersistBrand();
                     }
+                }
+                catch { /* keep the defaults on any failure - this must never block a sign-in */ }
+            }
+            else
+            {
+                // Nothing names an office, so this deployment's own default office. Production's is Cantilan, which these
+                // defaults already are; a demo or a new deployment's default is another office and must not read as Cantilan.
+                try
+                {
+                    var offices = await MunicipalitiesApi.GetMunicipalitiesAsync();
+                    if (offices.IsSuccess && DefaultOfficeToBrand(offices.Value) is { } home)
+                    {
+                        SetUnresolvedMunicipality(home);
+                        var branding = await MunicipalitiesApi.GetBrandingByIdentifierAsync(home);
+                        if (branding.IsSuccess && branding.Value is { IsActive: true })
+                        {
+                            _brandedIdentifier = home.ToLowerInvariant();
+                            ApplyBranding(branding.Value);
+                        }
+                    }
+                    if (offices.IsSuccess) PersistBrand(); // so the interactive pass repeats none of this
                 }
                 catch { /* keep the defaults on any failure - this must never block a sign-in */ }
             }
