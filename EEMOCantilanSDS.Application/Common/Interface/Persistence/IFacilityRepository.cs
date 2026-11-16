@@ -9,6 +9,9 @@ public interface IFacilityRepository
     Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct);
     Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct);
 
+    /// <summary>The current tenant's own short name per facility (the office's "DTC"), for labels where the full name is too long.</summary>
+    Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityShortNamesAsync(CancellationToken ct);
+
     /// <summary>
     /// The current tenant's configured facilities with their billing model, active flag, unit (stall)
     /// count, and current fixed rates — for the in-portal Facility Configuration view. Read-only.

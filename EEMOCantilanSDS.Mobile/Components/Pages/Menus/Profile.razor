@@ -472,7 +472,7 @@
             .OrderBy(f => f.Code)
             .Select(f => new FacilityItem
             {
-                Code = f.Code.ToString(),
+                Code = EEMOCantilanSDS.Mobile.Records.CollectorRecordLabels.FacilityShortName(Session.Menu?.Facilities, f.Code),
                 Name = f.Name,
                 IconSvg = GetFacilityIcon(f.Code)
             })

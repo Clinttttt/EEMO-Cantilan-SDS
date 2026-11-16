@@ -41,4 +41,7 @@ public sealed record MobileFacilityMenuItemDto(
     bool CanonicalCollection = false,
     // The accountable-instrument policy (OR / CT) the canonical collection falls under, for display only. Never a serial.
     RevenueInstrumentType? Instrument = null,
-    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent);
+    CustomFacilityCategory CustomCategory = CustomFacilityCategory.StallRent,
+    // The office's own short name ("DTC"), the one its Web portal shows. Null on a menu cached before this field existed,
+    // or from an older server; the device then shows the facility code, as it always has.
+    string? ShortName = null);

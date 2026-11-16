@@ -39,6 +39,12 @@ public class GetCollectorMobileMenuQueryHandlerTests
         };
         facilityRepo.Setup(r => r.GetFacilityNamesAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)names);
+        facilityRepo.Setup(r => r.GetFacilityShortNamesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyDictionary<FacilityCode, string>)new Dictionary<FacilityCode, string>
+            {
+                [FacilityCode.TCC] = "DTC",
+                [FacilityCode.NCC] = " ",
+            });
         currentUser.SetupGet(u => u.CollectorId).Returns(collector.Id);
         var muniRepo = new Mock<IMunicipalityRepository>();
         var tenant = new Mock<EEMOCantilanSDS.Application.Common.Tenancy.ITenantContext>();
@@ -48,6 +54,11 @@ public class GetCollectorMobileMenuQueryHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal("Juan Collector", result.Value!.CollectorName);
+
+        // The office's own short name reaches the device; a blank or missing one is sent as none, so the device keeps the code.
+        Assert.Equal("DTC", result.Value.Facilities.Single(f => f.Code == FacilityCode.TCC).ShortName);
+        Assert.Null(result.Value.Facilities.Single(f => f.Code == FacilityCode.NCC).ShortName);
+        Assert.Null(result.Value.Facilities.Single(f => f.Code == FacilityCode.NPM).ShortName);
 
         // Only the municipality's own facilities are returned — no full-enum noise (Custom2–5, unconfigured).
         Assert.Equal(names.Count, result.Value.Facilities.Count);

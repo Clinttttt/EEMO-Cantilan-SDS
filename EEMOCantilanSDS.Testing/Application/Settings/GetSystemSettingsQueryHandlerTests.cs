@@ -290,6 +290,9 @@ public class GetSystemSettingsQueryHandlerTests
         public Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityNamesAsync(CancellationToken ct) =>
             Task.FromResult(_names);
 
+        public Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityShortNamesAsync(CancellationToken ct) =>
+            Task.FromResult(_names);
+
         public Task<Facility?> GetByCodeAsync(FacilityCode facilityCode, CancellationToken ct) =>
             Task.FromResult(facilityCode == FacilityCode.NPM ? Npm : null);
 

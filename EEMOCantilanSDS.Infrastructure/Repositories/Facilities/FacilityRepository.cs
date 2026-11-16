@@ -28,6 +28,12 @@ public class FacilityRepository(AppDbContext context, IClock clock, IPaymentRepo
             .AsNoTracking()
             .ToDictionaryAsync(f => f.Code, f => f.Name, ct);
     }
+
+    public async Task<IReadOnlyDictionary<FacilityCode, string>> GetFacilityShortNamesAsync(CancellationToken ct) =>
+        await context.Facilities
+            .AsNoTracking()
+            .ToDictionaryAsync(f => f.Code, f => f.ShortName, ct);
+
     public async Task AddFacilityAsync(Facility facility, CancellationToken ct)
     {
         await context.Facilities.AddAsync(facility, ct);
