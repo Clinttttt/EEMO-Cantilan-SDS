@@ -1,6 +1,7 @@
 // Builds the printable Word copy of the user manual from its Markdown, so the two never say different things.
 // Usage: npm install && node build.js [output.docx]   (default: docs/manual/STALLTRACK_USER_MANUAL.docx)
-// Screenshots: put PNGs in docs/manual/screenshots and reference them in the manual as ![Caption](screenshots/name.png).
+// Screenshots: put PNGs in docs/manual/screenshots and reference them in the manual as ![Caption](screenshots/name.png);
+// several on one line print side by side.
 // shortcut: reads only the Markdown the manual uses (headings, paragraphs, lists, tables, bold, italic, code, links, images);
 // extend the parser if the manual starts using more.
 const fs = require("fs");
@@ -61,16 +62,24 @@ function table(rows) {
   });
 }
 
-function image(caption, file) {
-  const full = path.resolve(manualDir, file);
-  if (!fs.existsSync(full)) throw new Error(`Screenshot not found: ${full}`);
-  const data = fs.readFileSync(full);
-  if (data.toString("ascii", 1, 4) !== "PNG") throw new Error(`Screenshots must be PNG: ${full}`);
-  const [w, h] = [data.readUInt32BE(16), data.readUInt32BE(20)];
-  const width = Math.min(w, 624); // 6.5 inches at 96 dpi
+// Images written on one line sit side by side (phone screens), each scaled to share the 6.5-inch line and fit under a
+// page's height, with one caption naming them left to right.
+function images(shots) {
+  const runs = shots.map(([caption, file], i) => {
+    const full = path.resolve(manualDir, file);
+    if (!fs.existsSync(full)) throw new Error(`Screenshot not found: ${full}`);
+    const data = fs.readFileSync(full);
+    if (data.toString("ascii", 1, 4) !== "PNG") throw new Error(`Screenshots must be PNG: ${full}`);
+    const [w, h] = [data.readUInt32BE(16), data.readUInt32BE(20)];
+    const scale = Math.min(1, (624 - 24 * (shots.length - 1)) / shots.length / w, 540 / h); // 96 dpi: 6.5 in wide, 5.6 in tall
+    return [
+      ...(i > 0 ? [new TextRun({ text: "    " })] : []),
+      new ImageRun({ type: "png", data, transformation: { width: Math.round(w * scale), height: Math.round(h * scale) }, altText: { title: caption, description: caption, name: caption } }),
+    ];
+  });
+  const caption = shots.length === 1 ? shots[0][0] : shots.map(([c], i) => `${["Left", "Right", "Third"][i] ?? i + 1}: ${c}`).join(". ");
   return [
-    new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 120 },
-      children: [new ImageRun({ type: "png", data, transformation: { width, height: Math.round((h * width) / w) }, altText: { title: caption, description: caption, name: caption } })] }),
+    new Paragraph({ alignment: AlignmentType.CENTER, keepNext: true, spacing: { before: 120 }, children: runs.flat() }),
     new Paragraph({ alignment: AlignmentType.CENTER, spacing: { after: 200 }, children: [new TextRun({ text: caption, italics: true, size: 18 })] }),
   ];
 }
@@ -86,8 +95,8 @@ for (let i = 0; i < lines.length; i++) {
     body.push(new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(m[1].replace(/^StallTrack user manual$/, "StallTrack User Manual"))] }));
   } else if ((m = line.match(/^## (.+)/))) {
     body.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(m[1])] }));
-  } else if ((m = line.match(/^!\[([^\]]*)\]\(([^)]+)\)/))) {
-    body.push(...image(m[1], m[2]));
+  } else if (/^(\s*!\[[^\]]*\]\([^)]+\))+\s*$/.test(line)) {
+    body.push(...images([...line.matchAll(/!\[([^\]]*)\]\(([^)]+)\)/g)].map((x) => [x[1], x[2]])));
   } else if (line.startsWith("|")) {
     const rows = [];
     for (; i < lines.length && lines[i].startsWith("|"); i++) if (!/^\|[\s|:-]+\|$/.test(lines[i].trim())) rows.push(cells(lines[i]));
