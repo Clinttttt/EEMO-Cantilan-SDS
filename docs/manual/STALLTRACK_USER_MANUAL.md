@@ -33,6 +33,8 @@ StallTrack records what a local government's economic enterprise office bills an
 
 **Paying ahead.** In **Record payment**, choose **Pay ahead**. Choose how many months, or a whole year where your office allows it. One receipt covers those months, each of which stays separately recorded. The months must run without a gap, and the limit comes from your billing policy.
 
+**From a profile to the Collection Manager.** **Manage Collection** on a space's profile opens the Collection Manager on that space with its year loaded. A month with nothing paid has no receipt to show; its *View* links there instead.
+
 **A month paid in parts.** Record what the payor hands over as a partial payment with its Official Receipt. When the rest comes in, record it with its own new receipt. Each receipt keeps its own number, date and collector, and reports in the month it came in.
 
 ## 3. Reading an account (Head, Admin)
@@ -128,7 +130,7 @@ The same oldest-month rule applies to same-day rent. You cannot take rent for a 
 | Screen | What it shows |
 |---|---|
 | Accounts | The spaces linked to you |
-| Balances | What you owe, month by month. **Pay** opens checkout for rent. Utilities and penalties are listed but paid at the office |
+| Balances | What you owe, month by month. **Pay** opens checkout for one month's rent. Utilities and penalties are listed but paid at the office. To pay several months or a whole year on one receipt, pay at the office |
 | History | What you paid, with the receipt number once issued |
 | Notifications (the bell) | Updates from your office |
 | Profile | Your name and number, as the office records them |
