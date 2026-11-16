@@ -84,6 +84,19 @@ public sealed class CollectionManagerMonthlyReceiptTests : TestContext
     }
 
     [Fact]
+    public void Opened_from_a_space_it_selects_that_space_and_loads_its_year()
+    {
+        Arrange(SettlementAuthority.Legacy);
+        Renderer.SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", isInteractive: true));
+        Services.GetRequiredService<FakeNavigationManager>().NavigateTo($"/reports/collections?facility=NCC&stall={StallId}");
+
+        var cut = RenderComponent<CollectionExceptions>();
+
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".ce-month")), Timeout);   // no click on the space
+        Assert.Contains("ce-stall-on", cut.Find(".ce-stall").ClassName);
+    }
+
+    [Fact]
     public void A_canonical_month_offers_Record_payment_and_not_the_status_editor()
     {
         Arrange(SettlementAuthority.Canonical);

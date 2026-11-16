@@ -283,6 +283,8 @@
                         TotalLabel="Total Collected"
                         TotalValue="@($"₱{(PaymentStall?.PartialAmount ?? 0m):N2}")"
                         NoteText="This acknowledges receipt of the daily stall fees collected for the period stated above. Keep for your records."
+                        NothingPaid="@(PaymentStall is not null && PaymentStall.PartialAmount == 0m)"
+                        RecordHref="@(PaymentStall is null ? "/reports/collections" : $"/reports/collections?facility={FacilityCode.NPM}&stall={PaymentStall.StallGuid}")"
                         OnClose="ClosePayment">
     <EvidenceActions>
         @if (PaymentStall is { LastPaidDate: not null } paid && string.IsNullOrWhiteSpace(paid.ORNumber))

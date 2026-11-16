@@ -21,7 +21,7 @@
                         @foreach(var line in displayed.Lines) { <tr><td>@line.ClassificationName</td><td class="v3-num">₱@line.Amount.ToString("N2")</td></tr> }
                     </tbody></table></div>
                 }
-                @if (_reviewed && _draft is not null) { <p class="fp-confirm">Confirm receipt of ₱@_draft.TotalAmount.ToString("N2"). The server will issue the SRC.</p> }
+                @if (_reviewed && _draft is not null) { <p class="fp-confirm">Confirm receipt of ₱@_draft.TotalAmount.ToString("N2"). Recording it gives the payment its StallTrack reference (SRC).</p> }
             </AddNewSection>
         }
         @if (_outcome is { } outcome) { <p class="fp-done" role="status">Payment recorded · @outcome.ReferenceCode · ₱@outcome.Amount.ToString("N2")</p> }
