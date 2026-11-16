@@ -22,7 +22,8 @@ public class InitiateOnlinePaymentCommandHandler(
     IPayMongoCheckoutExpiryService checkoutExpiry,
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
-    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null, BillingRules? billingRules = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null, BillingRules? billingRules = null,
+    IMunicipalityRepository? municipalities = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
     public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
@@ -162,11 +163,17 @@ public class InitiateOnlinePaymentCommandHandler(
         var transaction = OnlinePaymentTransaction.Create(
             reference, payorId.Value, record.Id, amount, paymentGateway.Provider);
 
+        // The payor's own office, as PayMongo shows it: never another LGU's name.
+        var office = currentUser.MunicipalityId is { } lgu && municipalities is not null
+            ? await municipalities.GetByIdAsync(lgu, cancellationToken)
+            : null;
+        var payee = string.IsNullOrWhiteSpace(office?.OfficeAcronym) ? office?.OfficeName?.Trim() : office.OfficeAcronym.Trim();
+
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionRequest(
                 amount,
                 reference,
-                $"MEEDO online payment · {record.PeriodKey}",
+                string.IsNullOrEmpty(payee) ? $"Online payment · {record.PeriodKey}" : $"{payee} online payment · {record.PeriodKey}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

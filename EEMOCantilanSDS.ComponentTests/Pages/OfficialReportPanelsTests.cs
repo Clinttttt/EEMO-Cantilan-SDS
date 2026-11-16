@@ -567,6 +567,30 @@ public sealed class OfficialReportPanelsTests : TestContext
             Assert.NotNull(panel.QuerySelector("table"));
             Assert.Empty(cut.FindAll(".ap-office"));
             Assert.DoesNotContain("Office-origin cash", cut.Markup);
+            Assert.DoesNotContain("Legacy recorded", cut.Markup); // shown only where there is some
+        }, Timeout);
+    }
+
+    [Fact]
+    public void Accountability_ShowsLegacyRecordedMoneyApart_SoAPreSrcCollectorIsNotAllZeroes()
+    {
+        // IA-052: money a collector took on legacy records cannot be remitted structurally; it is reported apart, never added to Collected.
+        var collector = Guid.NewGuid();
+        _remittances.Setup(x => x.GetPositionAsync(It.IsAny<DateOnly>(), It.IsAny<DateOnly>()))
+            .ReturnsAsync(Result<AccountabilityPositionDto>.Success(new AccountabilityPositionDto(
+                new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), 0m, 0m, 0m, 0, 4800m,
+                [new CollectorPositionDto(collector, "Jose Ramos", 0m, 0m, 0m, 0, 4800m, [])])));
+        var cut = RenderComponent<AccountabilityPanel>(p => p
+            .Add(x => x.From, new DateOnly(2026, 11, 1)).Add(x => x.To, new DateOnly(2026, 11, 30)).Add(x => x.PeriodLabel, "November 2026"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var totals = cut.Find("dl[aria-label='Cash position']").TextContent;
+            Assert.Contains("Legacy recorded (separate)", totals);
+            Assert.Contains("₱4,800.00", totals);
+            Assert.Contains("Legacy recorded (separate)", cut.Find("[aria-label='Collector accountability'] thead").TextContent);
+            var row = Assert.Single(cut.FindAll("[aria-label='Collector accountability'] tbody tr"));
+            Assert.Contains("₱4,800.00", row.TextContent);
         }, Timeout);
     }
 

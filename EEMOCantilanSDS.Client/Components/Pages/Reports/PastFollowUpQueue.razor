@@ -695,7 +695,7 @@
     {
         _payItem = null;
         await Load();
-        _review = _returnReview; _returnReview = null;
+        _review = _returnReview?.Reloaded(_data?.Items, CanPay); _returnReview = null;
     }
 
     private static OrModel ModelFor(FacilityCode f) => f switch
@@ -894,7 +894,7 @@
         _orRows = new();
         _orSavedAny = false;
         if (reload) await Load();   // receipted records drop off the snapshot → refresh it
-        _review = _returnReview; _returnReview = null;
+        _review = reload ? _returnReview?.Reloaded(_data?.Items, CanPay) : _returnReview; _returnReview = null;
     }
 
     private readonly DateTime _now = PhilippineTime.Now;

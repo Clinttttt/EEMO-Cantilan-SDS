@@ -3,6 +3,7 @@ using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
+using EEMOCantilanSDS.Domain.Entities.Users;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -32,9 +33,12 @@ public sealed class PaymentInstalmentsTests(PostgresFixture db)
         var earlier = today.AddMonths(-1);
         var firstAt = PhilippineTime.MonthUtcRange(earlier.Year, earlier.Month).StartUtc.AddDays(9);
         Guid recordId, otherStall;
-        var (firstCollector, secondCollector) = (Guid.NewGuid(), Guid.NewGuid());
+        var first = CollectorUser.Create("First Collector", "PARTS-01", "parts-first", null, null, new HashedPassword("h"), tenant.Id);
+        var second = CollectorUser.Create("Second Collector", "PARTS-02", "parts-second", null, null, new HashedPassword("h"), tenant.Id);
+        var (firstCollector, secondCollector) = (first.Id, second.Id);
         await using (var ctx = db.CreateContext(tenant.Id))
         {
+            ctx.AddRange(first, second);
             var hall = Facility.Create(FacilityCode.TCC, "Trade Hall", "TH", municipalityId: tenant.Id);
             var stall = Stall.Create(hall.Id, "P-01", 2_000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
             var other = Stall.Create(hall.Id, "P-02", 2_000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
@@ -82,6 +86,63 @@ public sealed class PaymentInstalmentsTests(PostgresFixture db)
                 .Where(e => e.EventKey.StartsWith("PaymentRecord:")).OrderBy(e => e.BusinessDate).ToArray();
             Assert.Equal([("P-OR-1", DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(firstAt)), 1_000m), ("P-OR-2", today, 1_000m)],
                 activity.Select(e => (e.DocumentNumber, e.BusinessDate, e.Amount)));
+
+            // The office's collector list and detail agree with those reports, receipt by receipt.
+            var collectors = new CollectorRepository(ctx);
+            var earlierList = (await collectors.GetAllCollectorsWithStatsAsync(earlier.Year, earlier.Month)).ToDictionary(c => c.Id);
+            var todayList = (await collectors.GetAllCollectorsWithStatsAsync(today.Year, today.Month)).ToDictionary(c => c.Id);
+            Assert.Equal(1_000m, earlierList[firstCollector].CollectedThisMonth);
+            Assert.Equal((0m, 1_000m), (todayList[firstCollector].CollectedThisMonth, todayList[secondCollector].CollectedThisMonth));
+            var secondDetail = await collectors.GetCollectorActivityAsync(secondCollector, today.Year, today.Month);
+            Assert.Equal((1_000m, 1), (secondDetail!.CollectedThisMonth, secondDetail.Transactions));
+            Assert.Equal([("P-OR-2", 1_000m)], secondDetail.RecentTransactions.Select(t => (t.ORNumber, t.Amount)));
+        }
+    }
+
+    [SkippableFact]
+    public async Task The_office_finishing_a_collectors_partial_month_is_not_in_that_collectors_report()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? "");
+        await db.ResetAsync();
+        var tenant = Municipality.Create("OFFPART", "OFFPART", "Province", MunicipalityStatus.Active, tenantCode: "offpart");
+        await using (var setup = db.CreateContext(Guid.Empty))
+        {
+            setup.Municipalities.Add(tenant);
+            await setup.SaveChangesAsync();
+        }
+
+        var today = PhilippineTime.Today;
+        var collector = Guid.NewGuid();
+        Guid recordId;
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var hall = Facility.Create(FacilityCode.TCC, "Trade Hall", "TH", municipalityId: tenant.Id);
+            var stall = Stall.Create(hall.Id, "O-01", 2_000m, ApplicableFees.BaseRental, municipalityId: tenant.Id);
+            var month = PaymentRecord.Create(stall.Id, today.Year, today.Month, 2_000m, "test");
+            month.RecordPayment("O-OR-1", collector, PaymentStatus.Partial, 1_000m, updatedBy: "collector");
+            ctx.AddRange(hall, stall, month);
+            await ctx.SaveChangesAsync();
+            recordId = month.Id;
+        }
+
+        // The Head records the rest at the office, as Record payment does: no collector on the request.
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var repository = new PaymentRepository(ctx);
+            var month = await repository.GetByIdAsync(recordId, default);
+            month!.UpdateStatus(PaymentStatus.Paid, 0m, null, "head", null);
+            month.SetOrNumber("O-OR-2", "head");
+            await repository.UpdateAsync(month, default);
+            await ctx.SaveChangesAsync();
+        }
+
+        await using (var ctx = db.CreateContext(tenant.Id))
+        {
+            var month = await ctx.PaymentRecords.AsNoTracking().SingleAsync(p => p.Id == recordId);
+            Assert.Equal([(1_000m, "O-OR-1", (Guid?)collector), (1_000m, "O-OR-2", null)],
+                month.Instalments.OrderBy(i => i.ReceivedAt).Select(i => (i.Amount, i.ORNumber, i.CollectorId)));
+            var lines = (await new CollectorReportQueries(ctx).GetCollectionsAsync(collector, today.AddMonths(-1), today)).Lines;
+            Assert.Equal([("O-OR-1", 1_000m)], lines.Select(l => (l.DocumentNumber, l.Amount)));
         }
     }
 }

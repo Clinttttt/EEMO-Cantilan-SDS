@@ -11,6 +11,7 @@
 @inject IAdminsApiClient AdminsApi
 @inject ICollectorsApiClient CollectorsApi
 @inject AuthenticationStateProvider AuthState
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
 @implements IDisposable
 @attribute [Authorize(Roles = "SuperAdmin")]
 <PageTitle>StallTrack — Accounts</PageTitle>
@@ -929,6 +930,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await FacilityCatalog.EnsureLoadedAsync();   // the collector chips name facilities in the office's own words
         await ResolveCurrentUserAsync();
 
         if (Admins is not null && Collectors is not null)
@@ -1125,7 +1127,7 @@
 
     private (List<(string Label, string Name)> Shown, List<(string Label, string Name)> Hidden) AssignmentTags(CollectorListDto c)
     {
-        var all = c.AssignedFacilities.Select(f => (Label: f.ToString(), Name: f.ToString())).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
+        var all = c.AssignedFacilities.Select(f => (Label: FacilityCatalog.ShortNameOf(f), Name: FacilityCatalog.NameOf(f))).Concat(_opNames.GetValueOrDefault(c.Id) ?? []).ToList();
         var visible = all.Count <= ShownTags ? all.Count : ShownTags - 1;
         return (all.Take(visible).ToList(), all.Skip(visible).ToList());
     }

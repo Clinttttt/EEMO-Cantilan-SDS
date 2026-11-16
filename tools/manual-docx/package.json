@@ -1,0 +1,12 @@
+{
+  "name": "manual-docx",
+  "private": true,
+  "description": "Builds the printable Word copy of docs/manual/STALLTRACK_USER_MANUAL.md.",
+  "type": "commonjs",
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "docx": "9.5.1"
+  }
+}

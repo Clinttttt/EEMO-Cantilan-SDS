@@ -50,7 +50,7 @@
                         <div><dt>Current term balance · from @current.Commencement.ToString("MMM d, yyyy")</dt><dd>@Money(current.Outstanding)</dd></div>
                         <div><dt>Earlier terms balance</dt><dd>@Money(_account!.Terms!.Where(t => !t.Current).Sum(t => t.Outstanding))</dd></div>
                     }
-                    <div><dt>Total outstanding balance · all periods</dt><dd>@Money(Outstanding)</dd></div>
+                    <div><dt>Total outstanding balance · all periods, fines not included (see Other assessed charges)</dt><dd>@Money(Outstanding)</dd></div>
                     <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
                     <div><dt>Earliest period with balance</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
                     <div><dt>Collected in displayed periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>

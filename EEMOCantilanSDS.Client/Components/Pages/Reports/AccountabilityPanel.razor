@@ -94,6 +94,7 @@
                             <th scope="col" class="v3-num">Collected</th>
                             <th scope="col" class="v3-num">Remitted</th>
                             <th scope="col" class="v3-num">Unremitted</th>
+                            @if (HasLegacy) { <th scope="col" class="v3-num">Legacy recorded (separate)</th> }
                             <th scope="col" class="v3-num">Review</th>
                         </tr>
                     </thead>
@@ -105,12 +106,13 @@
                                 <td class="v3-num">@Money(collector.Collected)</td>
                                 <td class="v3-num">@Money(collector.Remitted)</td>
                                 <td class="v3-num v3-strong">@Money(collector.Unremitted)</td>
+                                @if (HasLegacy) { <td class="v3-num">@Money(collector.LegacyCollectionsOutsideRemittance)</td> }
                                 <td class="v3-num">@(collector.NeedsReviewCount == 0 ? "—" : collector.NeedsReviewCount.ToString(CultureInfo.InvariantCulture))</td>
                             </tr>
                         }
                         @if (_data.Collectors.Count == 0)
                         {
-                            <tr><td class="v3-empty" colspan="5">No collector has collections in this period.</td></tr>
+                            <tr><td class="v3-empty" colspan="@(HasLegacy ? 6 : 5)">No collector has collections in this period.</td></tr>
                         }
                     </tbody>
                 </table>
@@ -244,7 +246,11 @@
         new("Remitted", Money(_data.Remitted)),
         new("Unremitted", Money(_data.Unremitted), Emphasis: _data.Unremitted != 0m),
         new("Needs review", _data.NeedsReviewCount.ToString(CultureInfo.InvariantCulture)),
+        .. (HasLegacy ? new[] { new SummaryStrip.SummaryItem("Legacy recorded (separate)", Money(_data.LegacyCollectionsOutsideRemittance)) } : []),
     ];
+
+    // IA-052: money on legacy records cannot be covered by a remittance, so it is shown apart, never in Collected. Only where there is some.
+    private bool HasLegacy => _data?.Collectors.Any(c => c.LegacyCollectionsOutsideRemittance != 0m) == true;
 
     protected override async Task OnParametersSetAsync()
     {

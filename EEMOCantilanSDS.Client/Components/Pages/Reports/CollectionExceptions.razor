@@ -115,7 +115,7 @@
 
             <div class="ce-list-head">
                 <span>@stalls.Count Payor@(stalls.Count != 1 ? "s" : "")</span>
-                <span class="ce-list-head-fac">@_facility</span>
+                <span class="ce-list-head-fac">@FacilityCatalog.ShortNameOf(CurrentFacility)</span>
             </div>
 
             <div class="ce-list">
@@ -183,7 +183,7 @@
                     <div class="ce-main-id">
                         <div class="ce-main-title">@SelectedStall.Occupant</div>
                         <div class="ce-main-sub">
-                            <span class="ce-tag">@_facility</span>
+                            <span class="ce-tag">@FacilityCatalog.ShortNameOf(CurrentFacility)</span>
                             @SpaceNumber.Line(SpaceNumber.Describe(SelectedStall.StallNo), SelectedStall.Section)
                         </div>
                     </div>
@@ -350,7 +350,7 @@
                 {
                     var cur = DrawerStatus();
                     var eff = _pendingStatus ?? cur;
-                    <div class="ce-drawer">
+                    <div class="ce-drawer" tabindex="-1" @ref="_drawerRef" aria-label="@DrawerTitle()">
                         <div class="ce-drawer-head">
                             <div>
                                 <div class="ce-drawer-title">@DrawerTitle()</div>
@@ -660,6 +660,10 @@
         }
     }
 
+    // Opened for one space (from its profile, or a facility row with nothing paid on it).
+    [SupplyParameterFromQuery(Name = "facility")] public string? FacilityQuery { get; set; }
+    [SupplyParameterFromQuery(Name = "stall")] public Guid? StallQuery { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
         await FacilityCatalog.EnsureLoadedAsync();
@@ -667,16 +671,38 @@
         // Default to a rental facility the tenant actually operates (avoids a phantom default like NPM).
         if (!FacilityCatalog.Rental.Any(c => c.ToString() == _facility))
             _facility = FacilityCatalog.Rental.Select(c => c.ToString()).FirstOrDefault() ?? _facility;
+        if (FacilityQuery is { } asked && FacilityCatalog.Rental.Any(c => c.ToString() == asked))
+            _facility = asked;
 
         if (CachedPayors is { } state && state.Facility == CurrentFacility)
         {
             _payors.Clear();
             _payors.AddRange(state.Payors);
             _loading = false;
+            await SelectRequestedStallAsync();
             return;
         }
 
         await LoadPayors();
+        await SelectRequestedStallAsync();
+    }
+
+    // Interactive pass only, so prerendering does not load the space's year a second time.
+    private async Task SelectRequestedStallAsync()
+    {
+        if (StallQuery is { } id && RendererInfo.IsInteractive && _payors.FirstOrDefault(p => p.Id == id) is { } stall)
+            await SelectStall(stall);
+    }
+
+    // The drawer opens below the calendar, inside a panel that scrolls: focusing it brings it into view and to a keyboard user.
+    private ElementReference _drawerRef;
+    private bool _focusDrawer;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_focusDrawer || !_drawerOpen) return;
+        _focusDrawer = false;
+        await _drawerRef.FocusAsync();
     }
 
     // ── Real payors for the current facility ──
@@ -960,7 +986,7 @@
         if (_marketClosedDays.Contains(d) || DayStatus(d) == "na") return;
         _drawerKind = "day"; _drawerDay = d; _pendingStatus = null; _ackEdit = false; _saveError = null;
         SeedFishKilos();
-        _drawerOpen = true;
+        _drawerOpen = true; _focusDrawer = true;
         _monthlyDayQuote = null; _monthlyDayError = null; _monthlyDayOperation = Guid.NewGuid();
         var sequence = ++_monthlyDaySequence;
         _checkingMonthlyDay = true;
@@ -992,7 +1018,7 @@
         if (_npmMonth is not null && _npmMonth.Collections.TryGetValue(key, out var c) && c.FishKilos is { } kg && kg > 0)
             _fishKilos[CurrentKey] = ((int)kg).ToString();
     }
-    private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _monthlyDaySequence++; _checkingMonthlyDay = false; _monthlyDayQuote = null; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; }
+    private void OpenMonth(int m) { if (MonthStatus(m) == "na") return; _monthlyDaySequence++; _checkingMonthlyDay = false; _monthlyDayQuote = null; _drawerKind = "month"; _drawerMonth = m; _pendingStatus = null; _ackEdit = false; _saveError = null; _drawerOpen = true; _focusDrawer = true; }
     private void CloseDrawer() { _monthlyDaySequence++; _checkingMonthlyDay = false; _monthlyDayQuote = null; _drawerOpen = false; _pendingStatus = null; _ackEdit = false; _saveError = null; }
 
     private bool IsDay => _drawerKind == "day";

@@ -181,7 +181,7 @@
                         <svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                         Edit Details
                     </button>
-                    <button class="btn-primary" @onclick='() => Navigation.NavigateTo("/reports/collections")'>
+                    <button class="btn-primary" @onclick='() => Navigation.NavigateTo(StallGuid == Guid.Empty ? "/reports/collections" : $"/reports/collections?facility={HeroFacility}&stall={StallGuid}")'>
                         <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /><polyline points="9 16 11 18 15 14" /></svg>
                         Manage Collection
                     </button>
@@ -650,11 +650,12 @@
                             {
                                 <div class="prof-hist-stat">
                                     <div class="prof-hist-stat-val green">@paidCount</div>
-                                    <div class="prof-hist-stat-key">Months Paid</div>
+                                    @* The server's rolling twelve months, not the calendar year the grid below and the Collection Manager show. *@
+                                    <div class="prof-hist-stat-key">Months Paid · last 12 months</div>
                                 </div>
                                 <div class="prof-hist-stat">
                                     <div class="prof-hist-stat-val red">@unpaidCount</div>
-                                    <div class="prof-hist-stat-key">Months Unpaid</div>
+                                    <div class="prof-hist-stat-key">Months Unpaid · last 12 months</div>
                                 </div>
                             }
                             <div class="prof-hist-stat">

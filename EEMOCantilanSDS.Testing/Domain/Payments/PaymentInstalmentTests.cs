@@ -70,6 +70,75 @@ public class PaymentInstalmentTests
     }
 
     [Fact]
+    public void The_office_finishing_a_collectors_partial_month_takes_its_own_receipt()
+    {
+        // The office's money is nobody's remittance. The collector keeps their receipt and still answers for the month.
+        var collector = Guid.NewGuid();
+        var month = Month();
+        month.UpdateStatus(PaymentStatus.Partial, 1_000m, updatedBy: "collector", collectorId: collector);
+        month.SetOrNumber("OR-1", "collector");
+
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "head");
+        month.SetOrNumber("OR-2", "head");
+
+        Assert.Equal([(1_000m, "OR-1", collector), (1_400m, "OR-2", null)], Receipts(month));
+        Assert.Equal(collector, month.CollectorId);
+    }
+
+    [Fact]
+    public void An_empty_month_the_office_collects_names_no_collector()
+    {
+        // An old row can keep a collector id with no money on it; the receipt the office now takes is not theirs.
+        var month = Month();
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "collector", collectorId: Guid.NewGuid());
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.Status))!.SetValue(month, PaymentStatus.Unpaid);
+        typeof(PaymentRecord).GetProperty(nameof(PaymentRecord.PaidAt))!.SetValue(month, null);
+
+        month.UpdateStatus(PaymentStatus.Paid, updatedBy: "head");
+
+        Assert.Null(month.CollectorId);
+        Assert.Empty(month.Instalments);
+    }
+
+    // EF loads receipts in key order (random ids), not time order, and the receipt awaiting an OR is not stored.
+    private static void AsIfReloaded(PaymentRecord month)
+    {
+        const System.Reflection.BindingFlags Private = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance;
+        ((List<PaymentInstalment>)typeof(PaymentRecord).GetField("_instalments", Private)!.GetValue(month)!).Reverse();
+        typeof(PaymentRecord).GetField("_awaitingOr", Private)!.SetValue(month, null);
+    }
+
+    [Fact]
+    public void An_OR_issued_after_a_reload_goes_to_the_online_receipt_and_never_replaces_the_collectors()
+    {
+        var collector = Guid.NewGuid();
+        var month = Month();
+        month.RecordPayment("OR-1", collector, PaymentStatus.Partial, 1_000m, updatedBy: "collector");
+        month.BackdateReceipt(DateTime.UtcNow.AddDays(-20), "collector");
+        month.MarkPaidOnline("online", "Online");
+        AsIfReloaded(month);   // the office issues the online receipt's OR later, from the awaiting-OR queue
+
+        month.SetOrNumber("OR-ONLINE", "office");
+
+        Assert.Equal([(1_000m, "OR-1", (Guid?)collector), (1_400m, "OR-ONLINE", null)],
+            month.Instalments.OrderBy(i => i.ReceivedAt).Select(i => (i.Amount, i.ORNumber, i.CollectorId)));
+    }
+
+    [Fact]
+    public void After_a_reload_a_correction_still_lowers_the_newest_receipt()
+    {
+        var month = Month();
+        month.RecordPayment("OR-1", Guid.NewGuid(), PaymentStatus.Partial, 1_000m, updatedBy: "test");
+        month.BackdateReceipt(DateTime.UtcNow.AddDays(-20), "test");
+        month.RecordPayment("OR-2", Guid.NewGuid(), PaymentStatus.Partial, 1_800m, updatedBy: "test");
+        AsIfReloaded(month);
+
+        month.UpdateStatus(PaymentStatus.Partial, 1_500m, updatedBy: "correction");
+
+        Assert.Equal([("OR-1", 1_000m), ("OR-2", 500m)], month.Instalments.OrderBy(i => i.ReceivedAt).Select(i => (i.ORNumber, i.Amount)));
+    }
+
+    [Fact]
     public void A_correction_lowers_the_newest_receipt_first_and_keeps_every_OR()
     {
         var month = Month();

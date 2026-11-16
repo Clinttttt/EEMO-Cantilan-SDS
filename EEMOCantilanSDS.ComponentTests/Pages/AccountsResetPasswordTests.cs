@@ -54,6 +54,7 @@ public class AccountsResetPasswordTests : TestContext
         Services.AddSingleton(Mock.Of<IMunicipalitiesApiClient>());
         Services.AddSingleton(Mock.Of<IMfaApiClient>());
         Services.AddSingleton<EEMOCantilanSDS.Client.Services.BrandingState>();
+        Services.AddSingleton(FacilityCatalogFixture.WithNoRecord());
 
         // The page reads the signed-in user's id from the token to tell "my account" from someone else's.
         var auth = this.AddTestAuthorization();

@@ -1,4 +1,5 @@
 using EEMOCantilanSDS.Domain.Common;
+using EEMOCantilanSDS.Domain.Constants;
 using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Payments;
 using EEMOCantilanSDS.Domain.Entities.Slaughterhouse;
@@ -82,6 +83,45 @@ public class CollectorRepositoryTests : RepositoryTestBase
         var listed = Assert.Single(await repo.GetAllCollectorsWithStatsAsync(2026, 9));
         Assert.Equal(0m, listed.CollectedThisMonth);
         Assert.Equal(august, listed.LastActiveAt);
+    }
+
+    /// <summary>
+    /// A month paid in two receipts by two collectors (IA-081): each is credited with the receipt they took, in the month it came
+    /// in, as their Report of Collections already counts it. The list and the detail used to credit the whole rent to the month's
+    /// first collector, in the month it was finished, and nothing to the collector who finished it.
+    /// </summary>
+    [Fact]
+    public async Task A_month_paid_in_two_receipts_credits_each_collector_with_their_own_receipt()
+    {
+        await using var ctx = NewContext();
+        var first = CollectorUser.Create("Ana Reyes", "EEMO-2026-011", "ana", "ana@x.com", "0917", TestPasswords.Hash("pw"));
+        var second = CollectorUser.Create("Ben Cruz", "EEMO-2026-012", "ben", "ben@x.com", "0918", TestPasswords.Hash("pw"));
+        var january = new DateTime(2026, 1, 15, 3, 0, 0, DateTimeKind.Utc);
+
+        var hall = Facility.Create(FacilityCode.TCC, "Trade Hall", "TH");
+        var stall = Stall.Create(hall.Id, "P-01", 900m, ApplicableFees.BaseRental);
+        var month = PaymentRecord.Create(stall.Id, 2026, 1, baseRental: 900m);
+        month.RecordPayment("OR-A", first.Id, PaymentStatus.Partial, 400m, updatedBy: "ana");
+        month.BackdateReceipt(january, "ana");
+        month.RecordPayment("OR-B", second.Id, PaymentStatus.Paid, updatedBy: "ben");   // today
+        ctx.AddRange(first, second, hall, stall, month);
+        await ctx.SaveChangesAsync();
+
+        var repo = new CollectorRepository(ctx);
+        var today = PhilippineTime.Today;
+        var inJanuary = (await repo.GetAllCollectorsWithStatsAsync(2026, 1)).ToDictionary(c => c.Id);
+        var thisMonth = (await repo.GetAllCollectorsWithStatsAsync(today.Year, today.Month)).ToDictionary(c => c.Id);
+
+        Assert.Equal((400m, 1), (inJanuary[first.Id].CollectedThisMonth, inJanuary[first.Id].Transactions));
+        Assert.Equal((0m, 0), (thisMonth[first.Id].CollectedThisMonth, thisMonth[first.Id].Transactions));
+        Assert.Equal((500m, 1), (thisMonth[second.Id].CollectedThisMonth, thisMonth[second.Id].Transactions));
+
+        var ben = await repo.GetCollectorActivityAsync(second.Id, today.Year, today.Month);
+        Assert.Equal((500m, 1), (ben!.CollectedThisMonth, ben.Transactions));
+        Assert.Equal([("OR-B", 500m)], ben.RecentTransactions.Select(t => (t.ORNumber, t.Amount)));
+        var ana = await repo.GetCollectorActivityAsync(first.Id, 2026, 1);
+        Assert.Equal((400m, 1), (ana!.CollectedThisMonth, ana.Transactions));
+        Assert.Equal([("OR-A", 400m)], ana.RecentTransactions.Select(t => (t.ORNumber, t.Amount)));
     }
 
     // Regression for P1 (daily collections keyed by CollectorId, not CreatedBy) and

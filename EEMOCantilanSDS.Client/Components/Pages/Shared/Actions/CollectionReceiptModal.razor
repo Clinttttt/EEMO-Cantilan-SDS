@@ -45,14 +45,21 @@
 
                 <div class="receipt-divider"></div>
 
-                <div class="receipt-total-row receipt-grand">
-                    <span>@TotalLabel</span>
-                    <span>@TotalValue</span>
-                </div>
+                @if (NothingPaid)
+                {
+                    <p class="receipt-empty" role="status">No payment is recorded for @PeriodLabel. <a href="@RecordHref">Record it in the Collection Manager</a>.</p>
+                }
+                else
+                {
+                    <div class="receipt-total-row receipt-grand">
+                        <span>@TotalLabel</span>
+                        <span>@TotalValue</span>
+                    </div>
 
-                <div class="receipt-divider dashed"></div>
+                    <div class="receipt-divider dashed"></div>
 
-                <div class="receipt-note">@NoteText</div>
+                    <div class="receipt-note">@NoteText</div>
+                }
             </div>
 
             <div class="receipt-close-row">
@@ -82,6 +89,10 @@
     [Parameter] public string TotalValue { get; set; } = string.Empty;
     [Parameter] public string NoteText { get; set; } =
         "This acknowledges receipt of the fees stated above. Keep for your records.";
+
+    /// <summary>Nothing is recorded for the period: the window says so, rather than acknowledging receipt of ₱0.</summary>
+    [Parameter] public bool NothingPaid { get; set; }
+    [Parameter] public string RecordHref { get; set; } = "/reports/collections";
 
     public sealed record ReceiptLine(string Label, string Value);
 }

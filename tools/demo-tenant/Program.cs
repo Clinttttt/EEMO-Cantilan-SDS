@@ -21,7 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 
 // A clearly labelled office with realistic months of rent, for showing the system. It takes a new, empty local database and refuses anything else.
-// shortcut: monthly rent only, so market days, slaughter, terminal and water show as empty. Add their writers when a walkthrough needs them.
+// shortcut: monthly rent, market days and utility bills only, so slaughter, terminal and the vendor market show as empty. Add their writers when a walkthrough needs them.
 Require(args.Length == 2 && args[0] == "seed", "Use: seed <file to write the demo sign-in details to>");
 var connection = Environment.GetEnvironmentVariable("STALLTRACK_DEMO_CONNECTION");
 Require(!string.IsNullOrWhiteSpace(connection), "Set STALLTRACK_DEMO_CONNECTION.");
@@ -120,6 +120,56 @@ foreach (var f in plan)
     }
 }
 
+// Market days: each market space pays its day fee on a Cash Ticket, so no receipt number. Reports date a day by its
+// last update, so each is dated the day it was collected, or two years of days would read as collected today.
+var market = Facility.Create(FacilityCode.NPM, "Demo Public Market", "DPM", "Demo data.", municipalityId: tenant);
+db.Add(market);
+var marketDays = 0;
+foreach (var (section, letter, count) in new[] { (MarketSection.VegetableArea, "V", 8), (MarketSection.FishSection, "F", 4), (MarketSection.MeatSection, "M", 3) })
+{
+    for (var n = 1; n <= count; n++)
+    {
+        var stall = Stall.Create(market.Id, $"{letter}-{n:00}", FeeRates.NpmDailyFee * 30, ApplicableFees.BaseRental, section, municipalityId: tenant);
+        var occupant = $"{firstNames[random.Next(firstNames.Length)]} {lastNames[random.Next(lastNames.Length)]}";
+        db.AddRange(stall, Contract.Create(stall.Id, occupant, occupant, firstMonth, 5, stall.MonthlyRate, createdBy: "demo-tenant"));
+        var turnsUp = random.NextDouble() < .75 ? .92 : .6; // most vendors come nearly every day; some often miss
+        for (var day = firstMonth; day < today; day = day.AddDays(1))
+        {
+            if (random.NextDouble() > turnsUp) continue;
+            var row = DailyCollection.Create(stall.Id, day, "demo-tenant", FeeRates.NpmDailyFee);
+            row.MarkPaid(string.Empty, Collector(), updatedBy: "demo-tenant");
+            row.UpdatedAt = day.ToDateTime(new TimeOnly(1, 0), DateTimeKind.Utc);
+            db.Add(row);
+            marketDays++;
+        }
+    }
+}
+
+// Electricity and water for one rental space in four, billed monthly from meter readings at illustrative rates.
+// Each is paid early the next month, except some of the last two months, which are still owed.
+var utilityBills = 0;
+foreach (var (stall, _, _) in occupied.Where((_, i) => i % 4 == 1))
+{
+    stall.AddUtilityFees(electricity: true, water: true, "demo-tenant");
+    decimal kwh = random.Next(1000, 5000), cubic = random.Next(100, 400);
+    for (var month = firstMonth; month < thisMonth; month = month.AddMonths(1))
+    {
+        var (usedKwh, usedCubic) = (random.Next(40, 180), random.Next(3, 15));
+        var bill = UtilityBill.Create(stall.Id, month.Year, month.Month, kwh, kwh + usedKwh, 12.50m, cubic, cubic + usedCubic, 35m, "demo-tenant");
+        (kwh, cubic) = (kwh + usedKwh, cubic + usedCubic);
+        db.Add(bill);
+        utilityBills++;
+        var paidOn = OnDay(month.AddMonths(1), random.Next(5, 20));
+        if (paidOn > clock.UtcNow || month >= thisMonth.AddMonths(-2) && random.NextDouble() < .35) continue;
+        bill.RecordPayment(NextOr(), NextOr(), Collector(), PaymentStatus.Paid, null, PaymentStatus.Paid, null, "Demo data", "demo-tenant");
+        var entry = db.Entry(bill);
+        entry.Property(b => b.ElecPaidAt).CurrentValue = paidOn;
+        entry.Property(b => b.WaterPaidAt).CurrentValue = paidOn;
+        entry.Property(b => b.PaidAt).CurrentValue = paidOn;
+        bill.UpdatedAt = paidOn;
+    }
+}
+
 // The operations this office declared, stored as activation stores them: a row for every catalog operation, only these listed.
 // Weight and Measure gets its classification without a policy, as activation gives it, so Revenue Setup shows it Setup required.
 string[] declared = [CollectorOperationCodes.MarketFees, CollectorOperationCodes.WeightAndMeasure];
@@ -187,7 +237,7 @@ await File.WriteAllLinesAsync(args[1],
     $"Admin: demo.admin / {password}",
     $"Payors: {string.Join(", ", payors.Select(p => p.Account.Username))} / {password}",
 ]);
-Console.WriteLine($"Demo office seeded: {plan.Sum(f => f.Stalls)} spaces, {occupied.Count} occupied, {receipt - 1000} receipts, {charges} late penalties, {messages} messages.");
+Console.WriteLine($"Demo office seeded: {plan.Sum(f => f.Stalls)} spaces, {occupied.Count} occupied, {receipt - 1000} receipts, {marketDays} market days, {utilityBills} utility bills, {charges} late penalties, {messages} messages.");
 
 // These stories need their months open, whatever the random history gave them.
 async Task ClearAsync(Guid stall, DateOnly from)

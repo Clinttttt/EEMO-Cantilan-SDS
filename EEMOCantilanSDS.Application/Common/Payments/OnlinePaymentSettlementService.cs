@@ -167,15 +167,14 @@ public sealed class OnlinePaymentSettlementService(
     }
 
     /// <summary>
-    /// A legacy monthly row absorbs only an exact settlement of what it still owes, or less than an Unpaid balance. Anything else would erase an
-    /// issued OR or collector (MarkPaidOnline clears both), clear money nobody paid, forget an earlier part, or make an excess vanish.
+    /// A legacy monthly row absorbs only an exact settlement of what it still owes, or less than an Unpaid balance. Anything else would clear
+    /// money nobody paid, forget an earlier part, or make an excess vanish. A part already receipted (OR, collector) is kept as its own receipt
+    /// when the rest arrives (IA-081), as when the Head applies held money, so it no longer sends the exact rest to the office.
     /// </summary>
     private static string? WhyTheCaptureDoesNotFit(PaymentRecord record, decimal captured)
     {
         if (record.Status == PaymentStatus.Paid)
             return "This period was already settled through another channel when the capture arrived. The original receipt was kept.";
-        if (record.Status == PaymentStatus.Partial && (!string.IsNullOrWhiteSpace(record.ORNumber) || record.CollectorId is not null))
-            return "Part of this period was already collected and receipted. That evidence was kept and nothing was applied.";
         if (record.Status == PaymentStatus.Partial && captured != record.BalanceDue)
             return $"The capture of {captured:0.00} does not equal the {record.BalanceDue:0.00} still owed on this part-paid period. Nothing was applied.";
         if (captured > record.BalanceDue)

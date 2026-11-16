@@ -71,6 +71,8 @@
                         TotalLabel="Total Paid"
                         TotalValue="@($"₱{ReceiptPaidAmount:N2}")"
                         NoteText="This acknowledges receipt of the monthly rental payment stated above. Keep for your records."
+                        NothingPaid="@(PaymentStall is not null && ReceiptPaidAmount == 0m)"
+                        RecordHref="@CollectionManagerHref(PaymentStall)"
                         OnClose="ClosePayment" />
 
 <PaymentHistoryModal TStall="TStall"
@@ -427,6 +429,12 @@
             };
         }
     }
+
+    // The Collection Manager opened on this space, where its months are recorded. Each stall model carries StallGuid.
+    private string CollectionManagerHref(TStall? stall) =>
+        stall?.GetType().GetProperty("StallGuid")?.GetValue(stall) is Guid id && id != Guid.Empty
+            ? $"/reports/collections?facility={FacilityCodeEnum}&stall={id}"
+            : "/reports/collections";
 
     // Each facility's stall model exposes an OR property (OrNumber/ORNumber) — read it generically.
     private static string GetStallOr(TStall stall)

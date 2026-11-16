@@ -113,6 +113,24 @@
         color: var(--navy);
     }
 
+.receipt-empty {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    text-align: center;
+}
+
+    .receipt-empty a {
+        color: var(--accent);
+        font-weight: 600;
+    }
+
+    .receipt-empty a:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+    }
+
 .receipt-note {
     font-size: 10.5px;
     line-height: 1.5;
