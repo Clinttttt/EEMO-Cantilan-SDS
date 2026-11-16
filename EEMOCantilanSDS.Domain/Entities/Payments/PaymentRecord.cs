@@ -154,9 +154,21 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             ORNumber = orNumber;
             UpdatedAt = DateTime.UtcNow;
             UpdatedBy = updatedBy;
-            // The OR belongs to the receipt just taken; with none taken now, it corrects the newest receipt's OR.
-            (_awaitingOr ?? _instalments.LastOrDefault(i => i.Amount > 0m))?.SetOrNumber(orNumber, updatedBy);
+            // The OR belongs to the receipt just taken. With none taken in this request (an online receipt's OR is issued later), it goes to
+            // the newest receipt still without one, and only otherwise corrects the newest receipt's OR: an issued OR is never replaced by another.
+            InTimeOrder();
+            (_awaitingOr
+                ?? _instalments.LastOrDefault(i => i.Amount > 0m && string.IsNullOrWhiteSpace(i.ORNumber))
+                ?? _instalments.LastOrDefault(i => i.Amount > 0m))?.SetOrNumber(orNumber, updatedBy);
             _awaitingOr = null;
+        }
+
+        // A loaded month holds its receipts in key order, and the keys are random. Stable, so receipts of the same instant keep their order.
+        private void InTimeOrder()
+        {
+            var ordered = _instalments.OrderBy(i => i.ReceivedAt).ToList();
+            _instalments.Clear();
+            _instalments.AddRange(ordered);
         }
 
         private (decimal Amount, DateTime? At, string? Or, Guid? Collector) Receipt() => (AmountPaid, PaidAt, ORNumber, CollectorId);
@@ -170,6 +182,7 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         private void KeepReceipts((decimal Amount, DateTime? At, string? Or, Guid? Collector) before, string updatedBy, Guid? takenBy)
         {
             var after = AmountPaid;
+            InTimeOrder();
             if (_instalments.Count == 0)
             {
                 if (before.Amount <= 0m || after <= before.Amount) return;

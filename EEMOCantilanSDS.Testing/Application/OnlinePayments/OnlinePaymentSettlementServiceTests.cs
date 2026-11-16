@@ -136,22 +136,39 @@ public class OnlinePaymentSettlementServiceTests
     }
 
     [Fact]
-    public async Task PartiallyPaidWithAnOfficialReceipt_KeepsItsEvidence_AndTheCaptureGoesToTheOffice()
+    public async Task PartiallyPaidWithAnOfficialReceipt_TheExactRestSettles_AsItsOwnReceipt_KeepingTheFirst()
     {
-        // MarkPaidOnline clears the OR and the collector, so settling here would erase the record of cash a collector took.
+        // It used to go to the office, because settling cleared the collector's OR. Since IA-081 the first receipt is kept as its own
+        // (amount, OR, collector), as when the Head applies held money; the sandbox showed checkout offering this rest and then holding it.
         var collector = Guid.NewGuid();
         var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount + 40m);
         record.RecordPayment("OR-PART-7", collector, PaymentStatus.Partial, partialAmount: 40m);
         var (svc, payRepo, _) = Build(record);
         var txn = PendingTxn(record.Id);   // Amount 100 == the remaining balance
 
+        var result = await svc.SettleAsync(txn, PaidEvent());
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(OnlinePaymentStatus.Paid, txn.Status);
+        Assert.Equal(PaymentStatus.Paid, record.Status);
+        Assert.Equal([(40m, "OR-PART-7", (Guid?)collector), (100m, null, null)],
+            record.Instalments.Select(i => (i.Amount, i.ORNumber, i.CollectorId)));
+        payRepo.Verify(r => r.UpdateAsync(record, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PartiallyPaidWithAnOfficialReceipt_ACaptureThatIsNotTheExactRest_StillGoesToTheOffice()
+    {
+        var collector = Guid.NewGuid();
+        var record = PaymentRecord.Create(Guid.NewGuid(), 2026, 6, Amount + 90m);
+        record.RecordPayment("OR-PART-7", collector, PaymentStatus.Partial, partialAmount: 40m);
+        var (svc, payRepo, _) = Build(record);
+        var txn = PendingTxn(record.Id);   // Amount 100, but 150 is still owed
+
         await svc.SettleAsync(txn, PaidEvent());
 
         Assert.Equal(OnlinePaymentStatus.ReconciliationRequired, txn.Status);
-        Assert.Equal(PaymentStatus.Partial, record.Status);
-        Assert.Equal("OR-PART-7", record.ORNumber);
-        Assert.Equal(collector, record.CollectorId);
-        Assert.Equal(40m, record.PartialAmount);
+        Assert.Equal((PaymentStatus.Partial, "OR-PART-7", (Guid?)collector, 40m), (record.Status, record.ORNumber, record.CollectorId, record.PartialAmount));
         payRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
