@@ -17,17 +17,27 @@ StallTrack records what a local government's economic enterprise office bills an
 
 **Moving around.** The left menu holds Overview, Operations, Collection Activity, Online Payments, Spaces & Occupants, Monitoring, Remittance & Liquidation, Reports, Collectors, Audit Trail, Settings and Notifications. Collectors and Audit Trail are locked for an Admin.
 
+![Overview, the first page after signing in](screenshots/overview.png)
+
 **Dark or light.** *Dark mode* at the foot of the menu switches the look on this browser. Your first visit follows your device's setting. Printed documents always come out on white.
 
 **Notifications.** The number beside *Notifications* is what you have not read. It updates when a page fully loads and when you leave the Notifications page. See section 8.
 
 ## 2. Recording a rent payment (Head, Admin)
 
-1. Find the occupant in **Spaces & Occupants** and open the space's profile, or start from an account in **Monitoring**.
-2. Choose **Record payment on this term**. On a follow-up row, choose **Record payment**.
-3. Under **Outstanding**, confirm the month.
+1. Open the space in the **Collection Manager**: choose **Manage Collection** on the space's profile, or open the Collection Manager and pick the facility and the space.
+2. Choose the month.
+3. If the month offers **Record payment**, choose it and confirm the month under **Outstanding**. Otherwise choose **Paid**, or **Partial** and the amount received.
 4. Enter the Official Receipt number from your booklet. StallTrack never makes one up.
-5. Save.
+5. Save, or choose **Change status to Paid** (or **Partial**).
+
+From **Monitoring**, a follow-up row's **Record payment** opens the same payment dialog. An earlier term that still owes rent has its own **Record payment on this term** on the profile.
+
+![The Collection Manager with November open for one space](screenshots/collection-manager-month.png)
+
+*View / Record Payment* on a facility's list shows the month's receipt. A month with nothing paid has no receipt: it says so and links to the Collection Manager.
+
+![A month with nothing paid, from the facility list](screenshots/nothing-paid.png)
 
 **"Pay [month] first."** Your office takes the oldest unpaid month first, so a newer month is refused while an older one is open. Pay the month it names. A month the office is reviewing does not hold up the months after it, and neither does a month from before your office's start month (section 5). The Head can turn this rule off.
 
@@ -51,6 +61,10 @@ Open a space's profile from **Spaces & Occupants**. **Statement of Account** sta
 | Total due | Everything still owed on the account |
 
 The total is the same figure Monitoring uses for that account. The statement only reads what was recorded. It never changes anything.
+
+![A space's profile: payment history and Statement of Account](screenshots/profile.png)
+
+The profile's month counts cover the last 12 months. The Collection Manager shows one calendar year, so the two counts can differ.
 
 A month with no record is owed at the rate its term agreed. While a term runs, a monthly space's rate cannot be changed. Set the new rate when the term is renewed.
 
@@ -76,6 +90,8 @@ If no gateway is connected, the page opens on its setup screen. Choose **Back to
 
 An unpaid checkout closes after 24 hours, and an old payment link stops working.
 
+![Online Payments: a payment needing the Head's decision, and one awaiting its Official Receipt](screenshots/online-payments.png)
+
 ## 5. Billing Policy (Head changes it, Admin reads it)
 
 **Settings → Billing Policy.** These are StallTrack Rules your office can change. They are not rulings by any one office.
@@ -92,6 +108,8 @@ An unpaid checkout closes after 24 hours, and an old payment link stops working.
 
 A change applies from the date you choose. It never rewrites what was already recorded. Every version stays listed.
 
+![Billing Policy: the rules in force and the form to change them](screenshots/billing-policy.png)
+
 ## 6. Late penalties and fines (Head, Admin)
 
 **Operations → Fines & Penalties** lists assessments.
@@ -102,11 +120,17 @@ With a rate set, StallTrack adds a late penalty by itself to a monthly space's u
 - **Penalties are paid at the office**, not online.
 - A fine the Head assessed by hand cannot be edited afterwards.
 
+![Fines & Penalties](screenshots/fines.png)
+
 ## 7. Reports, follow-up and audit
 
 - **Reports** holds the month-end report, financial summary, Monthly Income and collections register. Monthly Income lists your office's own lines, under its own names.
 - **Monitoring** lists accounts to follow up, with their months and figures.
 - **Audit Trail (Head)** shows who changed what and when, in Philippine time, with the values before and after.
+
+![Monitoring: the follow-up queue](screenshots/follow-up.png)
+
+![Reports: the monthly summary by revenue source](screenshots/reports.png)
 
 ## 8. Notifications
 

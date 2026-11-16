@@ -25,7 +25,7 @@
 | Monthly reports | Flores | Already existed | Month-end, financial summary, Monthly Income, collections register | `/reports` |
 | Clean, simple interface | Flores | Ongoing | V3 presentation direction continues | Any office page |
 | Realistic January to December data | Flores | Done for monthly rent, market days and utility bills | A separate, clearly labelled demo office, never in Cantilan's records: `tools/demo-tenant` | Sign in as the demo Head |
-| User manual and guidance | Bucalon, Flores | Done; screenshots still to add | [STALLTRACK_USER_MANUAL.md](../manual/STALLTRACK_USER_MANUAL.md), with a printable Word copy built from it (`STALLTRACK_USER_MANUAL.docx`, by `tools/manual-docx`) | Repository document |
+| User manual and guidance | Bucalon, Flores | Done | [STALLTRACK_USER_MANUAL.md](../manual/STALLTRACK_USER_MANUAL.md), with screenshots from the demo office and a printable Word copy built from it (`STALLTRACK_USER_MANUAL.docx`, by `tools/manual-docx`) | Repository document |
 | Revised process flow | Maligsa | Done | [BILLING_FLOW.md](../manual/BILLING_FLOW.md), drawn from the implemented system | Repository document |
 
 **Running the demo office.** It needs a new, empty local PostgreSQL database with `demo` or `preview` in its name. The tool refuses anything else. It holds monthly rent, market days paid on Cash Tickets, and electricity and water bills at illustrative rates; slaughter, the terminal and the vendor market stay empty.

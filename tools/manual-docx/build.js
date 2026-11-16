@@ -126,7 +126,15 @@ const doc = new Document({
   }],
 });
 
-Packer.toBuffer(doc).then((buffer) => {
-  fs.writeFileSync(output, buffer);
-  console.log(`Wrote ${output}`);
-});
+// Without the ZIP's folder entries: Word has refused a file that has them when opened through a cloud co-editing service.
+Packer.toBuffer(doc)
+  .then((buffer) => require("jszip").loadAsync(buffer, { createFolders: false }))
+  .then((zip) => {
+    // Only the folder records: zip.remove() on a folder would take its files with it.
+    Object.keys(zip.files).filter((name) => zip.files[name].dir).forEach((name) => delete zip.files[name]);
+    return zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+  })
+  .then((buffer) => {
+    fs.writeFileSync(output, buffer);
+    console.log(`Wrote ${output}`);
+  });
