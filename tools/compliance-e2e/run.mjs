@@ -175,16 +175,25 @@ async function apiChecks(password, phones) {
   });
 
   const arrearsBefore = await arrearsLine();
-  await check('Excess or wrong amounts', "An office amount over the month's bill records only the bill", async () => {
+  await check('Excess or wrong amounts', "An office amount over the month's bill is refused, and nothing is recorded", async () => {
     const entered = oldest.unpaid + 1000;
     const r = await post('head', '/api/Payments/record',
       { stallId: stall, year: oldest.year, month: oldest.month, status: 'Partial', partialAmount: entered, remarks: 'compliance e2e', orNumber: or(1) });
+    must(r.status >= 400 && r.status < 500 && /more than/i.test(r.text), `expected a refusal, got ${r.status} ${r.text.slice(0, 160)}`);
+    const after = await json('head', `/api/Stalls/${stall}/statement`);
+    must(same(after.previousBalance, statement.previousBalance), `the balance moved from ${statement.previousBalance} to ${after.previousBalance}`);
+    return `${peso(entered)} on ${period(oldest)}: ${r.json?.error ?? r.text.slice(0, 160)}`;
+  });
+
+  await check('Arrears carried forward', 'Paying the oldest month closes it and lowers the previous balance by its rent', async () => {
+    const r = await post('head', '/api/Payments/record',
+      { stallId: stall, year: oldest.year, month: oldest.month, status: 'Paid', partialAmount: null, remarks: 'compliance e2e', orNumber: or(1) });
     must(r.status === 200, `the payment was refused: ${r.status} ${r.text.slice(0, 160)}`);
     const after = await json('head', `/api/Stalls/${stall}/statement`);
     must(!after.unpaidMonths.some((m) => period(m) === period(oldest)), `${period(oldest)} is still open`);
     const fell = statement.previousBalance - after.previousBalance;
     must(same(fell, oldest.unpaid), `the balance fell by ${fell}; the month owed ${oldest.unpaid}`);
-    return `${peso(entered)} entered on ${period(oldest)}; the month closed and the balance fell by ${peso(fell)}, its bill`;
+    return `${period(oldest)}, ${peso(fell)} on OR ${or(1)}`;
   });
 
   await check('Arrears carried forward', 'Old rent paid today reports on the Monthly Income Arrears line', async () => {

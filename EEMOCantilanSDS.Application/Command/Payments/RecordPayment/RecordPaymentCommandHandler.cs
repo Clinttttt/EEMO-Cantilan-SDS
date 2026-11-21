@@ -90,6 +90,8 @@ public class RecordPaymentCommandHandler(
                 monthlyRate,
                 recordedBy
             );
+            if (Overpaid(request, newPayment.TotalBill) is { } overpaid)
+                return overpaid;
 
             if (request.ClientOperationId is { } clientOpId)
                 newPayment.SetClientOperationId(clientOpId);
@@ -121,6 +123,8 @@ public class RecordPaymentCommandHandler(
                 }
                 return Result<bool>.Failure("RECONCILIATION_REQUIRED: This monthly source is transitioning or canonical. Refresh and use its reviewed rent receipt; legacy status changes are disabled.", ResultStatus.Conflict);
             }
+            if (Overpaid(request, existingPayment.TotalBill) is { } overpaid)
+                return overpaid;
 
             // Stamp the offline idempotency key on the UPDATE path too (not just create), so a lost-ack
             // retry of the same queued op is caught by the sync pre-check instead of re-applying the write.
@@ -167,4 +171,13 @@ public class RecordPaymentCommandHandler(
 
         return Result<bool>.Success(true);
     }
+
+    // A part payment is the month's running total. Above the bill, PaymentRecord would record the bill and the rest
+    // would vanish unrecorded, so it is refused; the bill itself still settles the month as Paid.
+    private static Result<bool>? Overpaid(RecordPaymentCommand request, decimal bill) =>
+        request.Status == PaymentStatus.Partial && request.PartialAmount > bill
+            ? Result<bool>.Failure(FormattableString.Invariant(
+                $"₱{request.PartialAmount:N2} is more than this month's rent of ₱{bill:N2}. Record at most ₱{bill:N2} for the month, and return the rest or record it on another month."),
+                ResultStatus.Invalid)
+            : null;
 }

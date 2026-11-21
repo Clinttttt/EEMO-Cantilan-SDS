@@ -293,4 +293,52 @@ public class RecordPaymentCommandHandlerTests
         paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
         paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
     }
+
+    // A part payment above the month's rent used to be recorded as the rent, and the rest went unrecorded.
+    [Fact]
+    public async Task NewMonth_PartPaymentAboveTheRent_IsRefused_AndNothingIsRecorded()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+
+        var result = await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Partial, 3400m, null, ORNumber: "OVER-1"), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Invalid, result.Status);
+        Assert.Contains("more than this month's rent of ₱2,400.00", result.Error);
+        paymentRepo.Verify(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task NewMonth_PartPaymentOfExactlyTheRent_SettlesTheMonth()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+        PaymentRecord? added = null;
+        paymentRepo.Setup(r => r.AddAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>())).Callback<PaymentRecord, CancellationToken>((p, _) => added = p);
+
+        var result = await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Partial, 2400m, null, ORNumber: "EXACT-1"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PaymentStatus.Paid, added?.Status);
+    }
+
+    [Fact]
+    public async Task PartPaidMonth_RunningTotalAboveTheRent_IsRefused_AndTheMonthIsUnchanged()
+    {
+        var stall = StallInFacility(FacilityCode.TCC);
+        var (handler, paymentRepo) = Build(stall, null, "Admin", null);
+        var existing = PaymentRecord.Create(stall.Id, 2026, 6, 2400m, "tester");
+        existing.UpdateStatus(PaymentStatus.Partial, 1000m, null, "tester", null);
+        var dtoId = Guid.NewGuid();
+        paymentRepo.Setup(r => r.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PaymentRecordDto(dtoId, PaymentStatus.Partial, null, 2400m, null, null, null, 1000m, 1400m));
+        paymentRepo.Setup(r => r.GetByIdAsync(dtoId, It.IsAny<CancellationToken>())).ReturnsAsync(existing);
+
+        var result = await handler.Handle(new RecordPaymentCommand(stall.Id, 2026, 6, PaymentStatus.Partial, 2500m, null, ORNumber: "OVER-2"), CancellationToken.None);
+
+        Assert.Equal(ResultStatus.Invalid, result.Status);
+        Assert.Equal(PaymentStatus.Partial, existing.Status);
+        Assert.Equal(1000m, existing.AmountPaid);
+        paymentRepo.Verify(r => r.UpdateAsync(It.IsAny<PaymentRecord>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
 }
