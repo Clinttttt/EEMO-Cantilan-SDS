@@ -1,6 +1,12 @@
 # Follow-ups after the compliance submission
 
-Found by `tools/compliance-e2e` on 21 November 2026. Neither blocks the submission; the owner chose to fix both after it. Fix 1 first, because the compliance matrix answers a panelist with it. When both are done, rerun `node tools/compliance-e2e/run.mjs`.
+Found by `tools/compliance-e2e` on 21 November 2026. Neither blocks the submission. Fix 1 first, because the compliance matrix answers a panelist with it. When both are done, rerun `node tools/compliance-e2e/run.mjs`.
+
+**Status, 21 November: both fixed** on branch `fix/compliance-followups-20261121`, at the owner's go. They reach production when it is merged. The fixes differ from the plan below in four ways:
+- **Another gap, on the office's own screen.** On a month already part-paid, the office calendar (`MonthlyPaymentCalendar.razor`) added the new amount to what was paid. When the total passed the rent, it sent a full payment with no amount, so the server never saw the excess. The calendar now refuses an amount above the month's balance itself.
+- **The office payment modal is not changed.** `FacilityPaymentModal` encodes the OR for a payment already collected; it does not record the amount.
+- **The collector app is not changed.** The server refuses the excess online, and a queued offline payment comes back Rejected with the same message. A check on the app's own screen waits for the next app release.
+- **The reference uses the office's `Code`, not its acronym.** Every office has a code and codes are unique; an acronym is free text, and two offices could both be "MEEDO". It keeps today's 8 random characters, so a reference is at most 29 characters, no longer than PayMongo has always been sent.
 
 ## 1. An office overpayment on monthly rent is recorded as the bill, not refused
 

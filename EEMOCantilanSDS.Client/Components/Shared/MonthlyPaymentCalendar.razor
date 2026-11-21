@@ -348,6 +348,12 @@
                 PaymentError = "Partial amount must be less than the monthly rate.";
                 return;
             }
+            // On a part-paid month the amount is added to what was paid; above the balance it used to turn into a full payment and the rest went unrecorded.
+            if (SelectedPayment?.Status == PaymentStatus.Partial && PartialAmount.Value > SelectedPayment.BalanceDue)
+            {
+                PaymentError = $"₱{PartialAmount.Value:N2} is more than the ₱{SelectedPayment.BalanceDue:N2} this month still owes.";
+                return;
+            }
         }
 
         IsSaving = true;

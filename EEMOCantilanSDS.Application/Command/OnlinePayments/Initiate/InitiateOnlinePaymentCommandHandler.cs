@@ -153,20 +153,21 @@ public class InitiateOnlinePaymentCommandHandler(
             }
         }
 
+        // The payor's own office, as PayMongo shows it and as its reference begins: never another LGU's name.
+        var office = currentUser.MunicipalityId is { } lgu && municipalities is not null
+            ? await municipalities.GetByIdAsync(lgu, cancellationToken)
+            : null;
+
         string reference;
         do
         {
-            reference = GenerateReference(clock.PhilippineNow);
+            reference = GenerateReference(office?.Code, clock.PhilippineNow);
         }
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
         var transaction = OnlinePaymentTransaction.Create(
             reference, payorId.Value, record.Id, amount, paymentGateway.Provider);
 
-        // The payor's own office, as PayMongo shows it: never another LGU's name.
-        var office = currentUser.MunicipalityId is { } lgu && municipalities is not null
-            ? await municipalities.GetByIdAsync(lgu, cancellationToken)
-            : null;
         var payee = string.IsNullOrWhiteSpace(office?.OfficeAcronym) ? office?.OfficeName?.Trim() : office.OfficeAcronym.Trim();
 
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
@@ -203,6 +204,13 @@ public class InitiateOnlinePaymentCommandHandler(
     private static string StaleCheckoutNote(decimal was, decimal now) =>
         $"{{\"supersededBy\":\"re-initiated\",\"reason\":\"amount changed\",\"was\":{was},\"now\":{now}}}";
 
-    private static string GenerateReference(DateTime now) =>
-        $"EEMO-OP-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..25].ToUpperInvariant();
+    /// <summary>
+    /// The office's own code (letters and digits, at most 8), then OP, the date and 8 random characters: at most 29
+    /// characters, the length PayMongo has always been sent. Without an office it is OP-… alone.
+    /// </summary>
+    public static string GenerateReference(string? officeCode, DateTime now)
+    {
+        var prefix = new string((officeCode ?? "").ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).Take(8).ToArray());
+        return $"{(prefix.Length > 0 ? prefix + "-" : "")}OP-{now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+    }
 }
