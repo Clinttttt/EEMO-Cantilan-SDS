@@ -411,10 +411,15 @@ async function browserChecks(chromePath, password, facts) {
   });
 
   await check('Sign-in page', 'The Head signs in', async () => {
-    await type('#login-username', 'demo.head');
-    await type('#login-password', password);
-    await js(`document.querySelector('button.setup-submit').click()`);
-    await until(`location.pathname !== '/login'`, 'the signed-in office', 45);
+    // The prerendered form shows before Blazor connects, and a click before that is lost, so try again until it goes through.
+    for (let attempt = 1; attempt <= 8; attempt++) {
+      if (await js(`location.pathname !== '/login'`)) return attempt > 1 ? `signed in on try ${attempt}` : '';
+      await type('#login-username', 'demo.head');
+      await type('#login-password', password);
+      await js(`document.querySelector('button.setup-submit')?.click()`);
+      await until(`location.pathname !== '/login'`, 'the signed-in office', 10).catch(() => {});
+    }
+    must(await js(`location.pathname !== '/login'`), 'still on the sign-in page after 8 tries');
   });
 
   const pages = [
