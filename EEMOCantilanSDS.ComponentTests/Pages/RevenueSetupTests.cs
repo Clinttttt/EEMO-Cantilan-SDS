@@ -435,7 +435,7 @@ public sealed class RevenueSetupTests : TestContext
         {
             Assert.Equal(["Office", "Revenue", "People", "Data", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
             string[] destinations = ["/office-profile", "/settings/report-signatories", "/settings/facilities", "/settings/operations", "/settings/revenue",
-                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
+                "/settings/billing-policy", "/settings/monthly-rent-src", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
             Assert.Equal(destinations, cut.FindAll("a.set-item").Select(a => a.GetAttribute("href")).ToArray());
         }, RenderTimeout);
 

@@ -193,6 +193,8 @@
         new("/settings/operations", "Operation Settings", "Which operations are listed and what they are called"),
         new("/settings/revenue", "Revenue Sources", "Revenue sources and the receipt each one uses"),
         new("/settings/billing-policy", "Billing Policy", "Due dates, payment order and late penalties", OpenToAdmin: true),
+        // The page and its API admit Head and Admin alike (RentActivationsController).
+        new("/settings/monthly-rent-src", "Monthly Rent SRC Activation", "Record a facility's new monthly rent with StallTrack Reference Codes", OpenToAdmin: true),
     ];
 
     private static readonly SettingRow[] PeopleRows =

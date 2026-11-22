@@ -47,6 +47,7 @@ public sealed partial class EcfCollectionWorkflowTests
         var fresh = (await flow.PlanAsync(new(FacilityCode.TCC, seed.Period.Year, seed.Period.Month, AttestedEvidence(collector)))).Value!;
         var row = Assert.Single(fresh.Rows);
         Assert.True(row.Eligible); Assert.Null(row.PaymentRecordId); Assert.Equal(1, fresh.EligibleCount); Assert.True(fresh.Ready);
+        Assert.Equal([collector], fresh.AffectedCollectorIds); // Head must attest the actual assigned device, never guess an ID
 
         var legacyMonth = (await flow.PlanAsync(new(FacilityCode.TCC, previous.Year, previous.Month, AttestedEvidence(collector)))).Value!;
         var legacyRow = Assert.Single(legacyMonth.Rows);
@@ -173,5 +174,6 @@ public sealed partial class EcfCollectionWorkflowTests
         await using var otherContext = db.CreateContext(other.TenantId);
         var otherPlan = (await Activation(otherContext, other.UserId, other.TenantId).PlanAsync(new(FacilityCode.TCC, seed.Period.Year, seed.Period.Month, null))).Value!;
         Assert.Empty(otherPlan.Rows);                                                                    // the other tenant sees none of this tenant's stalls
+        Assert.Empty(otherPlan.AffectedCollectorIds ?? []);                                              // nor its collectors' device identities
     }
 }
