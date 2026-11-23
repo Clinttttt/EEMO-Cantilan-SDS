@@ -27,14 +27,14 @@ public sealed class BillingPolicySettingsTests : TestContext
             new("Office", "Town", "Province", "StallTrack", "Office"), new(15, 7, 5, 15, []), new(2, 12, 3, "UTC+8"), new("StallTrack", "1", "Test", "UTC+8", DateTime.UtcNow), [])));
         var cut = Open("Admin", Result<BillingPolicyPageDto>.Success(Defaults()));
 
-        cut.WaitForAssertion(() => Assert.Contains("2 or more fully elapsed unpaid months", cut.Markup));
-        Assert.Contains("Previous-year rent", cut.Markup);
+        cut.WaitForAssertion(() => Assert.Contains("2+ overdue months this year", cut.Markup));
+        Assert.Contains("Earlier years, expired or ended contracts, per obligation", cut.Markup);
         Assert.DoesNotContain("Rolling", cut.Markup);
 
         _settings.Setup(s => s.GetSystemSettingsAsync()).ReturnsAsync(Result<EEMOCantilanSDS.Application.Dtos.Settings.SystemSettingsDto>.Failure("Unavailable", 500));
         var failed = RenderComponent<BillingPolicySettings>();
-        failed.WaitForAssertion(() => Assert.Contains("These definitions could not be loaded.", failed.Markup));
-        Assert.Contains("Oldest unpaid month first", failed.Markup);
+        failed.WaitForAssertion(() => Assert.Contains("The Delinquent and Arrears definitions could not be loaded.", failed.Markup));
+        Assert.Contains("Oldest month first", failed.Markup);
     }
 
     private IRenderedComponent<BillingPolicySettings> Open(string role, Result<BillingPolicyPageDto> page)
@@ -59,10 +59,11 @@ public sealed class BillingPolicySettingsTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Contains("StallTrack defaults", cut.Markup));
         Assert.Contains("Last day of the month", cut.Markup);
-        Assert.Contains("Oldest unpaid month first", cut.Markup);
+        Assert.Contains("Oldest month first", cut.Markup);
         Assert.Contains("Up to 3 months", cut.Markup);
         Assert.Contains("Not configured", cut.Markup);
-        Assert.Contains("No late penalty is charged until the Head sets a rate.", cut.Markup);
+        Assert.Contains("Nothing is charged", cut.Find(".bp-terms").TextContent);
+        Assert.DoesNotContain("Per ", cut.Find(".bp-terms").TextContent);
     }
 
     [Fact]
@@ -75,9 +76,11 @@ public sealed class BillingPolicySettingsTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("December 2026", cut.Markup));
 
         cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Count unpaid months from")).QuerySelector("input")!.Change("2024-03");
+        cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Due day")).QuerySelector("select")!.Change("10");
         cut.Find("form").Submit();
 
         cut.WaitForAssertion(() => Assert.Equal(new DateOnly(2024, 3, 1), sent?.Rules.CountsMonthsFrom));
+        Assert.Equal(10, sent!.Rules.DueDay);
     }
 
     [Fact]
@@ -85,31 +88,36 @@ public sealed class BillingPolicySettingsTests : TestContext
     {
         var cut = Open("Admin", Result<BillingPolicyPageDto>.Success(Defaults()));
 
-        cut.WaitForAssertion(() => Assert.Contains("In force today", cut.Markup));
+        cut.WaitForAssertion(() => Assert.Contains("Current policy", cut.Markup));
         Assert.Empty(cut.FindAll("form"));
     }
 
     [Fact]
-    public void TheHeadSettingARate_SendsItWithItsAuthority_AndSeesTheServersAnswer()
+    public void TheHeadSettingLateCharges_SendsTheSurchargeAndInterestWithTheirAuthority_AndSeesTheServersAnswer()
     {
         RecordBillingPolicyRequest? sent = null;
-        var rules = BillingPolicy.StallTrackDefaults with { PenaltyBasis = LatePenaltyBasis.PercentOfUnpaid, PenaltyValue = 2m };
-        var saved = new BillingPolicyPageDto(rules, new(Guid.NewGuid(), Today, rules, "Ordinance 12", DateTime.UtcNow),
-            [new(Guid.NewGuid(), Today, rules, "Ordinance 12", DateTime.UtcNow)], Today);
+        var rules = BillingPolicy.StallTrackDefaults with { PenaltyBasis = LatePenaltyBasis.PercentOfUnpaid, PenaltyValue = 25m, InterestPercent = 2m, InterestMaxMonths = 36 };
+        var saved = new BillingPolicyPageDto(rules, new(Guid.NewGuid(), Today, rules, "RA 7160 Sec. 168", DateTime.UtcNow),
+            [new(Guid.NewGuid(), Today, rules, "RA 7160 Sec. 168", DateTime.UtcNow)], Today);
         _api.Setup(a => a.RecordAsync(It.IsAny<RecordBillingPolicyRequest>())).Callback((RecordBillingPolicyRequest r) => sent = r)
             .ReturnsAsync(Result<BillingPolicyPageDto>.Success(saved));
         var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()));
         cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll("form")));
 
-        cut.FindAll("button.bp-seg-btn").Single(b => b.TextContent.StartsWith("Percent")).Click();
-        cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Percent")).QuerySelector("input")!.Change("2");
-        cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Ordinance")).QuerySelector("input")!.Change("Ordinance 12");
+        Field(cut, "Surcharge").Change("25");
+        Field(cut, "Interest").Change("2");
+        Assert.Equal("36", Field(cut, "Interest stops after").GetAttribute("value"));   // Sec. 168's limit unless the Head changes it
+        Field(cut, "Authority").Change("RA 7160 Sec. 168");
         cut.Find("form").Submit();
 
         cut.WaitForAssertion(() => Assert.Contains("The billing policy was recorded.", cut.Markup));
-        Assert.Equal(new RecordBillingPolicyRequest(Today, rules, "Ordinance 12"), sent);
-        Assert.Contains("2% of the unpaid rent, once", cut.Markup);
+        Assert.Equal(new RecordBillingPolicyRequest(Today, rules, "RA 7160 Sec. 168"), sent);
+        Assert.Contains("25% surcharge once + 2% a month", cut.Markup);
+        Assert.Contains(cut.FindAll(".bp-term-note"), n => n.TextContent == "Interest up to 36 months · RA 7160 Sec. 168");
     }
+
+    private static AngleSharp.Dom.IElement Field(IRenderedComponent<BillingPolicySettings> cut, string label) =>
+        cut.FindAll("label.v3-field").Single(l => l.QuerySelector("span")!.TextContent == label).QuerySelector("input")!;
 
     [Fact]
     public void ARefusal_IsStated_InTheServersWords()

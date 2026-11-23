@@ -168,6 +168,19 @@ public sealed class BillingRules(BillingPolicyWorkflow policy, IFacilityReportsR
         return new(amount, plan, $"₱{left.ToString("N2", CultureInfo.InvariantCulture)} would have no month to go to: {stop}. Record a refund instead.");
     }
 
+    /// <summary>
+    /// Which of these months the office takes strictly oldest first, by the same test <see cref="RefusalAsync"/> applies: none when the rule is off, never a
+    /// month before the rules begin or one held for the office. Collector Mobile's month picker follows it, so it never offers a choice the server would refuse.
+    /// </summary>
+    public async Task<IReadOnlySet<(int Year, int Month)>> InOrderAsync(Guid stallId, IEnumerable<(int Year, int Month)> months, CancellationToken ct)
+    {
+        var rules = await policy.CurrentAsync(ct);
+        if (!rules.OldestMonthFirst) return new HashSet<(int Year, int Month)>();
+        var today = clock.PhilippineToday;
+        var paused = await PausedMonthsAsync(stallId, ct);
+        return months.Where(m => rules.PaidInOrder(m.Year, m.Month, today) && !paused.Contains(m)).ToHashSet();
+    }
+
     /// <summary>Months held for the office: a source being moved to canonical settlement, or a captured payment under review other than <paramref name="except"/>.</summary>
     internal async Task<HashSet<(int Year, int Month)>> PausedMonthsAsync(Guid stallId, CancellationToken ct, Guid except = default)
     {

@@ -243,7 +243,7 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         a.PenaltyName, a.Description, a.ViolationDate, a.BusinessDate, a.IncidentReference, a.AmountDue, settled,
         a.AmountDue - settled, a.AmountDue == 0m ? "Waived" : settled == a.AmountDue ? "Settled" : settled > 0 ? "Partial" : "Outstanding", a.Version, reference, a.RecordedAtUtc, warning,
         a.RelatedPeriodKind is { } kind ? new(new(kind,a.RelatedPeriodStart!.Value,a.RelatedPeriodEnd!.Value,a.RelatedObligationPeriodId),a.RelatedPeriodLabel!) : null,
-        a.IsLatePenalty);
+        a.IsLatePenalty, a.PenaltyCode);
 
     /// <summary>The Head updates or waives a late penalty (IA-072). An assessment changed since it was read is refused, not overwritten.</summary>
     public async Task<Result<FineAssessmentDto>> AdjustAsync(Guid id, AdjustFineAssessmentRequest r, CancellationToken ct = default)
@@ -274,15 +274,45 @@ public sealed class FineAssessmentWorkflow(IAppDbContext db, ICurrentUserService
         if (kind.HasValue != accountId.HasValue) return Result<IReadOnlyList<FineAssessmentDto>>.Failure("Account kind and identity must be supplied together.", ResultStatus.Invalid);
         var query = db.FineAssessments.AsNoTracking().Where(x => x.MunicipalityId == Tenant);
         if (kind is not null) query = query.Where(x => x.AccountKind == kind && (x.ContractId == accountId || x.ObligationAccountId == accountId));
+        // Office-wide, late charges are read per account (LateChargesAsync): a late month adds an interest charge every month it stays unpaid.
+        else query = query.Where(x => !FineAssessment.LateCodes.Contains(x.PenaltyCode));
         if (!string.IsNullOrWhiteSpace(search)) { var text = search.Trim(); query = query.Where(x => x.Occupant.Contains(text) || x.UnitReference.Contains(text) || x.Description.Contains(text)); }
+        // One account may hold years of monthly interest charges; office-wide, the other fines stay at 200.
+        var limit = kind is null ? 200 : 2_000;
         var rows = await (from a in query join p in db.FineAssessmentPolicies.AsNoTracking() on new { a.MunicipalityId, Id = a.PolicyId }
-            equals new { p.MunicipalityId, p.Id } orderby a.BusinessDate descending, a.Id select new { Assessment = a, p.GoverningReference }).Take(201).ToListAsync(ct);
-        if (rows.Count > 200) return Result<IReadOnlyList<FineAssessmentDto>>.Failure("More than 200 assessments match. Narrow the search; totals have not been truncated.", ResultStatus.Invalid);
+            equals new { p.MunicipalityId, p.Id } orderby a.BusinessDate descending, a.Id select new { Assessment = a, p.GoverningReference }).Take(limit + 1).ToListAsync(ct);
+        if (rows.Count > limit) return Result<IReadOnlyList<FineAssessmentDto>>.Failure($"More than {limit:N0} assessments match. Narrow the search; totals have not been truncated.", ResultStatus.Invalid);
         var settled = await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, rows.Select(x => x.Assessment.Id).ToArray(), ct);
         if (rows.Any(x => settled.GetValueOrDefault(x.Assessment.Id) < 0m || settled.GetValueOrDefault(x.Assessment.Id) > x.Assessment.AmountDue))
             return Result<IReadOnlyList<FineAssessmentDto>>.Failure("Fine settlement evidence does not reconcile.", ResultStatus.Conflict);
         return Result<IReadOnlyList<FineAssessmentDto>>.Success(rows.Select(x => ToDto(x.Assessment, x.GoverningReference,
             settled: settled.GetValueOrDefault(x.Assessment.Id))).ToList());
+    }
+    /// <summary>Late charges by account: each account's surcharges and interest, what has been collected on them and what remains.</summary>
+    public async Task<Result<IReadOnlyList<LateChargeAccountDto>>> LateChargesAsync(string? search = null, CancellationToken ct = default)
+    {
+        if (Guard<IReadOnlyList<LateChargeAccountDto>>() is { } denied) return denied;
+        var query = db.FineAssessments.AsNoTracking().Where(x => x.MunicipalityId == Tenant && FineAssessment.LateCodes.Contains(x.PenaltyCode));
+        if (!string.IsNullOrWhiteSpace(search)) { var text = search.Trim(); query = query.Where(x => x.Occupant.Contains(text) || x.UnitReference.Contains(text)); }
+        var charges = await query.Select(x => new { x.Id, x.AccountKind, Account = x.ContractId ?? x.ObligationAccountId!.Value, x.Occupant, x.SourceName,
+            x.UnitReference, x.PenaltyCode, x.RelatedPeriodStart, AmountDue = x.AdjustedAmount ?? x.AssessedAmount }).ToListAsync(ct);
+        var settled = await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, charges.Select(x => x.Id).ToArray(), ct);
+        if (charges.Any(x => settled.GetValueOrDefault(x.Id) < 0m || settled.GetValueOrDefault(x.Id) > x.AmountDue))
+            return Result<IReadOnlyList<LateChargeAccountDto>>.Failure("Fine settlement evidence does not reconcile.", ResultStatus.Conflict);
+        var contracts = charges.Where(x => x.AccountKind == FineAccountKind.FacilityContract).Select(x => x.Account).Distinct().ToList();
+        var spaces = await (from c in db.Contracts.AsNoTracking() join s in db.Stalls.AsNoTracking() on c.StallId equals s.Id
+                join f in db.Facilities.AsNoTracking() on s.FacilityId equals f.Id
+                where c.MunicipalityId == Tenant && contracts.Contains(c.Id) select new { c.Id, c.StallId, f.Code }).ToDictionaryAsync(x => x.Id, ct);
+        return Result<IReadOnlyList<LateChargeAccountDto>>.Success(charges.GroupBy(x => (x.AccountKind, x.Account)).Select(g =>
+        {
+            var first = g.First();
+            var space = g.Key.AccountKind == FineAccountKind.FacilityContract ? spaces.GetValueOrDefault(g.Key.Account) : null;
+            var paid = g.Sum(x => settled.GetValueOrDefault(x.Id));
+            return new LateChargeAccountDto(new(g.Key.AccountKind, g.Key.Account), first.Occupant, first.SourceName, first.UnitReference,
+                g.Select(x => x.RelatedPeriodStart).Distinct().Count(),
+                g.Where(x => x.PenaltyCode != FineAssessment.InterestCode).Sum(x => x.AmountDue), g.Where(x => x.PenaltyCode == FineAssessment.InterestCode).Sum(x => x.AmountDue),
+                paid, g.Sum(x => x.AmountDue) - paid, space?.StallId, space?.Code);
+        }).OrderByDescending(x => x.Remaining).ThenBy(x => x.Source).ThenBy(x => x.Unit, StringComparer.OrdinalIgnoreCase).ToList());
     }
     public async Task<Result<FineAccountOption>> AccountAsync(FineAccountRef account, CancellationToken ct = default)
     {

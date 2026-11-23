@@ -90,7 +90,7 @@ public sealed class NotificationSweep(IAppDbContext db, IPayorRepository payors,
         var today = clock.PhilippineToday;
         var monthStartUtc = clock.UtcNow - (clock.PhilippineNow - new DateTime(today.Year, today.Month, 1));
         var charges = await db.FineAssessments.AsNoTracking()
-            .CountAsync(a => a.MunicipalityId == Tenant && a.PenaltyCode == FineAssessment.LatePaymentCode && a.RecordedAtUtc >= monthStartUtc, ct);
+            .CountAsync(a => a.MunicipalityId == Tenant && FineAssessment.LateCodes.Contains(a.PenaltyCode) && a.RecordedAtUtc >= monthStartUtc, ct);
         if (charges == 0) return;
         foreach (var person in staff)
             messages.Add(new(InboxRecipientKind.Staff, person, $"penalties:{today.Year:0000}-{today.Month:00}", "Late penalties added",
@@ -155,7 +155,7 @@ public sealed class NotificationSweep(IAppDbContext db, IPayorRepository payors,
         var charges = await (
             from a in db.FineAssessments.AsNoTracking()
             join c in db.Contracts.AsNoTracking() on a.ContractId equals (Guid?)c.Id
-            where a.MunicipalityId == Tenant && a.PenaltyCode == FineAssessment.LatePaymentCode && a.RecordedAtUtc >= since && c.IsActive
+            where a.MunicipalityId == Tenant && FineAssessment.LateCodes.Contains(a.PenaltyCode) && a.RecordedAtUtc >= since && c.IsActive
             join l in db.PayorStallLinks.AsNoTracking() on c.StallId equals l.StallId
             select new { a.Id, l.PayorUserId, a.UnitReference, a.RelatedPeriodLabel, Amount = a.AdjustedAmount ?? a.AssessedAmount })
             .ToListAsync(ct);

@@ -76,6 +76,9 @@ public interface IFacilityReportsRepository
     /// <summary>One stall's present account as of today, from the same whole-account walk as above. Null when the stall is not this tenant's.</summary>
     Task<StallStatementDto?> GetStallStatementAsync(Guid stallId, CancellationToken ct);
 
+    /// <summary>Every account of one facility as of today, each row the same figures its Statement of Account states. Null when the facility is not this tenant's.</summary>
+    Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode facility, CancellationToken ct);
+
     /// <summary>
     /// Per-stall recognized fish kilos for NPM in the given billing month — the volume behind the
     /// ₱1/kg fish fee. Mirrors the fee-type breakdown rule (a stall's whole-month paid monthly record

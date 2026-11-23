@@ -517,7 +517,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog] .collection-option").Click(); // choose Fines / Penalties
         var amount = view.Find("[role=dialog] input[type=number]");
         Assert.Equal("320", amount.GetAttribute("value"));
-        Assert.Contains("Outstanding assessed fine", view.Find("[role=dialog]").TextContent);
+        Assert.Contains("Outstanding₱320.00", view.Find("[role=dialog] .sheet-meta").TextContent.Replace(" ", ""));
         foreach (var invalid in new[] { "0", "-1", "320.01", "5.001" })
         {
             amount.Input(invalid);
@@ -534,6 +534,44 @@ public sealed class CollectionSessionEditorTests : TestContext
             intent.Items[0].Fine != null && intent.Items[0].Fine.AssessmentId == fineId &&
             intent.Items[0].Fine.Version == 3)), Times.Once);
         Assert.Empty(_queue); // quote/review must never create a receipt
+    }
+
+    [Fact]
+    public void Several_fines_show_as_one_row_with_their_total_and_each_is_added_at_its_full_balance()
+    {
+        CollectionSessionSourceChoice Fine(Guid id, string month) => new("FINE|" + id.ToString("N"), CollectionSessionItemKind.FineAssessment,
+            RevenueClassificationCodes.PenaltiesAndFines, "Late payment penalty", month,
+            new(FineAssessmentId: id, FineVersion: 1), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
+            ServerAmount: 96m, MaximumAmount: 96m, RequiredInputs: []);
+        Guid september = Guid.NewGuid(), october = Guid.NewGuid();
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(Occupancy))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+                [Op(CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines, "Fines / Penalties", CollectionFamily.Rent,
+                    Fine(september, "September 2026"), Fine(october, "October 2026"))],
+                SourceIdentity: Occupancy)));
+        var view = PickSource("Ana Reyes");
+        Click(view, "+ Add item");
+        Assert.Contains("₱192.00 outstanding", view.Find("[role=dialog] .collection-option").TextContent);
+        view.Find("[role=dialog] .collection-option").Click();
+
+        var sheet = view.Find("[role=dialog]");
+        Assert.Single(sheet.QuerySelectorAll(".sheet-source"));
+        Assert.Contains("Late payment", sheet.QuerySelector(".sheet-source strong")!.TextContent);
+        Assert.Contains("2 penalties", sheet.TextContent);
+        Assert.Contains("₱192.00", sheet.TextContent);
+        Assert.Empty(sheet.QuerySelectorAll(".sheet-note"));
+        Click(view, "Add 2 penalties");
+
+        var rows = view.FindAll(".item-row");
+        Assert.Equal(2, rows.Count);
+        Assert.Equal("Penalty", rows[0].QuerySelector(".item-name")!.TextContent);
+        Assert.Equal("Late payment · September 2026", rows[0].QuerySelector(".item-context")!.TextContent);
+        Assert.Equal("Late payment · October 2026", rows[1].QuerySelector(".item-context")!.TextContent);
+        Click(view, "Review collection");
+        view.WaitForAssertion(() => Assert.Equal("Penalty", view.Find(".item-row .item-name").TextContent));
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.Is<CollectionSessionIntent>(intent =>
+            intent.Items.Count == 2 && intent.Items.All(i => i.ConfirmedAmount == 96m) &&
+            intent.Items.Select(i => i.Fine!.AssessmentId).OrderBy(g => g).SequenceEqual(new[] { september, october }.OrderBy(g => g)))), Times.Once);
     }
 
     [Fact]
@@ -1491,7 +1529,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         view.Find("[role=dialog]").QuerySelectorAll(".collection-option")
             .Single(x => x.TextContent.Contains("Fines / Penalties")).Click();
         var sheet = view.Find("[role=dialog]");
-        Assert.Contains("Outstanding assessed fine", sheet.TextContent);
+        Assert.Contains("Outstanding", sheet.TextContent);
         Assert.Contains("Official Receipt", sheet.TextContent);
         Assert.Equal("150", Assert.Single(sheet.QuerySelectorAll("input[type=number]")).GetAttribute("value"));
         Click(view, "Add item");

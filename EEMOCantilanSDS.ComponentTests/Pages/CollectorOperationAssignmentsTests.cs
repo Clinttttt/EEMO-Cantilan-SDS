@@ -211,6 +211,34 @@ public sealed class CollectorOperationAssignmentsTests : TestContext
         }, Timeout);
     }
 
+    [Fact]
+    public void Edit_ACollectorWithNoEmail_SavesInsteadOfCrashing()
+    {
+        var api = new Mock<ICollectorsApiClient>();
+        api.Setup(x => x.GetAllCollectorsAsync()).ReturnsAsync(Result<IReadOnlyList<CollectorListDto>>.Success(new[]
+        {
+            new CollectorListDto(CollectorId, "Ana Cruz", null!, "C-001", [FacilityCode.NPM], 0m, 0, null, true),
+        }));
+        api.Setup(x => x.GetNextEmployeeIdAsync()).ReturnsAsync(Result<string>.Success("C-002"));
+        api.Setup(x => x.GetCollectorByIdAsync(CollectorId)).ReturnsAsync(Result<CollectorActivityDto>.Success(
+            new CollectorActivityDto(CollectorId, "Ana Cruz", "C-001", null!, "", [FacilityCode.NPM], 0m, 0, 1, null, [], "ana")));
+        api.Setup(x => x.GetCollectionOperationsAsync(CollectorId)).ReturnsAsync(
+            Result<IReadOnlyList<CollectorOperationAssignmentDto>>.Success(Array.Empty<CollectorOperationAssignmentDto>()));
+        UpdateCollectorCommand? sent = null;
+        api.Setup(x => x.UpdateCollectorAsync(It.IsAny<UpdateCollectorCommand>()))
+            .Callback<UpdateCollectorCommand>(c => sent = c)
+            .ReturnsAsync(Result<bool>.Success(true));
+        Services.AddSingleton(api.Object);
+
+        var cut = RenderComponent<Collector>();
+        cut.WaitForAssertion(() => Assert.Contains("Ana Cruz", cut.Markup), Timeout);
+        cut.Find("button[title='Edit']").Click();
+        cut.WaitForAssertion(() => Assert.DoesNotContain("Loading operation assignments", cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Save Changes").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(string.Empty, sent?.Email), Timeout);
+    }
+
     private static AngleSharp.Dom.IElement OperationCheckbox(IRenderedComponent<Collector> cut, string name) =>
         cut.FindAll(".op-group label").Single(l => l.TextContent.Contains(name)).QuerySelector("input")!;
 

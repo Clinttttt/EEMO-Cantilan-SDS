@@ -13,6 +13,19 @@ public sealed record UnpaidMonthCharge(int Year, int Month, PaymentStatus Status
 /// </summary>
 public static class UnpaidMonthPayment
 {
+    private static int Ordinal(MobileUnpaidMonthDto m) => m.Year * 12 + m.Month;
+
+    /// <summary>
+    /// What a tap picks when the office takes the oldest month first: the tapped months and every earlier still-open month the server marks
+    /// <see cref="MobileUnpaidMonthDto.InOrder"/>, so the picker never holds a gap the office would refuse. Months outside the order are only the ones tapped.
+    /// </summary>
+    public static IEnumerable<MobileUnpaidMonthDto> WithEarlier(IEnumerable<MobileUnpaidMonthDto> open, IReadOnlyCollection<MobileUnpaidMonthDto> tapped) =>
+        open.Where(m => tapped.Contains(m) || m.InOrder && tapped.Any(t => t.InOrder && Ordinal(m) < Ordinal(t)));
+
+    /// <summary>What dropping these months drops: them and every later chosen month marked <see cref="MobileUnpaidMonthDto.InOrder"/>.</summary>
+    public static IEnumerable<MobileUnpaidMonthDto> WithLater(IEnumerable<MobileUnpaidMonthDto> chosen, IReadOnlyCollection<MobileUnpaidMonthDto> tapped) =>
+        chosen.Where(m => tapped.Contains(m) || m.InOrder && tapped.Any(t => t.InOrder && Ordinal(m) > Ordinal(t)));
+
     public static (IReadOnlyList<UnpaidMonthCharge> Charges, string? Error) Plan(IReadOnlyList<MobileUnpaidMonthDto> selected, string? amountText)
     {
         if (selected.Count == 0) return ([], "Choose at least one month.");

@@ -1,4 +1,6 @@
 .review-scope { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; }
+.review-account-summary { margin: 12px 0 20px; padding: 12px 0 0; border: 1px solid var(--border); border-radius: 10px; }
+.review-account-summary h3 { margin: 0; padding: 0 18px; font-size: .875rem; font-weight: 600; color: var(--navy); }
 .review-queue-position { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 0 13px; border-bottom: 1px solid var(--border); }
 .review-queue-position > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .review-queue-label { font-size: .75rem; font-weight: 650; color: var(--text); }

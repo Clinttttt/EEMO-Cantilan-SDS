@@ -3,7 +3,7 @@
 @inject IPenaltiesApiClient Api
 <section class="v3-panel far" aria-label="Fine assessments" aria-busy="@(_loading ? "true" : "false")">
     <header class="v3-panel-header"><h2>Assessments</h2>
-        <span class="v3-panel-meta far-meta">@VisibleRows.Count() of @_rows.Count shown · fines imposed against registered accounts</span>
+        <span class="v3-panel-meta far-meta">@VisibleRows.Count() of @_rows.Count shown</span>
         <AuthorizeView Roles="SuperAdmin"><Authorized>
         <button class="v3-btn v3-btn-primary" type="button" @onclick="() => _adding = true">Assess fine</button>
     </Authorized></AuthorizeView></header>
@@ -14,6 +14,21 @@
         <button class="v3-btn far-search-btn" type="button" @onclick="Load">Search</button>
         <label class="v3-field"><span class="v3-sr-only">Status</span><select @bind="_status"><option>All</option><option>Outstanding</option><option>Settled</option></select></label>
     </div>
+    @* Late charges by account: a late month's surcharge once, then interest each month, so never listed charge by charge here. *@
+    @if (_lateError is not null) { <p class="v3-notice v3-notice-error" role="alert">@_lateError</p> }
+    else if (VisibleLate.Any()) {
+        <h3 class="far-group">Late charges <span>@VisibleLate.Count() account@(VisibleLate.Count() == 1 ? "" : "s")</span></h3>
+        <div class="v3-table-wrap" tabindex="0"><table class="v3-table far-table far-late"><thead><tr><th>Payor / account</th><th class="v3-num">Months</th><th class="v3-num">Surcharge</th><th class="v3-num">Interest</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th><span class="v3-sr-only">Actions</span></th></tr></thead><tbody>
+            @foreach (var a in VisibleLate)
+            {
+                <tr @key="a.Account"><td><strong>@a.Occupant</strong><span class="v3-block">@a.Source · @a.Unit</span></td>
+                    <td class="v3-num">@a.Months</td><td class="v3-num">@Money(a.Surcharge)</td><td class="v3-num">@Money(a.Interest)</td><td class="v3-num">@Money(a.Settled)</td>
+                    <td class="v3-num far-remaining @(a.Remaining > 0m ? "far-open" : "")">@Money(a.Remaining)</td>
+                    <td class="far-row-actions">@if (a is { StallId: { } stall, Facility: { } facility }) { <a class="v3-btn v3-btn-sm" href="@($"/profile/{facility.ToString().ToLowerInvariant()}/{stall}")">View account</a> }</td></tr>
+            }
+        </tbody></table></div>
+        <h3 class="far-group">Fines</h3>
+    }
     @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error <button type="button" class="v3-btn" @onclick="Load">Retry</button></p> }
     <div class="v3-table-wrap" tabindex="0"><table class="v3-table far-table"><thead><tr><th>Payor / account</th><th>Fine</th><th>Related period</th><th class="v3-num">Assessed</th><th class="v3-num">Collected</th><th class="v3-num">Remaining</th><th>Status</th><th><span class="v3-sr-only">Actions</span></th></tr></thead><tbody>
         @foreach (var row in VisibleRows)
@@ -119,15 +134,20 @@
     private FineAssessmentDto? _saved;
     private string _search = "", _status = "All"; private bool _loading = true, _adding;
     private IEnumerable<FineAssessmentDto> VisibleRows => _rows.Where(r => _status == "All" || (_status == "Outstanding" ? r.Remaining > 0m : r.Status == _status));
+    private List<LateChargeAccountDto> _late = []; private string? _lateError;
+    private IEnumerable<LateChargeAccountDto> VisibleLate => _late.Where(a => _status == "All" || (_status == "Outstanding" ? a.Remaining > 0m : a.Remaining == 0m));
     private static string Money(decimal amount) => $"₱{amount.ToString("N2", System.Globalization.CultureInfo.InvariantCulture)}";
     private static string StatusPill(string status) => status switch { "Settled" or "Waived" => "pill-active", "Partial" => "pill-partial", _ => "pill-pending" };
     private static RenderFragment EyeIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" /></svg>;
     private static RenderFragment PayIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01" /><path d="M18 12h.01" /></svg>;
     private static RenderFragment EmptyIcon => @<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /></svg>;
     protected override Task OnInitializedAsync() => Load();
-    private async Task Load() { _loading = true; _error = null; _rows = [];
+    private async Task Load() { _loading = true; _error = null; _rows = []; _late = []; _lateError = null;
         try { var result = await Api.GetAssessmentsAsync(search: _search); if (result is { IsSuccess: true, Value: not null }) _rows = result.Value.ToList(); else _error = result?.Error ?? "Assessments could not be loaded."; }
-        catch { _error = "Assessments are unavailable."; } finally { _loading = false; } }
+        catch { _error = "Assessments are unavailable."; }
+        try { var late = await Api.GetLateChargesAsync(_search); if (late is { IsSuccess: true, Value: not null }) _late = late.Value.ToList(); else if (late is not null) _lateError = late.Error ?? "Late charges could not be loaded."; }
+        catch { _lateError = "Late charges are unavailable."; }
+        finally { _loading = false; } }
     private decimal? _adjustAmount; private string? _adjustReason, _adjustError; private bool _adjusting;
     private async Task Adjust(FineAssessmentDto row) {
         if (_adjustAmount is not { } amount || string.IsNullOrWhiteSpace(_adjustReason)) { _adjustError = "Enter the new amount and the reason."; return; }

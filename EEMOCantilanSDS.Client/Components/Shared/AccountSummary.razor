@@ -1,0 +1,172 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+
+@* One account's Statement of Account, as the server states it: unpaid rent, its late charges (a one-time surcharge and monthly interest,
+   ruled 2026-11-24), this month's rent and the total, then each late month on its own line. Nothing is worked out here but sums of the
+   server's own figures. "Unpaid rent", not "rental arrears": Arrears and Delinquent are reserved words (IA-019, IA-020, IA-069). *@
+<div class="acct">
+    @if (MonthsOverdue > 0)
+    {
+        <div class="acct-head">
+            <div class="acct-fig"><span>Months overdue</span><strong>@MonthsOverdue @(MonthsOverdue == 1 ? "month" : "months")</strong></div>
+            @if (Periods is { } periods)
+            {
+                <div class="acct-fig"><span>Unpaid rent months</span><strong>@periods</strong></div>
+            }
+            <span class="acct-status">@Status</span>
+        </div>
+    }
+
+    <dl class="acct-lines">
+        <div class="acct-row">
+            <dt>Unpaid rent</dt>
+            <dd>@Money(Statement.PreviousBalance)</dd>
+        </div>
+        @if (Statement.ArrearsAmount > 0m)
+        {
+            <div class="acct-row part"><dt>Arrears · @Months(Statement.ArrearsMonths)</dt><dd>@Money(Statement.ArrearsAmount)</dd></div>
+        }
+        @if (Statement.DelinquentAmount > 0m)
+        {
+            <div class="acct-row part"><dt>Delinquent · @Months(Statement.DelinquentMonths)</dt><dd>@Money(Statement.DelinquentAmount)</dd></div>
+        }
+        @if (Statement.Surcharges > 0m)
+        {
+            <div class="acct-row"><dt>Surcharges@(Statement.SurchargePercent is { } s ? $" ({Percent(s)})" : "")</dt><dd>@Money(Statement.Surcharges)</dd></div>
+        }
+        @if (Statement.Interest > 0m)
+        {
+            <div class="acct-row"><dt>Accrued interest@(Statement.InterestPercent is { } i ? $" ({Percent(i)} a month)" : "")</dt><dd>@Money(Statement.Interest)</dd></div>
+        }
+        @if (Statement.Surcharges + Statement.Interest > 0m)
+        {
+            <div class="acct-row subtotal"><dt>Total overdue balance</dt><dd>@Money(Statement.OverdueBalance)</dd></div>
+        }
+        @if (Statement.UtilityBalance > 0m)
+        {
+            <div class="acct-row"><dt>Electricity and water</dt><dd>@Money(Statement.UtilityBalance)</dd></div>
+        }
+        @if (Statement.OtherPenalties > 0m)
+        {
+            <div class="acct-row"><dt>Other fines and penalties</dt><dd>@Money(Statement.OtherPenalties)</dd></div>
+        }
+        <div class="acct-row">
+            <dt>@Statement.AsOf.ToString("MMMM yyyy", Peso) rent<span class="acct-note">@ThisMonthNote</span></dt>
+            <dd>@Money(Statement.CurrentBalance)</dd>
+        </div>
+        <div class="acct-row total">
+            <dt>Total amount due</dt>
+            <dd>@Money(Statement.TotalDue)</dd>
+        </div>
+        @if (Statement.PaidAhead > 0m)
+        {
+            @* Carried to the bills of the months it was paid for, so it is stated after the total and never taken off it. *@
+            <div class="acct-row ahead">
+                <dt>Paid ahead<span class="acct-note">@Months(Statement.PaidAheadMonths)@(Statement.PaidAheadThrough is { } through ? $", to {through.ToString("MMMM yyyy", Peso)}" : ""). Applied to those months' bills.</span></dt>
+                <dd>@Money(Statement.PaidAhead)</dd>
+            </div>
+        }
+    </dl>
+
+    @if (ByMonth.Count > 0)
+    {
+        <div class="acct-months-wrap" tabindex="0" role="region" aria-label="Unpaid months">
+            <table class="acct-months">
+                <thead>
+                    <tr>
+                        <th scope="col">Month</th>
+                        <th scope="col" class="num">Rent</th>
+                        <th scope="col" class="num">Surcharge</th>
+                        <th scope="col" class="num">Interest</th>
+                        <th scope="col" class="num">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in ByMonth)
+                    {
+                        <tr @key="m.Start">
+                            <th scope="row">@m.Start.ToString("MMM yyyy", Peso)</th>
+                            <td class="num">@Amount(m.Rent)</td>
+                            <td class="num">@Amount(m.Surcharge)</td>
+                            <td class="num">@Amount(m.Interest)</td>
+                            <td class="num strong">@Money(m.Rent + m.Surcharge + m.Interest)</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <th scope="row">Total</th>
+                        <td class="num">@Money(ByMonth.Sum(m => m.Rent))</td>
+                        <td class="num">@Money(ByMonth.Sum(m => m.Surcharge))</td>
+                        <td class="num">@Money(ByMonth.Sum(m => m.Interest))</td>
+                        <td class="num strong">@Money(ByMonth.Sum(m => m.Rent + m.Surcharge + m.Interest))</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public StallStatementDto Statement { get; set; } = default!;
+
+    private static readonly CultureInfo Peso = CultureInfo.InvariantCulture;
+    private static string Money(decimal value) => "₱" + value.ToString("N2", Peso);
+    private static string Amount(decimal value) => value == 0m ? "—" : value.ToString("N2", Peso);
+    private static string Percent(decimal value) => value.ToString("0.##", Peso) + "%";
+    private static string Months(int count) => count == 1 ? "1 month" : $"{count} months";
+
+    private int MonthsOverdue => Statement.ArrearsMonths + Statement.DelinquentMonths;
+
+    // Words, never colour alone: the two classifications an account can carry at once.
+    private string Status => (Statement.ArrearsMonths > 0, Statement.DelinquentMonths > 0) switch
+    {
+        (true, true) => "Arrears · Delinquent",
+        (true, false) => "Arrears",
+        _ => "Delinquent"
+    };
+
+    private string? Periods
+    {
+        get
+        {
+            var months = Statement.UnpaidMonths.Select(m => new DateOnly(m.Year, m.Month, 1)).Order().ToList();
+            if (months.Count == 0) return null;
+            var (first, last) = (months[0], months[^1]);
+            if (first == last) return first.ToString("MMMM yyyy", Peso);
+            return first.Year == last.Year
+                ? $"{first.ToString("MMMM", Peso)}–{last.ToString("MMMM yyyy", Peso)}"
+                : $"{first.ToString("MMM yyyy", Peso)} – {last.ToString("MMM yyyy", Peso)}";
+        }
+    }
+
+    private string ThisMonthNote
+    {
+        get
+        {
+            var parts = new List<string> { $"{Money(Statement.CurrentCharges)} billed" };
+            if (Statement.Payments > 0m) parts.Add($"{Money(Statement.Payments)} paid");
+            if (Statement.CurrentDueDate is { } due) parts.Add($"due {due.ToString("MMM d", Peso)}");
+            return string.Join(" · ", parts);
+        }
+    }
+
+    private sealed record MonthLine(DateOnly Start, decimal Rent, decimal Surcharge, decimal Interest);
+
+    // Every month with unpaid rent or late charges, oldest first. This month's rent counts here only once it has late charges of its own.
+    private IReadOnlyList<MonthLine> ByMonth
+    {
+        get
+        {
+            var thisMonth = new DateOnly(Statement.AsOf.Year, Statement.AsOf.Month, 1);
+            var rent = Statement.UnpaidMonths.ToDictionary(m => new DateOnly(m.Year, m.Month, 1), m => m.Unpaid);
+            var late = (Statement.LateCharges ?? []).ToDictionary(m => new DateOnly(m.Year, m.Month, 1));
+            return rent.Keys.Union(late.Keys).Order()
+                .Select(start => new MonthLine(start,
+                    rent.GetValueOrDefault(start, start == thisMonth ? Statement.CurrentBalance : 0m),
+                    late.GetValueOrDefault(start)?.Surcharge ?? 0m,
+                    late.GetValueOrDefault(start)?.Interest ?? 0m))
+                .ToList();
+        }
+    }
+}

@@ -109,7 +109,10 @@
                 _effective, GovernedServiceBasis.DirectApprovedAmount, null, null, on, on));
             if (!result.IsSuccess) { _error = result.Error ?? "The setting could not be saved."; return; }
             _definition = result.Value;
-            _saved = on ? "Turned on. It applies from the date above." : "Turned off. Records already made are unchanged.";
+            // The server can accept the switch yet keep it off while setup is missing; say what is true, not what was asked.
+            _saved = !on ? "Turned off. Records already made are unchanged."
+                : IsOn ? "Turned on. It applies from the date above."
+                : "Saved, but it stays off until what is listed above is in place.";
         }
         catch { _error = "The setting could not be saved."; }
         finally { _saving = false; }

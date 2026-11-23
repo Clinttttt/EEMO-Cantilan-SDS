@@ -1477,60 +1477,12 @@
     color: var(--dark-on-fill, var(--surface));
 }
 
-/* Statement of Account: one column of figures, the total under a stronger rule. */
+/* Statement of Account: the figures are AccountSummary; these are the card's date, failure and note. */
 .prof-stmt-asof {
     margin-left: auto;
     font-size: 12px;
     color: var(--text-muted);
 }
-
-.prof-stmt {
-    margin: 0;
-    padding: 4px 18px 8px;
-}
-
-.prof-stmt-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 8px 0;
-    border-top: 1px solid var(--border);
-    font-size: 13px;
-    color: var(--text);
-}
-
-    .prof-stmt-row:first-child {
-        border-top: 0;
-    }
-
-    .prof-stmt-row dd {
-        margin: 0;
-        font-weight: 600;
-        font-variant-numeric: tabular-nums;
-        white-space: nowrap;
-    }
-
-    .prof-stmt-row.part {
-        padding: 0 0 8px 16px;
-        border-top: 0;
-        font-size: 12px;
-        color: var(--text-muted);
-    }
-
-        .prof-stmt-row.part dd {
-            font-weight: 400;
-        }
-
-    .prof-stmt-row.total {
-        border-top: 1px solid var(--border-strong);
-        font-size: 15px;
-        font-weight: 700;
-        color: var(--navy);
-    }
-
-        .prof-stmt-row.total dd {
-            font-weight: 700;
-        }
 
 .prof-stmt-failed {
     margin: 0;

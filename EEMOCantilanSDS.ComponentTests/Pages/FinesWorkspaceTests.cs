@@ -83,7 +83,7 @@ public sealed class FinesWorkspaceTests : TestContext
             Assert.Contains("₱150.00", hero);
             Assert.Contains("₱100.00", hero);
             Assert.Contains("₱75.00", hero);
-            Assert.Contains("2 unpaid", hero);
+            Assert.Contains("Not yet collected", hero);   // a count of charges says nothing once each late month adds interest monthly
             Assert.Equal("Fines & Penalties", Assert.Single(cut.FindAll("h1")).TextContent.Trim());
         }, Timeout);
 

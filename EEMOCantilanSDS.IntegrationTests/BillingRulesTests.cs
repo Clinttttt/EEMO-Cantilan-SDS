@@ -149,6 +149,28 @@ public class BillingRulesTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TheMonthsMarkedInOrder_AreExactlyTheOnesTheRefusalHoldsToIt()
+    {
+        var seeded = await SeedAsync("BIL-O");
+        var second = Oldest.AddMonths(1);
+        var third = Oldest.AddMonths(2);
+        (int, int)[] months = [Key(Oldest), Key(second), Key(third)];
+        await using (var read = db.CreateContext(seeded.Tenant))
+            Assert.Equal(months.ToHashSet(), await Rules(read, seeded.Tenant).InOrderAsync(seeded.Stall, months, CancellationToken.None));
+
+        // A month before the rules begin and a month held for the office are payable out of turn, as RefusalAsync already lets them be.
+        var held = PaymentRecord.Create(seeded.Stall, third.Year, third.Month, Rate, "test");
+        held.MarkSettlementPendingCutover();
+        await AddAsync(seeded.Tenant, held, Version(seeded.Tenant, BillingPolicy.StallTrackDefaults with { CountsMonthsFrom = second }));
+        await using (var read = db.CreateContext(seeded.Tenant))
+            Assert.Equal([Key(second)], await Rules(read, seeded.Tenant).InOrderAsync(seeded.Stall, months, CancellationToken.None));
+
+        await AddAsync(seeded.Tenant, Version(seeded.Tenant, BillingPolicy.StallTrackDefaults with { OldestMonthFirst = false }));
+        await using (var read = db.CreateContext(seeded.Tenant))
+            Assert.Empty(await Rules(read, seeded.Tenant).InOrderAsync(seeded.Stall, months, CancellationToken.None));
+    }
+
+    [SkippableFact]
     public async Task AHeadWhoTurnsItOff_LetsANewerMonthBePaid()
     {
         var seeded = await SeedAsync("BIL-C");

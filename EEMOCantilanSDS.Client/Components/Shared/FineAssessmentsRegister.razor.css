@@ -103,3 +103,7 @@
     .far-amounts { grid-template-columns: 1fr; }
     .far-adjust { grid-template-columns: 1fr; }
 }
+
+/* Late charges by account above the other fines, each under a quiet group heading. */
+.far-group { display: flex; align-items: baseline; gap: 8px; margin: 0; padding: 14px 20px 8px; border-top: 1px solid var(--border); font-size: .875rem; font-weight: 600; color: var(--navy); }
+.far-group span { font-size: .75rem; font-weight: 500; color: var(--text-tertiary); }

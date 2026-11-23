@@ -55,7 +55,8 @@ public sealed partial class CollectionSessionSources
             choices.Add(new(
                 $"FINE|{fine.Id:N}", CollectionSessionItemKind.FineAssessment,
                 RevenueClassificationCodes.PenaltiesAndFines, fine.PenaltyName,
-                $"{fine.SourceName} · {fine.UnitReference} · Outstanding assessment",
+                // The month the fine is for tells two fines on one account apart; the account itself is already the chosen source.
+                fine.RelatedPeriodLabel is { Length: > 0 } period ? period : $"{fine.SourceName} · {fine.UnitReference}",
                 new(FineAssessmentId: fine.Id, FineVersion: facts.Quote.Version),
                 RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance,
                 ServerAmount: facts.Quote.Remaining, MaximumAmount: facts.Quote.Remaining,

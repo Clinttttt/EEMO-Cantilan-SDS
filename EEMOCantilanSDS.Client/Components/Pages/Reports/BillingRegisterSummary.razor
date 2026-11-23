@@ -1,0 +1,157 @@
+@using System.Globalization
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+
+@* The Billing Register's rows, summarised. Draws only: every figure is a sum or count of the rows the page already
+   loaded, so the summary and the register cannot disagree. Values are written beside each bar; the bars are decoration. *@
+<div class="brs">
+    <SummaryStrip Label="Billing summary" Items="Figures" />
+
+    <section class="brs-panel brs-wide" aria-labelledby="brs-collection">
+        <h3 id="brs-collection">@MonthLabel collection</h3>
+        <svg class="brs-meter" aria-hidden="true" focusable="false">
+            <rect class="brs-track" width="100%" height="100%" rx="5" />
+            @if (Collected > 0m)
+            {
+                <rect class="brs-fill brs-ring" width="@Width(Collected, Billed)" height="100%" rx="5"><title>Collected @Money(Collected)</title></rect>
+            }
+        </svg>
+        <p class="brs-caption"><strong>@Money(Collected)</strong> of @Money(Billed) collected@(Rate is { } rate ? $" ({rate.ToString("0%", Peso)})" : "")</p>
+        <ul class="brs-counts">
+            <li><strong>@Rows.Count(IsPaid)</strong> paid</li>
+            <li><strong>@Rows.Count(IsPartly)</strong> partly paid</li>
+            <li><strong>@Rows.Count(IsUnpaid)</strong> unpaid</li>
+            @if (Rows.Sum(r => r.PaidAhead) is > 0m and var ahead)
+            {
+                <li><strong>@Rows.Count(r => r.PaidAhead > 0m)</strong> paid ahead (@Money(ahead))</li>
+            }
+        </ul>
+    </section>
+
+    <section class="brs-panel" aria-labelledby="brs-owed">
+        <h3 id="brs-owed">What is owed</h3>
+        <ul class="brs-bars">
+            @foreach (var b in Owed)
+            {
+                <li class="brs-row">
+                    <span class="brs-label">@b.Label</span>
+                    @Bar(b.Amount, OwedMax, $"{b.Label}: {Money(b.Amount)}")
+                    <span class="brs-value">@Money(b.Amount)</span>
+                </li>
+            }
+        </ul>
+        <p class="brs-total"><span>Total due</span><strong>@Money(TotalDue)</strong></p>
+    </section>
+
+    <section class="brs-panel" aria-labelledby="brs-behind">
+        <h3 id="brs-behind">How far behind</h3>
+        <ul class="brs-bars brs-bars-split">
+            <li class="brs-row brs-head" aria-hidden="true"><span>Earlier months unpaid</span><span></span><span>Accounts</span><span>Balance</span></li>
+            @foreach (var band in Bands)
+            {
+                <li class="brs-row">
+                    <span class="brs-label">@band.Label</span>
+                    @Bar(band.Accounts, BandMax, $"{band.Label}: {band.Accounts} accounts")
+                    <span class="brs-value">@band.Accounts</span>
+                    <span class="brs-value brs-muted">@(band.Balance > 0m ? Money(band.Balance) : "—")</span>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <section class="brs-panel brs-wide" aria-labelledby="brs-largest">
+        <h3 id="brs-largest">Largest balances</h3>
+        @if (Largest.Count == 0)
+        {
+            <p class="brs-none">No account has a balance.</p>
+        }
+        else
+        {
+            <ol class="brs-bars">
+                @foreach (var r in Largest)
+                {
+                    <li class="brs-row" @key="r.StallId">
+                        <a class="brs-label brs-link" href="@ProfileUrl(r)"><span class="brs-space">@r.StallNo</span> @r.Occupant</a>
+                        @Bar(r.TotalDue, Largest[0].TotalDue, $"{r.StallNo} {r.Occupant}: {Money(r.TotalDue)}")
+                        <span class="brs-value">@Money(r.TotalDue)</span>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<BillingRegisterRowDto> Rows { get; set; } = [];
+    [Parameter, EditorRequired] public FacilityCode Facility { get; set; }
+    [Parameter, EditorRequired] public string MonthLabel { get; set; } = "";
+
+    private static readonly CultureInfo Peso = CultureInfo.InvariantCulture;
+    private static string Money(decimal value) => "₱" + value.ToString("N2", Peso);
+
+    private decimal Billed => Rows.Sum(r => r.Charges);
+    private decimal Collected => Rows.Sum(r => r.Paid);
+    private decimal TotalDue => Rows.Sum(r => r.TotalDue);
+    private decimal? Rate => Billed > 0m ? Collected / Billed : null;
+
+    private static bool IsPaid(BillingRegisterRowDto r) => r.Charges > 0m && r.Balance == 0m;
+    private static bool IsPartly(BillingRegisterRowDto r) => r.Paid > 0m && r.Balance > 0m;
+    private static bool IsUnpaid(BillingRegisterRowDto r) => r.Paid == 0m && r.Balance > 0m;
+
+    private IReadOnlyList<SummaryStrip.SummaryItem> Figures =>
+    [
+        new("Billed this month", Money(Billed)),
+        new("Collected", Money(Collected)),
+        new("Collection rate", Rate is { } r ? r.ToString("0%", Peso) : "—"),
+        new("Total due", Money(TotalDue), Emphasis: true),
+        new("Accounts behind", $"{Rows.Count(r => r.PreviousMonths > 0)} of {Rows.Count}"),
+    ];
+
+    private IReadOnlyList<(string Label, decimal Amount)> Owed
+    {
+        get
+        {
+            var owed = new List<(string Label, decimal Amount)>
+            {
+                ("Earlier months", Rows.Sum(r => r.PreviousBalance)),
+                (MonthLabel, Rows.Sum(r => r.Balance)),
+                ("Utilities", Rows.Sum(r => r.UtilityBalance)),
+                ("Surcharges", Rows.Sum(r => r.Surcharge)),
+                ("Interest", Rows.Sum(r => r.Interest)),
+            };
+            if (Rows.Sum(r => r.OtherPenalties) is > 0m and var other) owed.Add(("Other fines", other));
+            return owed;
+        }
+    }
+    private decimal OwedMax => Owed.Max(o => o.Amount);
+
+    // The same bands as the Financial Reports' age of unpaid accounts, plus the accounts with none.
+    private static readonly (string Label, int From, int To)[] BandRanges =
+        [("None", 0, 0), ("1–2 months", 1, 2), ("3–5 months", 3, 5), ("6–11 months", 6, 11), ("12+ months", 12, int.MaxValue)];
+    private IReadOnlyList<(string Label, int Accounts, decimal Balance)> Bands => BandRanges.Select(b =>
+    {
+        var inBand = Rows.Where(r => r.PreviousMonths >= b.From && r.PreviousMonths <= b.To).ToList();
+        return (b.Label, inBand.Count, inBand.Sum(r => r.PreviousBalance));
+    }).ToList();
+    private int BandMax => Bands.Max(b => b.Accounts);
+
+    private IReadOnlyList<BillingRegisterRowDto> Largest =>
+        Rows.Where(r => r.TotalDue > 0m).OrderByDescending(r => r.TotalDue).ThenBy(r => r.StallNo, StringComparer.OrdinalIgnoreCase).Take(10).ToList();
+
+    // By id: a market numbers its spaces per section, so a number alone can open the wrong account.
+    private string ProfileUrl(BillingRegisterRowDto r) => $"/profile/{Facility.ToString().ToLower()}/{r.StallId}";
+
+    // Percent of the panel's largest value; a value too small to see still shows a sliver.
+    private static string Width(decimal value, decimal max) =>
+        (max <= 0m ? 0m : Math.Max(1m, Math.Min(100m, value / max * 100m))).ToString("0.##", Peso) + "%";
+
+    private static RenderFragment Bar(decimal value, decimal max, string tip) => __builder =>
+    {
+        <svg class="brs-bar" aria-hidden="true" focusable="false">
+            <rect class="brs-track" width="100%" height="100%" rx="4" />
+            @if (value > 0m)
+            {
+                <rect class="brs-fill" width="@Width(value, max)" height="100%" rx="4"><title>@tip</title></rect>
+            }
+        </svg>
+    };
+}

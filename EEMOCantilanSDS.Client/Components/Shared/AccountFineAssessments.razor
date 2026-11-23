@@ -1,11 +1,40 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
+@using EEMOCantilanSDS.Domain.Entities.Revenue
 @inject IPenaltiesApiClient Api
 <div class="account-fines">
     @if (_loading) { <p role="status">Loading fine assessments…</p> }
     else if (_error is not null) { <p role="alert">@_error</p> }
     else if (_rows.Count == 0) { <p>No saved fine assessments for this account.</p> }
-    else { <ul class="fine-list">
-        @foreach (var r in _rows) { <li class="fine-row" @key="r.Id">
+    else {
+        @* Late months' surcharge and interest: one line closed, each month's charges open. The account summary already states them by month. *@
+        @if (Late.Count > 0) { <div class="late-charges">
+            <button type="button" class="late-summary" aria-expanded="@(_lateOpen ? "true" : "false")" @onclick="() => _lateOpen = !_lateOpen">
+                <span class="late-title">Late charges</span>
+                <span class="late-months">@LateMonths.Count() month@(LateMonths.Count() == 1 ? "" : "s")</span>
+                <strong>₱@Late.Sum(r => r.Remaining).ToString("N2")</strong>
+                <svg class="late-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+            @if (_lateOpen) { <div class="late-wrap"><table class="late-table">
+                <thead><tr><th scope="col">Charge</th><th scope="col">Charged</th><th scope="col" class="late-num">Remaining</th><th scope="col"><span class="v3-sr-only">Payment</span></th></tr></thead>
+                @foreach (var month in LateMonths) { <tbody @key="month.Key">
+                    <tr class="late-month"><th scope="rowgroup" colspan="2">@month.First().RelatedPeriod!.Label</th><td class="late-num">₱@month.Sum(r => r.Remaining).ToString("N2")</td><td></td></tr>
+                    @foreach (var r in month.OrderBy(r => r.PenaltyCode != FineAssessment.SurchargeCode).ThenBy(r => r.ViolationDate)) { <tr @key="r.Id">
+                        <td>@(r.PenaltyCode == FineAssessment.SurchargeCode ? "Surcharge" : r.PenaltyCode == FineAssessment.InterestCode ? "Interest" : r.Penalty)</td>
+                        <td>@r.ViolationDate.ToString("MMM d, yyyy")</td>
+                        <td class="late-num">@(r.Remaining > 0 ? $"₱{r.Remaining:N2}" : r.Status)</td>
+                        <td class="late-action">
+                            @if (_payable.Contains(r.Id)) {
+                                @if (OnPay.HasDelegate) { <button type="button" class="v3-btn v3-btn-sm" @onclick="() => OnPay.InvokeAsync(r.Id)">Record payment</button> }
+                                else { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
+                            }
+                            else if (r.Remaining > 0) { <span class="fine-meta">@_paymentInfo.GetValueOrDefault(r.Id)</span> }
+                        </td>
+                    </tr> }
+                </tbody> }
+            </table></div> }
+        </div> }
+        <ul class="fine-list">
+        @foreach (var r in Other) { <li class="fine-row" @key="r.Id">
             <div class="fine-heading"><strong>@r.Penalty</strong><span>@r.Status</span></div>
             <p class="fine-meta">Assessed @r.AssessmentDate.ToString("MMM d, yyyy")@if(r.RelatedPeriod is { } period) { <span> · @period.Label</span> }</p>
             <dl class="fine-amounts"><div><dt>Assessed</dt><dd>₱@r.Assessed.ToString("N2")</dd></div><div><dt>Collected</dt><dd>₱@r.Settled.ToString("N2")</dd></div><div><dt>Remaining</dt><dd><strong>₱@r.Remaining.ToString("N2")</strong></dd></div></dl>
@@ -59,6 +88,12 @@
         finally { if (_details == id) _historyLoading=false; }
     }
     private List<FineAssessmentDto> _rows = []; private bool _loading = true, _eligible; private string? _error;
+    private bool _lateOpen;
+    // A late charge always names the rent month it is for; one without a month stays with the other fines.
+    private bool IsLate(FineAssessmentDto r) => r.RelatedPeriod is not null && r.PenaltyCode is { } code && FineAssessment.LateCodes.Contains(code);
+    private List<FineAssessmentDto> Late => _rows.Where(IsLate).ToList();
+    private IEnumerable<FineAssessmentDto> Other => _rows.Where(r => !IsLate(r));
+    private IEnumerable<IGrouping<DateOnly, FineAssessmentDto>> LateMonths => Late.GroupBy(r => r.RelatedPeriod!.Reference.Start).OrderBy(g => g.Key);
     private string AssessRoute => $"/operations/fines?accountKind={Account.Kind}&accountId={Account.AccountId}";
     protected override async Task OnParametersSetAsync() {
         if (_loadedAccount == Account && _loadedVersion == RefreshVersion) return;

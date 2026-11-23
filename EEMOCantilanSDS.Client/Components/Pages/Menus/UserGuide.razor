@@ -1,0 +1,122 @@
+@page "/settings/user-guide"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@rendermode InteractiveServer
+@using EEMOCantilanSDS.Client.Components.Shared
+
+<PageTitle>StallTrack — User Guide</PageTitle>
+
+@* Orientation for the office (panel, User Adoption): what each part of StallTrack is for, in the order the work happens. Static text;
+   rates and names are never written here, they are whatever the office has set. *@
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-title">User Guide</div>
+        <div class="topbar-breadcrumb">
+            <span>@Branding.OfficeAcronym Admin</span>
+            <span class="breadcrumb-sep">/</span>
+            <a class="breadcrumb-link" href="/settings">Settings</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">User Guide</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="v3-page ug-page">
+        <nav class="ug-toc" aria-label="Guide sections">
+            <ol>
+                @foreach (var s in Sections)
+                {
+                    <li><a href="@($"/settings/user-guide#{s.Id}")">@s.Title</a></li>
+                }
+            </ol>
+        </nav>
+
+        <div class="v3-panel ug-body">
+            @foreach (var s in Sections)
+            {
+                <section class="ug-section" id="@s.Id" aria-labelledby="@($"{s.Id}-h")">
+                    <h2 id="@($"{s.Id}-h")">@s.Title</h2>
+                    <p class="ug-lead">@s.Lead</p>
+                    <ol class="ug-steps">
+                        @foreach (var step in s.Steps)
+                        {
+                            <li>
+                                @step.Text
+                                @if (step.Href is { } href)
+                                {
+                                    <a href="@href">@step.Link</a>
+                                }
+                            </li>
+                        }
+                    </ol>
+                </section>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private sealed record Step(string Text, string? Link = null, string? Href = null);
+    private sealed record Section(string Id, string Title, string Lead, Step[] Steps);
+
+    private static readonly Section[] Sections =
+    [
+        new("start", "Getting started", "Sign in, find your way around, and keep your account safe.",
+        [
+            new("Sign in with the account the Head created for you."),
+            new("The menu on the left holds the daily work: Operations to collect, Monitoring to follow up, Reports to print."),
+            new("Turn on two-factor authentication under Settings → Your account.", "Open Settings", "/settings"),
+            new("Switch to Dark mode at the bottom of the menu. Printed reports always stay light."),
+        ]),
+        new("billing", "Billing rules", "The Head sets how rent is billed. Every bill, statement and report follows these rules.",
+        [
+            new("Open Billing Policy.", "Billing Policy", "/settings/billing-policy"),
+            new("Set the due day, the grace period, how many months may be paid ahead, and whether a whole year may be paid at once."),
+            new("With Oldest month first on, a payment settles the oldest unpaid month first."),
+            new("Late charges: a surcharge once for each unpaid month, then interest every month on the rent and surcharge, up to the limit set. Enter the ordinance or resolution as the authority."),
+            new("Choose the date the change takes effect. Months already billed keep the rules they were billed under."),
+        ]),
+        new("office", "Collecting at the office", "Record every payment against its account and the receipt you issued.",
+        [
+            new("Open Operations and choose the facility or operation.", "Operations", "/operations"),
+            new("Find the space, choose the months being paid, and enter the official receipt or cash ticket number."),
+            new("Fines and penalties are paid under Fines & Penalties. Late charges are added there automatically.", "Fines & Penalties", "/operations/fines"),
+            new("Payments made online by payors appear under Online Payments. Check anything listed under Needs attention.", "Online Payments", "/online-payments"),
+        ]),
+        new("field", "Collecting in the field", "Collectors use the StallTrack collector app on their phones.",
+        [
+            new("Sign in on the collector app with the collector account set up under Collectors.", "Collectors", "/collectors"),
+            new("Today's work lists what the collector is assigned to collect."),
+            new("Choose the space or payer, add what is being paid, check the total, and enter the receipt number issued."),
+            new("Without signal, collections wait on the phone and are sent once it is back online."),
+            new("Collections recorded in the field appear under Collection Activity.", "Collection Activity", "/collections/activity"),
+        ]),
+        new("remit", "Remittance", "Collectors turn over what they collected; the office checks it against the receipts.",
+        [
+            new("Open Remittance & Liquidation to see each collector's remittances.", "Remittance & Liquidation", "/remittances"),
+            new("Open a remittance to see its receipts and amounts."),
+        ]),
+        new("followup", "Following up accounts", "See who is behind and by how much, month by month.",
+        [
+            new("Monitoring lists accounts that need attention: Delinquent, Arrears and missing receipts.", "Monitoring", "/monitoring/follow-up"),
+            new("Review account shows the account summary: unpaid rent, surcharges, interest and the total due, month by month."),
+            new("Spaces & Occupants opens any space and its Statement of Account.", "Spaces & Occupants", "/vendors"),
+            new("Payors are reminded before rent is due and when it is overdue."),
+        ]),
+        new("reports", "Reports", "Monthly billing, collection and financial reports, ready to print.",
+        [
+            new("Billing Register: every account of a facility and what it owes. Use Summary for the totals.", "Billing Register", "/reports/billing-register"),
+            new("Monthly Collection Report: what was collected this month, by revenue source.", "Monthly Collection Report", "/reports/month-end"),
+            new("Every other report is on the Reports page.", "Reports", "/reports"),
+            new("Audit Trail records who did what, and when.", "Audit Trail", "/audit-trail"),
+        ]),
+        new("payors", "Payor portal", "Payors see their own account and can pay rent online.",
+        [
+            new("A payor opens their portal account with the activation code printed on their Statement of Account."),
+            new("Payors see their balances and payment history, and can pay rent online."),
+        ]),
+    ];
+}

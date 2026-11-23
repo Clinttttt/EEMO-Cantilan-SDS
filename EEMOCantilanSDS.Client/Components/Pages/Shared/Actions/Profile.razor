@@ -697,59 +697,7 @@
 
                         @if (Stall.Statement is { } statement)
                         {
-                            <dl class="prof-stmt">
-                                <div class="prof-stmt-row">
-                                    <dt>Previous balance</dt>
-                                    <dd>₱@statement.PreviousBalance.ToString("N2")</dd>
-                                </div>
-                                @if (statement.ArrearsAmount > 0m)
-                                {
-                                    <div class="prof-stmt-row part">
-                                        <dt>Arrears · @statement.ArrearsMonths @(statement.ArrearsMonths == 1 ? "month" : "months")</dt>
-                                        <dd>₱@statement.ArrearsAmount.ToString("N2")</dd>
-                                    </div>
-                                }
-                                @if (statement.DelinquentAmount > 0m)
-                                {
-                                    <div class="prof-stmt-row part">
-                                        <dt>Delinquent · @statement.DelinquentMonths @(statement.DelinquentMonths == 1 ? "month" : "months")</dt>
-                                        <dd>₱@statement.DelinquentAmount.ToString("N2")</dd>
-                                    </div>
-                                }
-                                @if (statement.UtilityBalance > 0m)
-                                {
-                                    <div class="prof-stmt-row">
-                                        <dt>Electricity and water</dt>
-                                        <dd>₱@statement.UtilityBalance.ToString("N2")</dd>
-                                    </div>
-                                }
-                                @if (statement.PenaltiesDue > 0m)
-                                {
-                                    <div class="prof-stmt-row">
-                                        <dt>Fines and late penalties</dt>
-                                        <dd>₱@statement.PenaltiesDue.ToString("N2")</dd>
-                                    </div>
-                                }
-                                @if (statement.CurrentDueDate is { } dueDate)
-                                {
-                                    <div class="prof-stmt-row">
-                                        <dt>This month is due</dt>
-                                        <dd>@dueDate.ToString("MMM d, yyyy")</dd>
-                                    </div>
-                                }
-                                <div class="prof-stmt-row">
-                                    <dt>Charges this month</dt>
-                                    <dd>₱@statement.CurrentCharges.ToString("N2")</dd>
-                                </div>
-                                <div class="prof-stmt-row">
-                                    <dt>Paid this month</dt>
-                                    <dd>@(statement.Payments > 0m ? "−" : "")₱@statement.Payments.ToString("N2")</dd>
-                                </div>
-                                <div class="prof-stmt-row total">
-                                    <dt>Total due</dt>
-                                    <dd>₱@statement.TotalDue.ToString("N2")</dd>
-                                </div>
-                            </dl>
+                            <AccountSummary Statement="statement" />
                             @if (statement.BalanceBeforeRules > 0m && statement.CountsMonthsFrom is { } countedFrom)
                             {
                                 <p class="prof-stmt-note" role="note">₱@statement.BalanceBeforeRules.ToString("N2") is from before @countedFrom.ToString("MMMM yyyy"), when this office's billing rules begin. Check it against your records. It doesn't hold up later rent, and a payor sees only the months that have a record.</p>

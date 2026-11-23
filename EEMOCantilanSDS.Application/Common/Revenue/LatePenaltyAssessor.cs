@@ -63,7 +63,9 @@ public sealed class LatePenaltyAssessor(IAppDbContext db, IFacilityReportsReposi
                 if (charges == 0) continue;
                 var contract = stall.OccupancyAnsweringForMonth(year, month, today)?.Contract;
                 if (contract is null) continue;
-                created += await AssessMonthAsync(stall, contract, governing, year, month, unpaid, charges, ct);
+                created += governing.Rules.ChargesInterest
+                    ? await AssessSurchargeAndInterestAsync(stall, contract, governing, year, month, unpaid, ct)
+                    : await AssessMonthAsync(stall, contract, governing, year, month, unpaid, charges, ct);
             }
         }
         if (created > 0) await db.SaveChangesAsync(ct);
@@ -87,7 +89,7 @@ public sealed class LatePenaltyAssessor(IAppDbContext db, IFacilityReportsReposi
             var amount = rules.PenaltyFor(unpaid);
             if (rules.PenaltyMonthCap is { } cap) amount = Math.Min(amount, cap - assessed);
             if (amount <= 0m) break;
-            var (policy, definition) = await AuthorityAsync(stall.Facility!.Code, governing, ct);
+            var (policy, definition) = await AuthorityAsync(FineAssessment.LatePaymentCode, stall.Facility!.Code, governing, ct);
             if (policy is null || definition is null) return created;
             var label = start.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
             var evidence = JsonSerializer.Serialize(new { BillingPolicyVersion = governing.Id, governing.GoverningReference, rules.PenaltyBasis, rules.PenaltyValue, rules.PenaltyMonthCap,
@@ -105,16 +107,86 @@ public sealed class LatePenaltyAssessor(IAppDbContext db, IFacilityReportsReposi
         return created;
     }
 
+    /// <summary>
+    /// A late month under the 2026-11-24 rules (RA 7160 Sec. 168): a one-time surcharge on the unpaid rent on its first late day, and interest on the rent and
+    /// unpaid surcharge together from that same day, one charge a month up to the policy's limit. Each charge has its own identity, so a rerun adds only what
+    /// time has newly reached, and a charge the Head waived stays waived.
+    /// </summary>
+    private async Task<int> AssessSurchargeAndInterestAsync(Stall stall, Contract contract, BillingPolicyVersion governing, int year, int month, decimal unpaid, CancellationToken ct)
+    {
+        var rules = governing.Rules;
+        var today = clock.PhilippineToday;
+        var firstLate = rules.FirstLateDay(year, month);
+        if (today < firstLate) return 0;
+        var start = new DateOnly(year, month, 1);
+        var existing = await db.FineAssessments.AsNoTracking()
+            .Where(a => a.MunicipalityId == Tenant && a.ContractId == contract.Id && a.RelatedPeriodStart == start
+                && (a.PenaltyCode == FineAssessment.SurchargeCode || a.PenaltyCode == FineAssessment.InterestCode))
+            .Select(a => new { a.Id, a.PenaltyCode, a.IncidentReference, Due = a.AdjustedAmount ?? a.AssessedAmount }).ToListAsync(ct);
+        var created = 0;
+
+        var surchargeOwed = 0m;
+        if (existing.FirstOrDefault(a => a.PenaltyCode == FineAssessment.SurchargeCode) is { } surcharge)
+        {
+            var settled = await new FineAssessmentCollectionSource(db).SettledAsync(Tenant, [surcharge.Id], ct);
+            surchargeOwed = Math.Max(0m, surcharge.Due - settled.GetValueOrDefault(surcharge.Id));
+        }
+        else if (rules.ChargesSurcharge && rules.PenaltyFor(unpaid) is > 0m and var amount)
+        {
+            if (!await AddLateChargeAsync(stall, contract, governing, FineAssessment.SurchargeCode, year, month, "S", firstLate, amount, unpaid, 0m, ct)) return created;
+            surchargeOwed = amount;
+            created++;
+        }
+
+        var interest = rules.InterestFor(unpaid + surchargeOwed);
+        for (var n = 1; n <= rules.InterestMonthsReached(year, month, today) && interest > 0m; n++)
+        {
+            if (existing.Any(a => a.PenaltyCode == FineAssessment.InterestCode && a.IncidentReference == $"{year:0000}-{month:00}-I{n}")) continue;
+            if (!await AddLateChargeAsync(stall, contract, governing, FineAssessment.InterestCode, year, month, $"I{n}", firstLate.AddMonths(n - 1), interest, unpaid, surchargeOwed, ct)) break;
+            created++;
+        }
+        return created;
+    }
+
+    private async Task<bool> AddLateChargeAsync(Stall stall, Contract contract, BillingPolicyVersion governing, string code, int year, int month, string part,
+        DateOnly chargedOn, decimal amount, decimal unpaidRent, decimal unpaidSurcharge, CancellationToken ct)
+    {
+        var (policy, definition) = await AuthorityAsync(code, stall.Facility!.Code, governing, ct);
+        if (policy is null || definition is null) return false;
+        var rules = governing.Rules;
+        var start = new DateOnly(year, month, 1);
+        var label = start.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        var incident = $"{year:0000}-{month:00}-{part}";
+        var description = code == FineAssessment.SurchargeCode ? $"Surcharge on {label} rent." : $"Interest on {label} rent, month {part[1..]}.";
+        var evidence = JsonSerializer.Serialize(new { BillingPolicyVersion = governing.Id, governing.GoverningReference, SurchargePercent = rules.PenaltyValue, rules.InterestPercent,
+            rules.InterestMaxMonths, DueDate = rules.DueDate(year, month), rules.GraceDays, Period = label, UnpaidRent = unpaidRent, UnpaidSurcharge = unpaidSurcharge, Charge = part, Automatic = true });
+        var identity = $"{Tenant:N}|{contract.Id:N}|{code}|{incident}";
+        var fine = FineAssessment.Create(Tenant, FineAccountKind.FacilityContract, contract.Id, policy, definition, contract.ActualOccupant, stall.StallNo, stall.Facility.Name,
+            chargedOn, clock.PhilippineToday, incident, description, amount, new Guid(SHA256.HashData(Encoding.UTF8.GetBytes(identity))[..16]),
+            Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"{identity}|{amount.ToString("0.00", CultureInfo.InvariantCulture)}"))), governing.ActorId, clock.UtcNow, evidence,
+            FineAffectedPeriodKind.FacilityMonth, start, start.AddMonths(1).AddDays(-1), periodLabel: label);
+        db.FineAssessments.Add(fine);
+        db.FineAssessmentEvents.Add(FineAssessmentEvent.Created(fine));
+        return true;
+    }
+
+    private static string LateChargeName(string code) => code switch
+    {
+        FineAssessment.SurchargeCode => "Surcharge",
+        FineAssessment.InterestCode => "Interest",
+        _ => "Late payment penalty"
+    };
+
     /// <summary>The Head's rate is the authority, so the definition and facility policy a fine must cite are written from it. A definition the Head retired stops new charges.</summary>
-    private async Task<(FineAssessmentPolicy? Policy, PenaltyDefinition? Definition)> AuthorityAsync(FacilityCode facility, BillingPolicyVersion governing, CancellationToken ct)
+    private async Task<(FineAssessmentPolicy? Policy, PenaltyDefinition? Definition)> AuthorityAsync(string code, FacilityCode facility, BillingPolicyVersion governing, CancellationToken ct)
     {
         var today = clock.PhilippineToday;
-        var added = db.PenaltyDefinitions.Local.FirstOrDefault(d => d.MunicipalityId == Tenant && d.Code == FineAssessment.LatePaymentCode);
+        var added = db.PenaltyDefinitions.Local.FirstOrDefault(d => d.MunicipalityId == Tenant && d.Code == code);
         var definition = added ?? PenaltyDefinition.Resolve(await db.PenaltyDefinitions.AsNoTracking()
-            .Where(d => d.MunicipalityId == Tenant && d.Code == FineAssessment.LatePaymentCode).ToListAsync(ct), FineAssessment.LatePaymentCode, today);
+            .Where(d => d.MunicipalityId == Tenant && d.Code == code).ToListAsync(ct), code, today);
         if (definition is null)
         {
-            definition = PenaltyDefinition.Create(Tenant, FineAssessment.LatePaymentCode, today, "Late payment penalty", "Monthly rent past its due date",
+            definition = PenaltyDefinition.Create(Tenant, code, today, LateChargeName(code), "Monthly rent past its due date",
                 GovernedServiceBasis.DirectApprovedAmount, null, null, true, "Billing policy", clock.UtcNow);
             db.PenaltyDefinitions.Add(definition);
         }

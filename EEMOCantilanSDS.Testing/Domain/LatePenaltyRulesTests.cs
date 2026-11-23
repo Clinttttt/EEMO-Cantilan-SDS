@@ -42,6 +42,42 @@ public class LatePenaltyRulesTests
         Assert.Equal(3, rules.ChargesReached(2026, 1, new DateOnly(2026, 3, 6)));
     }
 
+    // Ruled 2026-11-24 (RA 7160 Sec. 168): a 25% surcharge once, then 2% a month on the rent and surcharge, for at most 36 months.
+    private static readonly BillingPolicy Sec168 = BillingPolicy.StallTrackDefaults with
+    {
+        PenaltyBasis = LatePenaltyBasis.PercentOfUnpaid, PenaltyValue = 25m, InterestPercent = 2m, InterestMaxMonths = 36, DueDay = 5, GraceDays = 3
+    };
+
+    [Fact]
+    public void TheSurchargeIsOnTheRent_AndTheInterestOnTheRentAndSurchargeTogether()
+    {
+        Assert.Equal(250m, Sec168.PenaltyFor(1_000m));
+        Assert.Equal(25m, Sec168.InterestFor(1_000m + 250m));
+        Assert.True(Sec168 is { ChargesSurcharge: true, ChargesInterest: true, ChargesPenalty: true });
+    }
+
+    [Fact]
+    public void Interest_StartsTheSameDayAsTheSurcharge_AddsOneMonthAtATime_AndStopsAtItsLimit()
+    {
+        Assert.Equal(0, Sec168.InterestMonthsReached(2026, 1, new DateOnly(2026, 1, 8)));    // due the 5th, three days' grace
+        Assert.Equal(1, Sec168.InterestMonthsReached(2026, 1, new DateOnly(2026, 1, 9)));    // first late day: surcharge and first month together
+        Assert.Equal(1, Sec168.InterestMonthsReached(2026, 1, new DateOnly(2026, 2, 8)));
+        Assert.Equal(2, Sec168.InterestMonthsReached(2026, 1, new DateOnly(2026, 2, 9)));
+        Assert.Equal(36, Sec168.InterestMonthsReached(2020, 1, new DateOnly(2026, 11, 24)));
+        Assert.Equal(0, (Sec168 with { InterestPercent = null, InterestMaxMonths = null }).InterestMonthsReached(2026, 1, new DateOnly(2026, 11, 24)));
+    }
+
+    [Fact]
+    public void InterestRules_ThatCannotBeKept_AreRefused()
+    {
+        Assert.Null(Sec168.Problem());
+        Assert.NotNull((Sec168 with { PenaltyRepeatsMonthly = true }).Problem());              // with interest, the surcharge is once
+        Assert.NotNull((Sec168 with { InterestPercent = null }).Problem());                    // a limit with no rate
+        Assert.NotNull((Sec168 with { InterestPercent = 0m }).Problem());
+        Assert.NotNull((Sec168 with { InterestMaxMonths = 0 }).Problem());
+        Assert.Null((Sec168 with { PenaltyBasis = LatePenaltyBasis.None, PenaltyValue = null }).Problem());   // interest alone is allowed
+    }
+
     private static BillingPolicyVersion Version(DateOnly from, BillingPolicy rules) =>
         BillingPolicyVersion.Create(Guid.NewGuid(), from, from, rules, "Ordinance 1", Guid.NewGuid(), DateTime.UtcNow);
 

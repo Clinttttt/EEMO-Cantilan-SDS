@@ -1,0 +1,309 @@
+@page "/reports/billing-register"
+@attribute [Authorize(Roles = "SuperAdmin,Admin")]
+@using EEMOCantilanSDS.Application.Dtos.Facilities
+@using EEMOCantilanSDS.Domain.Common
+@inject IReportsApiClient ReportsApi
+@inject IJSRuntime JS
+@inject NavigationManager Nav
+@inject EEMOCantilanSDS.Client.Services.FacilityState FacilityCatalog
+
+@* Billing Register: every account of one facility on one sheet, each row the figures that space's Statement of Account
+   states (one server read; nothing is added up here but the totals row). Read only; paying happens on the account. *@
+
+<PageTitle>StallTrack — Billing Register</PageTitle>
+
+<header class="topbar no-print">
+    <div class="topbar-left">
+        <div class="topbar-title">Billing Register</div>
+        <div class="topbar-breadcrumb">
+            <a href="/reports" class="breadcrumb-link">Reports</a>
+            <span class="breadcrumb-sep">/</span>
+            <span class="breadcrumb-active">Billing Register</span>
+        </div>
+    </div>
+    <div class="topbar-right">
+        <AccountChip />
+    </div>
+</header>
+
+<div class="content-area">
+    <div class="br-controls no-print">
+        <div class="br-scope">
+            @if (Facilities.Count > 0)
+            {
+                <FhSelect Caption="Facility" Value="@(_facility?.ToString() ?? "")" Options="@FacilityOptions" ValueChanged="SelectFacility" />
+            }
+            <div class="v3-btn-group br-view" role="group" aria-label="View">
+                <button type="button" class="v3-btn" aria-pressed="@(!_summary ? "true" : "false")" @onclick="() => SetView(false)">Register</button>
+                <button type="button" class="v3-btn" aria-pressed="@(_summary ? "true" : "false")" @onclick="() => SetView(true)">Summary</button>
+            </div>
+        </div>
+        <button type="button" class="v3-btn" @onclick="Print" disabled="@(_register is null)">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            Print
+        </button>
+    </div>
+
+    @if (_error is not null)
+    {
+        <div class="v3-notice v3-notice-error br-error" role="alert">
+            <span>@_error</span>
+            <button type="button" class="v3-btn v3-btn-sm" @onclick="Retry">Try again</button>
+        </div>
+    }
+    else if (_loading || _register is null)
+    {
+        <div class="br-loading" aria-busy="true" aria-label="Loading the billing register">
+            @for (var i = 0; i < 6; i++)
+            {
+                <Skeleton Width="100%" Height="18px" Radius="4px" />
+            }
+        </div>
+    }
+    else
+    {
+        var rows = _register.Rows;
+        var sectioned = rows.Any(r => !string.IsNullOrWhiteSpace(r.Section));
+        // Fines other than a late month's surcharge and interest get a column only when an account has one.
+        var otherFines = rows.Any(r => r.OtherPenalties > 0m);
+        // A monthly-billed facility always states rent paid ahead: it is carried to later bills, so it sits after Total due and is not in it.
+        var paidAhead = _register.DueDate is not null;
+        var columns = 12 + (otherFines ? 1 : 0) + (paidAhead ? 1 : 0);
+        <OfficeReportShell Title="@($"{FacilityCatalog.NameOf(_register.Facility)} — {(_summary ? "Billing Summary" : "Billing Register")}")"
+                           Period="@($"As of {_register.AsOf:MMMM d, yyyy}")">
+            <p class="br-meta">
+                @rows.Count @(rows.Count == 1 ? "account" : "accounts")
+                @if (_register.DueDate is { } due)
+                {
+                    <span> · Rent due @due.ToString("MMMM d, yyyy")</span>
+                }
+                <span> · Amounts in pesos</span>
+            </p>
+            @if (_register.DueDate is not null && LateRules(_register) is { } lateRules)
+            {
+                <p class="br-meta br-rules">@lateRules</p>
+            }
+            @if (_summary)
+            {
+                <BillingRegisterSummary Rows="rows" Facility="_register.Facility" MonthLabel="@_register.AsOf.ToString("MMMM yyyy")" />
+            }
+            else
+            {
+                <div class="v3-table-wrap br-wrap" tabindex="0" role="region" aria-label="Billing register">
+                    <table class="br-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2" scope="col">Space</th>
+                                <th rowspan="2" scope="col">Occupant</th>
+                                <th colspan="2" scope="colgroup" class="br-group">Previous</th>
+                                <th colspan="4" scope="colgroup" class="br-group">@_register.AsOf.ToString("MMMM yyyy")</th>
+                                <th rowspan="2" scope="col" class="office-num">Utilities</th>
+                                <th rowspan="2" scope="col" class="office-num">Surcharge</th>
+                                <th rowspan="2" scope="col" class="office-num">Interest</th>
+                                @if (otherFines)
+                                {
+                                    <th rowspan="2" scope="col" class="office-num">Other fines</th>
+                                }
+                                <th rowspan="2" scope="col" class="office-num">Total due</th>
+                                @if (paidAhead)
+                                {
+                                    <th rowspan="2" scope="col" class="office-num">Paid ahead</th>
+                                }
+                            </tr>
+                            <tr>
+                                <th scope="col" class="office-num">Months</th>
+                                <th scope="col" class="office-num">Balance</th>
+                                <th scope="col" class="office-num">Billed</th>
+                                <th scope="col" class="office-num">Paid</th>
+                                <th scope="col">OR no.</th>
+                                <th scope="col" class="office-num">Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (rows.Count == 0)
+                            {
+                                <tr><td colspan="@columns" class="br-none">No occupied spaces.</td></tr>
+                            }
+                            @foreach (var group in rows.GroupBy(r => r.Section ?? ""))
+                            {
+                                @if (sectioned)
+                                {
+                                    <tr class="br-band"><th colspan="@columns" scope="rowgroup">@SectionLabel(group.Key)</th></tr>
+                                }
+                                @foreach (var r in group)
+                                {
+                                    <tr @key="r.StallId">
+                                        <td class="br-space"><a href="@ProfileUrl(r)">@r.StallNo</a></td>
+                                        <td>@r.Occupant</td>
+                                        <td class="office-num">@(r.PreviousMonths > 0 ? r.PreviousMonths.ToString() : "—")</td>
+                                        <td class="office-num">@Amount(r.PreviousBalance)</td>
+                                        <td class="office-num">@Amount(r.Charges)</td>
+                                        <td class="office-num">@Amount(r.Paid)</td>
+                                        <td class="br-or">@(string.IsNullOrWhiteSpace(r.ORNumber) ? "—" : r.ORNumber)</td>
+                                        <td class="office-num">@Amount(r.Balance)</td>
+                                        <td class="office-num">@Amount(r.UtilityBalance)</td>
+                                        <td class="office-num">@Amount(r.Surcharge)</td>
+                                        <td class="office-num">@Amount(r.Interest)</td>
+                                        @if (otherFines)
+                                        {
+                                            <td class="office-num">@Amount(r.OtherPenalties)</td>
+                                        }
+                                        <td class="office-num br-total">@r.TotalDue.ToString("N2")</td>
+                                        @if (paidAhead)
+                                        {
+                                            <td class="office-num">
+                                                @Amount(r.PaidAhead)
+                                                @if (r.PaidAheadThrough is { } through && r.PaidAhead > 0m)
+                                                {
+                                                    <span class="br-through">to @through.ToString("MMM yyyy")</span>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                        @if (rows.Count > 0)
+                        {
+                            <tfoot>
+                                <tr>
+                                    <th colspan="2" scope="row">Total</th>
+                                    <td class="office-num">@rows.Sum(r => r.PreviousMonths)</td>
+                                    <td class="office-num">@rows.Sum(r => r.PreviousBalance).ToString("N2")</td>
+                                    <td class="office-num">@rows.Sum(r => r.Charges).ToString("N2")</td>
+                                    <td class="office-num">@rows.Sum(r => r.Paid).ToString("N2")</td>
+                                    <td></td>
+                                    <td class="office-num">@rows.Sum(r => r.Balance).ToString("N2")</td>
+                                    <td class="office-num">@rows.Sum(r => r.UtilityBalance).ToString("N2")</td>
+                                    <td class="office-num">@rows.Sum(r => r.Surcharge).ToString("N2")</td>
+                                    <td class="office-num">@rows.Sum(r => r.Interest).ToString("N2")</td>
+                                    @if (otherFines)
+                                    {
+                                        <td class="office-num">@rows.Sum(r => r.OtherPenalties).ToString("N2")</td>
+                                    }
+                                    <td class="office-num br-total">@rows.Sum(r => r.TotalDue).ToString("N2")</td>
+                                    @if (paidAhead)
+                                    {
+                                        <td class="office-num">@rows.Sum(r => r.PaidAhead).ToString("N2")</td>
+                                    }
+                                </tr>
+                            </tfoot>
+                        }
+                    </table>
+                </div>
+            }
+        </OfficeReportShell>
+    }
+</div>
+
+@code {
+    // The late-charge rules the Surcharge and Interest columns were charged by, stated on the sheet itself.
+    private static string? LateRules(BillingRegisterDto r)
+    {
+        var parts = new List<string>();
+        if (r.SurchargePercent > 0m) parts.Add($"{r.SurchargePercent:0.##}% surcharge once per unpaid month");
+        if (r.InterestPercent > 0m) parts.Add($"{r.InterestPercent:0.##}% interest a month" + (r.InterestMaxMonths is { } most ? $", up to {most} months" : ""));
+        if (parts.Count == 0) return null;
+        if (!string.IsNullOrWhiteSpace(r.Authority)) parts.Add(r.Authority);
+        return "Late charges: " + string.Join(" · ", parts);
+    }
+
+    [Parameter, SupplyParameterFromQuery(Name = "facility")]
+    public string? FacilityFromQuery { get; set; }
+
+    [Parameter, SupplyParameterFromQuery(Name = "view")]
+    public string? ViewFromQuery { get; set; }
+
+    [PersistentState(AllowUpdates = true)]
+    public BillingRegisterDto? CachedRegister { get; set; }
+
+    private FacilityCode? _facility;
+    private bool _summary;
+    private BillingRegisterDto? _register;
+    private bool _loading = true;
+    private string? _error;
+
+    // Only facilities this office has actually declared: an unread catalog lists none rather than a fallback.
+    private IReadOnlyList<FacilityCode> Facilities => FacilityCatalog.Rental.Where(FacilityCatalog.HasDeclaredFacility).ToList();
+    private FacilityCode? First => Facilities.Count > 0 ? Facilities[0] : null;
+    private bool Known(FacilityCode? code) => code is { } c && Facilities.Contains(c);
+    private IReadOnlyList<(string Value, string Label)> FacilityOptions => Facilities.Select(c => (c.ToString(), FacilityCatalog.NameOf(c))).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _summary = string.Equals(ViewFromQuery, "summary", StringComparison.OrdinalIgnoreCase);
+        await FacilityCatalog.EnsureLoadedAsync();
+        _facility = Enum.TryParse<FacilityCode>(FacilityFromQuery, true, out var asked) && Known(asked) ? asked : First;
+        if (!Known(_facility))
+        {
+            _error = "This office's facilities could not be read.";
+            _loading = false;
+            return;
+        }
+
+        if (CachedRegister is { } cached && cached.Facility == _facility)
+        {
+            _register = cached;
+            _loading = false;
+            return;
+        }
+
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _register = null;
+        await InvokeAsync(StateHasChanged);
+        await Task.Yield();
+
+        var result = await ReportsApi.GetBillingRegisterAsync(_facility!.Value);
+        if (result.IsSuccess && result.Value is not null)
+            CachedRegister = _register = result.Value;
+        else
+            _error = result.Error ?? "The billing register could not be loaded.";
+        _loading = false;
+    }
+
+    private async Task SelectFacility(string value)
+    {
+        if (!Enum.TryParse<FacilityCode>(value, out var code) || code == _facility) return;
+        _facility = code;
+        Nav.NavigateTo(Url, replace: true);
+        await LoadAsync();
+    }
+
+    // Switching view re-reads nothing: both views draw the register already loaded.
+    private void SetView(bool summary)
+    {
+        if (summary == _summary) return;
+        _summary = summary;
+        Nav.NavigateTo(Url, replace: true);
+    }
+
+    private string Url => $"/reports/billing-register?facility={_facility}" + (_summary ? "&view=summary" : "");
+
+    private async Task Retry()
+    {
+        if (!Known(_facility))
+        {
+            await FacilityCatalog.EnsureLoadedAsync();
+            _facility = First;
+            if (!Known(_facility)) return;
+        }
+        await LoadAsync();
+    }
+
+    // The register's eleven columns print landscape, through the same helper the other wide registers use; the summary is a portrait page.
+    private async Task Print() => await JS.InvokeVoidAsync(_summary ? "stalltrackPrint.reportDocument" : "stalltrackPrint.landscape");
+
+    private static string Amount(decimal value) => value == 0m ? "—" : value.ToString("N2");
+
+    private string SectionLabel(string key) =>
+        string.IsNullOrWhiteSpace(key) ? "Other spaces" : FacilityCatalog.SectionLabelOf(_register!.Facility, key);
+
+    // By id: a market numbers its spaces per section, so a number alone can open the wrong account.
+    private string ProfileUrl(BillingRegisterRowDto r) => $"/profile/{_register!.Facility.ToString().ToLower()}/{r.StallId}";
+}

@@ -2289,6 +2289,13 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                     b.Property<int>("GraceDays")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("InterestMaxMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("InterestPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
                     b.Property<int>("MaxAdvanceMonths")
                         .HasColumnType("integer");
 

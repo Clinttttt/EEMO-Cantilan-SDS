@@ -229,6 +229,25 @@ public sealed class GovernedServiceWorkspaceTests : TestContext
     }
 
     [Fact]
+    public void TurningOnWhileSetupIsMissing_DoesNotClaimItIsOn()
+    {
+        const string issue = "No effective revenue classification policy with an approved instrument.";
+        var stillOff = Definition(CollectorOperationCodes.NpmDaily, "NPM daily", GovernedServiceSetupState.SetupRequired, issues: [issue]);
+        Serve([stillOff]);
+        _api.Setup(x => x.ConfigureAsync(CollectorOperationCodes.NpmDaily, It.IsAny<ConfigureGovernedServiceRequest>()))
+            .ReturnsAsync(Result<GovernedServiceDefinitionDto>.Success(stillOff));
+
+        var cut = RenderComponent<EEMOCantilanSDS.Client.Components.Shared.FacilityCanonicalCollection>(p => p
+            .Add(x => x.OperationCode, CollectorOperationCodes.NpmDaily).Add(x => x.Name, "daily stall fees"));
+        cut.WaitForAssertion(() => Assert.Contains(issue, cut.Markup), Timeout);
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Turn on").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal("Saved, but it stays off until what is listed above is in place.", cut.Find(".fcc-saved").TextContent), Timeout);
+        Assert.Equal("Not turned on", cut.Find(".fcc-state").TextContent);
+        Assert.DoesNotContain("Turned on", cut.Markup);
+    }
+
+    [Fact]
     public void AnAdmin_CanReadTheSetup_ButHasNoWayToChangeIt()
     {
         var context = this.AddTestAuthorization();

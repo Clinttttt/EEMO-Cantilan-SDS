@@ -422,6 +422,7 @@ public sealed class RevenueSetupTests : TestContext
 
         // The rules page is open to both: an Administrator reads it, only the Head changes it.
         Assert.Single(cut.FindAll("a[href='/settings/billing-policy']"));
+        Assert.Single(cut.FindAll("a[href='/settings/user-guide']"));   // the guide is for everyone who works here
     }
 
     [Fact]
@@ -433,9 +434,9 @@ public sealed class RevenueSetupTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(["Office", "Revenue", "People", "Data", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
+            Assert.Equal(["Office", "Revenue", "People", "Data", "Help", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
             string[] destinations = ["/office-profile", "/settings/report-signatories", "/settings/facilities", "/settings/operations", "/settings/revenue",
-                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
+                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage", "/settings/user-guide"];
             Assert.Equal(destinations, cut.FindAll("a.set-item").Select(a => a.GetAttribute("href")).ToArray());
         }, RenderTimeout);
 

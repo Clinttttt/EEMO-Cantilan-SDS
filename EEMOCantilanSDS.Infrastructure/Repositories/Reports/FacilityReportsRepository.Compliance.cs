@@ -406,6 +406,8 @@ public partial class FacilityReportsRepository
         await LoadNpmRatesAsync(monthEnd, ct);
         var thisMonth = (await GenerateStallComplianceAsync(code, stall.FacilityId, monthStart, monthEnd, ct, onlyStallId: stallId)).FirstOrDefault();
         var rules = BillingPolicyVersion.InForce(await _context.BillingPolicyVersions.AsNoTracking().ToListAsync(ct), today)?.Rules ?? BillingPolicy.StallTrackDefaults;
+        var owed = await OwedFinesAsync([stall], today, ct);
+        var ahead = IsDailyMarket(code) ? null : (await PaidAheadAsync([stall.Id], today, ct)).GetValueOrDefault(stall.Id);
 
         return new StallStatementDto(
             today,
@@ -418,21 +420,16 @@ public partial class FacilityReportsRepository
             thisMonth?.Balance ?? 0m,
             months ?? [],
             await UnpaidUtilitiesAsync(stall, today, ct),
-            await FinesDueAsync(stall, today, ct),
+            owed.Sum(f => f.Owed),
             IsDailyMarket(code) ? null : rules.DueDate(today.Year, today.Month),
-            rules.CountsMonthsFrom);
-    }
-
-    /// <summary>Fines and late penalties still owed on the present account, less what has been collected on them. An earlier occupant's are that account's.</summary>
-    private async Task<decimal> FinesDueAsync(Stall stall, DateOnly today, CancellationToken ct)
-    {
-        if (stall.Occupancies(today).LastOrDefault()?.Contract.Id is not { } contract) return 0m;
-        var fines = await _context.FineAssessments.AsNoTracking().Where(a => a.ContractId == contract)
-            .Select(a => new { a.Id, a.MunicipalityId, Due = a.AdjustedAmount ?? a.AssessedAmount }).ToListAsync(ct);
-        if (fines.Count == 0) return 0m;
-        var settled = await new EEMOCantilanSDS.Application.Common.Revenue.FineAssessmentCollectionSource(_context)
-            .SettledAsync(fines[0].MunicipalityId, fines.Select(f => f.Id).ToArray(), ct);
-        return fines.Sum(f => Math.Max(0m, f.Due - settled.GetValueOrDefault(f.Id)));
+            rules.CountsMonthsFrom,
+            LateMonths(owed),
+            rules.PenaltyBasis == LatePenaltyBasis.PercentOfUnpaid ? rules.PenaltyValue : null,
+            rules.InterestPercent,
+            stall.Occupancies(today).LastOrDefault()?.Contract.Id,
+            ahead?.Months ?? 0,
+            ahead?.Amount ?? 0m,
+            ahead?.Through);
     }
 
     /// <summary>

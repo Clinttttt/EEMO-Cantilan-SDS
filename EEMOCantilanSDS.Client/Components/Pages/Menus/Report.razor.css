@@ -1208,6 +1208,15 @@
         text-decoration: underline;
     }
 
+/* Two hand-offs side by side in the Receivables header. */
+.rpt-attn-links {
+    display: flex;
+    flex-wrap: wrap;
+    align-self: flex-start;
+    justify-content: flex-end;
+    gap: 6px 0;
+}
+
 /* Delinquent item as clickable link */
 .delinq-item-link {
     text-decoration: none;

@@ -30,6 +30,11 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    /// <summary>Every account of one facility as of today, each row the figures of its Statement of Account.</summary>
+    [HttpGet("billing-register")]
+    public async Task<ActionResult<Application.Dtos.Facilities.BillingRegisterDto>> GetBillingRegister([FromQuery] FacilityCode facility) =>
+        HandleResponse(await Sender.Send(new Application.Queries.Reports.GetBillingRegister.GetBillingRegisterQuery(facility)));
+
     /// <summary>
     /// The admin Follow-up Queue — an action list of accounts/records/facilities needing attention,
     /// computed "as of" the given collection period (current month by default on the dashboard).
