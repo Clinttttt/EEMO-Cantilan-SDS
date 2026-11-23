@@ -56,6 +56,7 @@
             <div class="set-col">
                 @Group("people", "People", PeopleRows)
                 @Group("data", "Data", DataRows)
+                @Group("help", "Help", HelpRows)
 
                 <section class="v3-panel" aria-labelledby="set-group-account">
                     <header class="v3-panel-header"><h2 id="set-group-account">Your account</h2></header>
@@ -205,6 +206,11 @@
     [
         new("/settings/backups", "Backups", "Save a copy of this office's data, or restore one"),
         new("/settings/storage", "Storage", "How much data this office holds"),
+    ];
+
+    private static readonly SettingRow[] HelpRows =
+    [
+        new("/settings/user-guide", "User Guide", "How to use StallTrack, step by step", OpenToAdmin: true),
     ];
 
     // A row the Administrator cannot use is stated but not offered: a link that leads to a refusal is worse than no link.
