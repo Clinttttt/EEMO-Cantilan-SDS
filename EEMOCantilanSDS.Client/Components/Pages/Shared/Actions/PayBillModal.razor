@@ -114,7 +114,7 @@
                         <div class="pb-controls">
                             <div class="pb-control">
                                 <span class="pb-label">@(IsNpm ? "How to settle" : "Payment scope")</span>
-                                <div class="pb-seg" role="tablist" style="--pb-seg-count: @(IsNpm ? 3 : 2)">
+                                <div class="pb-seg" role="tablist" style="--pb-seg-count: 3">
                                     @if (IsNpm)
                                     {
                                         <button type="button" class="pb-seg-btn @(_npmMode == "month" ? "on" : "")" @onclick='() => SetNpmMode("month")' disabled="@_submitting">Whole month</button>
@@ -124,10 +124,18 @@
                                     else
                                     {
                                         <button type="button" class="pb-seg-btn @(_scope == "month" ? "on" : "")" @onclick='() => _scope = "month"' disabled="@_submitting">Specific month</button>
+                                        <button type="button" class="pb-seg-btn @(_scope == "year" ? "on" : "")" @onclick="ChooseAnnual" disabled="@_submitting">Annual</button>
                                         <button type="button" class="pb-seg-btn @(_scope == "all" ? "on" : "")" @onclick='() => _scope = "all"' disabled="@_submitting">All outstanding</button>
                                     }
                                 </div>
                             </div>
+                            @if (Annual)
+                            {
+                                <div class="pb-control pb-control-year">
+                                    <span class="pb-label">Year</span>
+                                    <FhSelect Block="true" AriaLabel="Year to pay" Options="YearOptions" @bind-Value="_year" />
+                                </div>
+                            }
                             @if (!CanonicalRentSelected)
                             {
                             <div class="pb-control pb-control-or">
@@ -137,7 +145,7 @@
                             </div>
                             }
                             else { <p class="pb-hint">@(_rentRequests.ContainsKey(_selectedPeriod) ? "A canonical SRC is issued when this receipt is posted. Physical OR evidence is separate." : "Office rent receipts are paused. No legacy status change is allowed.")</p> }
-                            @if (CanonicalRentSelected && !SettlesEverything && _rentRequests.TryGetValue(_selectedPeriod, out var rentReceipt))
+                            @if (CanonicalRentSelected && !SettlesEverything && !Annual && _rentRequests.TryGetValue(_selectedPeriod, out var rentReceipt))
                             {
                                 <div class="pb-control pb-control-or">
                                     <label class="pb-label" for="pb-rent-received">Received now</label>
@@ -206,7 +214,7 @@
                         else
                         {
                             var pickMonthForDays = IsNpm && _npmMode == "days";   // step 1: drill into a month
-                            var allMode = SettlesEverything;
+                            var allMode = SettlesEverything || Annual;
                             <table class="pb-table">
                                 <thead>
                                     <tr>
@@ -224,7 +232,7 @@
                                     @foreach (var r in MonthRows())
                                     {
                                         mn++;
-                                        var included = allMode || _selectedPeriod == r.Period;
+                                        var included = IsNpm ? SettlesEverything || _selectedPeriod == r.Period : Includes(r);
                                         <tr class="@((included && !pickMonthForDays) ? "on" : "")" @onclick="@(() => MonthRowClicked(r.Period))">
                                             <td class="c">
                                                 @if (pickMonthForDays)
@@ -233,7 +241,10 @@
                                                 }
                                                 else if (allMode)
                                                 {
-                                                    <svg class="pb-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    @if (included)
+                                                    {
+                                                        <svg class="pb-tick" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                                                    }
                                                 }
                                                 else
                                                 {
@@ -368,8 +379,7 @@
     private IReadOnlyList<(string Value, string Label)> AheadCounts => _ahead?.Counts
         .Select(n => (n.ToString(), n == 12 ? "12 months (one year)" : n == 1 ? "1 month" : $"{n} months")).ToList() ?? [];
 
-    private bool CanonicalRentSelected => !IsNpm && _unpaid.Any(x => x.SettlementAuthority == SettlementAuthority.Canonical
-        && (SettlesEverything || x.Period == _selectedPeriod));
+    private bool CanonicalRentSelected => !IsNpm && _unpaid.Any(x => x.SettlementAuthority == SettlementAuthority.Canonical && Includes(x));
 
     private Guid _loadedStall;
 
@@ -382,6 +392,8 @@
             return _dayStep ? $"Step 2 · Choose day(s) — {MonthLabel(_selectedPeriod)}" : "Step 1 · Choose the month";
         if (SettlesEverything)
             return "Months to be settled";
+        if (Annual)
+            return $"Months of {_year} to be settled";
         return "Select the billing period to record";
     }
 
@@ -394,6 +406,8 @@
                 return _days.Where(x => _daySelected.Contains(x.Date)).Sum(x => x.Fee);
             if (SettlesEverything)
                 return _totalOutstanding;
+            if (Annual)
+                return YearRows.Sum(x => x.BalanceDue);
             if (CanonicalRentSelected && _rentRequests.TryGetValue(_selectedPeriod, out var receipt)) return receipt.ReceivedAmount;
             return _unpaid.FirstOrDefault(x => x.Period == _selectedPeriod)?.BalanceDue ?? 0m;
         }
@@ -410,15 +424,40 @@
     /// </remarks>
     private bool SettlesEverything => IsNpm ? _npmMode == "all" : _scope == "all";
 
+    // Annual (monthly facilities): every unpaid month of one year on one OR, recorded oldest first the way All outstanding is.
+    private string _year = string.Empty;
+    private bool Annual => !IsNpm && _scope == "year";
+    private static string YearOf(string period) => period.Length >= 4 ? period[..4] : period;
+    private IReadOnlyList<(string Value, string Label)> YearOptions => _unpaid.GroupBy(x => YearOf(x.Period))
+        .Select(g => (g.Key, $"{g.Key} · {g.Count()} month{(g.Count() == 1 ? "" : "s")}")).ToList();
+    private List<PaymentHistoryDto> YearRows => _unpaid.Where(x => YearOf(x.Period) == _year).ToList();
+
+    /// <summary>Whether a monthly facility's row is paid by this transaction.</summary>
+    private bool Includes(PaymentHistoryDto row) => _scope switch
+    {
+        "all" => true,
+        "year" => YearOf(row.Period) == _year,
+        _ => row.Period == _selectedPeriod,
+    };
+
+    private void ChooseAnnual()
+    {
+        _scope = "year";
+        if (!_unpaid.Any(x => YearOf(x.Period) == _year))
+            _year = YearOf(string.IsNullOrEmpty(_selectedPeriod) ? _unpaid.FirstOrDefault()?.Period ?? "" : _selectedPeriod);
+    }
+
     private string CoverageText() =>
-        CanonicalRentSelected ? "reviewed rental receipt"
+        Annual ? $"{YearRows.Count} month{(YearRows.Count == 1 ? "" : "s")} of {_year} · one OR"
+        : CanonicalRentSelected ? "reviewed rental receipt"
         : SettlesEverything ? "all outstanding months · one OR"
         : IsNpm && _npmMode == "days" ? $"{_daySelected.Count} collection day{(_daySelected.Count == 1 ? "" : "s")}"
         : IsNpm ? "whole billing month"
         : "selected billing period";
 
     private string OrHint() =>
-        CanonicalRentSelected ? "The server records the reviewed rent amount with its own SRC."
+        Annual ? $"One OR covers every unpaid month of {_year} in a single receipt."
+        : CanonicalRentSelected ? "The server records the reviewed rent amount with its own SRC."
         : SettlesEverything ? "One OR covers all settled months of this stall in a single receipt."
         : IsNpm && _npmMode == "days" ? "One OR will cover the selected collection days in a single transaction."
         : IsNpm ? "One OR may cover all settleable days in the selected month."
@@ -447,16 +486,17 @@
     private bool CanSubmit()
     {
         if (_submitting) return false;
-        if (CanonicalRentSelected && !SettlesEverything && _rentRequests.TryGetValue(_selectedPeriod, out var rent)
+        if (CanonicalRentSelected && !SettlesEverything && !Annual && _rentRequests.TryGetValue(_selectedPeriod, out var rent)
             && (rent.ReceivedAmount <= 0 || rent.ReceivedAmount > _unpaid.First(x => x.Period == _selectedPeriod).BalanceDue
                 || decimal.Round(rent.ReceivedAmount, 2) != rent.ReceivedAmount)) return false;
-        if (!IsNpm && _unpaid.Any(x => (SettlesEverything || x.Period == _selectedPeriod)
+        if (!IsNpm && _unpaid.Any(x => Includes(x)
             && (x.SettlementAuthority == SettlementAuthority.PendingCutover
                 || x.SettlementAuthority == SettlementAuthority.Canonical && !_rentRequests.ContainsKey(x.Period)))) return false;
         if (_monthSource && (SettlesEverything ? _unpaid.Any(x => !_monthRequests.ContainsKey(x.Period))
             : !_monthRequests.ContainsKey(_selectedPeriod))) return false;
         // Settling everything needs a balance to settle, not a chosen period.
         if (SettlesEverything) return _unpaid.Count > 0;
+        if (Annual) return YearRows.Count > 0;
         if (IsNpm)
             return _npmMode == "days" ? (_dayStep && _daySelected.Count > 0) : !string.IsNullOrEmpty(_selectedPeriod);
         return !string.IsNullOrEmpty(_selectedPeriod);
@@ -489,6 +529,7 @@
         _loading = true;
         _error = null;
         _scope = "month";
+        _year = string.Empty;
         _npmMode = "month";
         _dayStep = false;
         _or = string.Empty;
@@ -597,6 +638,7 @@
     private async Task MonthRowClicked(string period)
     {
         _selectedPeriod = period;
+        if (Annual) _year = YearOf(period);   // a row of another year picks that year
         if (IsNpm && _npmMode == "days")
         {
             _search = string.Empty;
@@ -739,9 +781,7 @@
         }
         else
         {
-            var targets = _scope == "all"
-                ? _unpaid.ToList()
-                : _unpaid.Where(h => h.Period == _selectedPeriod).ToList();
+            var targets = _unpaid.Where(Includes).ToList();
             if (targets.Count == 0)
             { _error = "Select a month to pay."; _submitting = false; return; }
 

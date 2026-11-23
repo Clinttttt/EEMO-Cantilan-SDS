@@ -40,6 +40,7 @@
 .pb-controls { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; margin-top: 16px; }
 .pb-control { flex: 1 1 300px; min-width: 240px; }
 .pb-control-or { flex: 0 1 280px; }
+.pb-control-year { flex: 0 1 200px; min-width: 160px; }
 .pb-label { display: block; font-size: 12px; font-weight: 650; color: var(--text); margin-bottom: 7px; }
 
 /* The column count follows the number of choices actually offered: the market has three (whole month, specific days,
