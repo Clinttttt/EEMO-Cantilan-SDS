@@ -17,13 +17,13 @@ public sealed partial class FineAssessmentComponentTests
             true, code);
 
     [Fact]
-    public void LateCharges_AreOneLine_ThatOpensToEachMonthsSurchargeAndInterest_AndOtherFinesStayAsTheyAre()
+    public void LateCharges_AreOneLine_ThatOpensToOneRowPerMonth_AndOtherFinesStayAsTheyAre()
     {
-        var sepInterest2 = Late(FineAssessment.InterestCode, "Interest", 9, new(2026, 10, 21), 25m);
+        var sepSurcharge = Late(FineAssessment.SurchargeCode, "Surcharge", 9, new(2026, 9, 21), 250m);
         var rows = new[]
         {
-            Late(FineAssessment.InterestCode, "Interest", 10, new(2026, 10, 21), 25m), sepInterest2,
-            Late(FineAssessment.SurchargeCode, "Surcharge", 9, new(2026, 9, 21), 250m),
+            Late(FineAssessment.InterestCode, "Interest", 10, new(2026, 10, 21), 25m),
+            Late(FineAssessment.InterestCode, "Interest", 9, new(2026, 10, 21), 25m), sepSurcharge,
             Late(FineAssessment.InterestCode, "Interest", 9, new(2026, 9, 21), 25m),
             Late(FineAssessment.SurchargeCode, "Surcharge", 10, new(2026, 10, 21), 250m),
             Row(),
@@ -42,14 +42,16 @@ public sealed partial class FineAssessmentComponentTests
 
         cut.Find(".late-summary").Click();
 
-        var months = cut.FindAll(".late-month").Select(m => m.TextContent).ToList();
-        Assert.Equal(2, months.Count);
-        Assert.Contains("September 2026", months[0]);
-        Assert.Contains("₱300.00", months[0]);
-        var september = cut.FindAll(".late-table tbody")[0].QuerySelectorAll("tr:not(.late-month)").Select(r => r.QuerySelector("td")!.TextContent).ToList();
-        Assert.Equal(new[] { "Surcharge", "Interest", "Interest" }, september);
+        // One row a month, never one row per interest month: September is its surcharge, two months of interest, and what is left.
+        var september = cut.FindAll(".late-month")[0].Children.Select(c => c.TextContent.Trim()).ToList();
+        Assert.Equal(2, cut.FindAll(".late-table tbody tr").Count);
+        Assert.Equal("September 2026", september[0]);
+        Assert.Equal("₱250.00", september[1]);
+        Assert.Equal("₱50.00 2 months", System.Text.RegularExpressions.Regex.Replace(september[2], @"\s+", " "));
+        Assert.Equal("₱300.00", september[3]);
 
-        cut.FindAll(".late-table tbody")[0].QuerySelectorAll("tr:not(.late-month)")[2].QuerySelector("button")!.Click();
-        Assert.Equal(sepInterest2.Id, paid);
+        // The month's payment takes its surcharge first.
+        cut.FindAll(".late-month")[0].QuerySelector("button")!.Click();
+        Assert.Equal(sepSurcharge.Id, paid);
     }
 }

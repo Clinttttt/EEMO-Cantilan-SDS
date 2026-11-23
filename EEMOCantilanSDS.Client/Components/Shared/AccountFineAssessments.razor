@@ -14,23 +14,31 @@
                 <strong>₱@Late.Sum(r => r.Remaining).ToString("N2")</strong>
                 <svg class="late-chevron" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg>
             </button>
+            @* One row per month: its one-time surcharge, its interest so far, what is left. A payment settles one charge, so the month's
+               button takes the next one: the surcharge first, then each month's interest, oldest first. *@
             @if (_lateOpen) { <div class="late-wrap"><table class="late-table">
-                <thead><tr><th scope="col">Charge</th><th scope="col">Charged</th><th scope="col" class="late-num">Remaining</th><th scope="col"><span class="v3-sr-only">Payment</span></th></tr></thead>
-                @foreach (var month in LateMonths) { <tbody @key="month.Key">
-                    <tr class="late-month"><th scope="rowgroup" colspan="2">@month.First().RelatedPeriod!.Label</th><td class="late-num">₱@month.Sum(r => r.Remaining).ToString("N2")</td><td></td></tr>
-                    @foreach (var r in month.OrderBy(r => r.PenaltyCode != FineAssessment.SurchargeCode).ThenBy(r => r.ViolationDate)) { <tr @key="r.Id">
-                        <td>@(r.PenaltyCode == FineAssessment.SurchargeCode ? "Surcharge" : r.PenaltyCode == FineAssessment.InterestCode ? "Interest" : r.Penalty)</td>
-                        <td>@r.ViolationDate.ToString("MMM d, yyyy")</td>
-                        <td class="late-num">@(r.Remaining > 0 ? $"₱{r.Remaining:N2}" : r.Status)</td>
+                <thead><tr><th scope="col">Month</th><th scope="col" class="late-num">Surcharge</th><th scope="col" class="late-num">Interest</th><th scope="col" class="late-num">Remaining</th><th scope="col"><span class="v3-sr-only">Payment</span></th></tr></thead>
+                <tbody>
+                @foreach (var month in LateMonths) {
+                    var label = month.First().RelatedPeriod!.Label;
+                    var interest = month.Where(r => r.PenaltyCode == FineAssessment.InterestCode).ToList();
+                    var next = month.Where(r => r.Remaining > 0).OrderBy(r => r.PenaltyCode == FineAssessment.InterestCode).ThenBy(r => r.ViolationDate).FirstOrDefault();
+                    <tr class="late-month" @key="month.Key">
+                        <th scope="row">@label</th>
+                        <td class="late-num">@Amount(month.Where(r => r.PenaltyCode != FineAssessment.InterestCode).Sum(r => r.Remaining))</td>
+                        <td class="late-num">@Amount(interest.Sum(r => r.Remaining))@if (interest.Count > 0) { <span class="late-sub">@($" {interest.Count} month{(interest.Count == 1 ? "" : "s")}")</span> }</td>
+                        <td class="late-num"><strong>@(month.Sum(r => r.Remaining) is > 0 and var left ? $"₱{left:N2}" : "Paid")</strong></td>
                         <td class="late-action">
-                            @if (_payable.Contains(r.Id)) {
-                                @if (OnPay.HasDelegate) { <button type="button" class="v3-btn v3-btn-sm" @onclick="() => OnPay.InvokeAsync(r.Id)">Record payment</button> }
-                                else { <a class="v3-btn v3-btn-sm" href="@($"/operations/fines?fineAssessmentId={r.Id}")">Record payment</a> }
+                            @if (next is not null && _payable.Contains(next.Id)) {
+                                var name = $"Record payment: {label} {(next.PenaltyCode == FineAssessment.InterestCode ? $"interest of {next.ViolationDate:MMM d}" : "surcharge")}";
+                                @if (OnPay.HasDelegate) { <button type="button" class="v3-btn v3-btn-sm" aria-label="@name" title="@name" @onclick="() => OnPay.InvokeAsync(next.Id)">Record payment</button> }
+                                else { <a class="v3-btn v3-btn-sm" aria-label="@name" title="@name" href="@($"/operations/fines?fineAssessmentId={next.Id}")">Record payment</a> }
                             }
-                            else if (r.Remaining > 0) { <span class="fine-meta">@_paymentInfo.GetValueOrDefault(r.Id)</span> }
+                            else if (next is not null) { <span class="fine-meta">@_paymentInfo.GetValueOrDefault(next.Id)</span> }
                         </td>
-                    </tr> }
-                </tbody> }
+                    </tr>
+                }
+                </tbody>
             </table></div> }
         </div> }
         <ul class="fine-list">
@@ -89,6 +97,7 @@
     }
     private List<FineAssessmentDto> _rows = []; private bool _loading = true, _eligible; private string? _error;
     private bool _lateOpen;
+    private static string Amount(decimal value) => value > 0 ? $"₱{value:N2}" : "—";
     // A late charge always names the rent month it is for; one without a month stays with the other fines.
     private bool IsLate(FineAssessmentDto r) => r.RelatedPeriod is not null && r.PenaltyCode is { } code && FineAssessment.LateCodes.Contains(code);
     private List<FineAssessmentDto> Late => _rows.Where(IsLate).ToList();
