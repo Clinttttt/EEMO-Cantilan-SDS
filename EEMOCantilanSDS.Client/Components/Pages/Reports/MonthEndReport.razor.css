@@ -112,31 +112,31 @@
 
 .me-rpt-head { text-align: center; margin-bottom: 10px; }
 .me-seal { width: 54px; height: 54px; object-fit: cover; border-radius: 50%; margin: 0 auto 8px; display: block; }
-.me-gov { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
-.me-org { font-size: 15px; font-weight: 700; color: var(--navy); margin-top: 2px; }
-.me-muni { font-size: 11px; color: var(--text-subtle); margin-top: 2px; }
-.me-doc { margin-top: 10px; font-size: 13px; font-weight: 700; color: var(--navy); }
+.me-gov { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); }
+.me-org { font-size: 17px; font-weight: 700; color: var(--navy); margin-top: 2px; }
+.me-muni { font-size: 13px; color: var(--text-subtle); margin-top: 2px; }
+.me-doc { margin-top: 10px; font-size: 15px; font-weight: 700; color: var(--navy); }
 /* The period beneath the document's name, and on a month still running the day the figures stop at. */
-.me-period-line { margin-top: 2px; font-size: 12px; color: var(--text-subtle); }
+.me-period-line { margin-top: 2px; font-size: 13.5px; color: var(--text-subtle); }
 
 /* How many figures apply depends on the scope (a direct service has no outstanding or rate), so the cards share the row. */
 .me-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 14px; margin-bottom: 18px; }
 .me-sum-card { border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; background: var(--bg); }
 .me-sum-val { font-size: 20px; font-weight: 800; color: var(--navy); }
-.me-sum-lbl { font-size: 11px; color: var(--text-subtle); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
+.me-sum-lbl { font-size: 12px; color: var(--text-subtle); margin-top: 4px; text-transform: uppercase; letter-spacing: .4px; }
 .me-red { color: var(--red); }
 
 .me-facility { margin: 0; padding: 22px 0; border-top: 2px solid var(--border); }
 .me-facility:first-of-type { border-top: none; padding-top: 6px; }
 .me-fac-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 2px solid var(--border); margin-bottom: 8px; }
 .me-fac-title { display: flex; align-items: center; gap: 9px; }
-.me-fac-name { font-size: 15px; font-weight: 700; color: var(--navy); }
+.me-fac-name { font-size: 16px; font-weight: 700; color: var(--navy); }
 .me-tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--text-subtle); background: var(--bg-icon); padding: 3px 8px; border-radius: 6px; }
-.me-fac-stats { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-subtle); }
+.me-fac-stats { display: flex; gap: 16px; font-size: 13.5px; color: var(--text-subtle); }
 .me-fac-stats strong { color: var(--navy); }
 
-.me-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.me-table th { text-align: center; padding: 8px 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+.me-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.me-table th { text-align: center; padding: 8px 10px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-muted); border-bottom: 1px solid var(--border); }
 .me-table td {
     padding: 7px 10px;
     text-align: center;
@@ -146,7 +146,7 @@
     font-variant-numeric: tabular-nums;
 }
 .me-table th.me-num, .me-table td.me-num { text-align: center; font-variant-numeric: tabular-nums; }
-.me-table td.me-mono { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 12.5px; letter-spacing: .2px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
+.me-table td.me-mono { font-family: "Cascadia Mono", "Consolas", monospace; font-size: 13.5px; letter-spacing: .2px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
 .me-table tfoot td { border-top: 2px solid var(--border); border-bottom: none; padding-top: 9px; }
 .me-table tfoot td:first-child { text-align: left; }
 /* No row shading and no filled status chips. A tinted row and an amber chip are web conventions; on a filed
@@ -159,22 +159,22 @@
 .me-partial { color: var(--dark-amber-text, #8a6d1b); }
 .me-unpaid { color: var(--red); }
 
-.me-fac-note { font-size: 12.5px; color: var(--text-subtle); padding: 10px 12px; background: var(--bg); border-radius: 9px; }
+.me-fac-note { font-size: 13.5px; color: var(--text-subtle); padding: 10px 12px; background: var(--bg); border-radius: 9px; }
 
 /* ── Official collections and their reconciliation ──
    Plain type and rules, the same as the facility tables, so the filed sheet reads as one document. */
 .me-section-title {
     margin: 24px 0 0;
-    font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted);
+    font-size: 12px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text-muted);
 }
 .me-src-table th:first-child, .me-src-table td:first-child { text-align: left; }
 .me-src-table th:nth-child(2), .me-src-table td:nth-child(2),
 .me-src-table th:nth-child(3), .me-src-table td:nth-child(3) { text-align: left; }
 .me-recon .me-src-table th:first-child, .me-recon .me-src-table td:first-child { text-align: left; }
-.me-quiet { color: var(--text-subtle); font-size: 12px; }
+.me-quiet { color: var(--text-subtle); font-size: 13px; }
 .me-tag-warn { margin-left: 8px; color: var(--red); }
-.me-fine-print { margin-top: 10px; font-size: 11.5px; }
-.me-fine-line { display: block; margin-top: 2px; color: var(--text-subtle); font-size: 11.5px; font-weight: 400; }
+.me-fine-print { margin-top: 10px; font-size: 12.5px; }
+.me-fine-line { display: block; margin-top: 2px; color: var(--text-subtle); font-size: 12.5px; font-weight: 400; }
 .me-official, .me-recon { border-top: none; }
 .me-official { padding-top: 14px; }
 
@@ -187,7 +187,7 @@
     color: var(--navy);
     border-radius: 9px;
     padding: 7px 13px;
-    font-size: 12.5px;
+    font-size: 13.5px;
     font-weight: 600;
     cursor: pointer;
     display: inline-flex;
@@ -206,7 +206,7 @@
 }
 
 .me-util-head {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -218,7 +218,7 @@
    tint, so the sheet stays ink-cheap and reads the same photocopied. */
 .me-area-row td {
     padding-top: 12px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
@@ -227,7 +227,7 @@
 }
 
 .me-area-sub td {
-    font-size: 11.5px;
+    font-size: 12.5px;
     font-weight: 700;
     color: var(--navy);
     border-top: 1px solid var(--border);
@@ -235,7 +235,7 @@
 }
 
 .me-rpt-foot { display: flex; justify-content: space-between; gap: 16px; margin-top: 28px; padding-top: 16px; }
-.me-rpt-foot div { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.me-rpt-foot div { display: flex; flex-direction: column; gap: 2px; font-size: 12.5px; }
 .me-rpt-foot span { color: var(--text-muted); }
 .me-rpt-foot strong { color: var(--navy); }
 
@@ -261,8 +261,8 @@
 .me-caret { display: inline-block; font-size: 11px; color: var(--text-muted); margin-right: 6px; transition: transform .12s ease; }
 .me-caret.open { transform: rotate(90deg); }
 .me-txn-payor { font-weight: 400; color: var(--navy); }
-.me-txn-inline { color: var(--text-subtle); font-size: 11.5px; margin-left: 8px; }
-.me-txn-detail td { background: var(--bg); color: var(--text-subtle); font-size: 12px; padding-left: 26px; }
+.me-txn-inline { color: var(--text-subtle); font-size: 12.5px; margin-left: 8px; }
+.me-txn-detail td { background: var(--bg); color: var(--text-subtle); font-size: 13px; padding-left: 26px; }
 .me-txn-detail td:last-child { color: var(--navy); }
 
 /* ══════════════════════════════════════════════════════════════
