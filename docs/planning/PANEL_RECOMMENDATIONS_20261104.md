@@ -133,7 +133,9 @@ The order is A, B, E, then F, with C and D running alongside. Phases A and B red
 6. Who owns online-payment exceptions (IA-022)?
 7. What is the governing ordinance or section for interest and penalties?
 
-**MEEDO's last answer, 2026-11-11** ([evidence](../evidence/2026-11-11_meedo_advance_payment_arrears_carry_over.md)). The owner asked about overcharges, advance payment and an added fee on Arrears or Delinquent accounts. The office answered that advance payment of stall rent happens, though only occasionally, and that unpaid rent carries over to January; it named no added fee. That supports IA-071's advance payment and IA-069's year-end Arrears, and leaves Cantilan with no penalty rate under IA-072. Overcharges and the seven questions above were not answered. The owner can send no further question, so they stay StallTrack Rules.
+**MEEDO's last answer, 2026-11-11** ([evidence](../evidence/2026-11-11_meedo_advance_payment_arrears_carry_over.md)). The owner asked about overcharges, advance payment and an added fee on Arrears or Delinquent accounts. The office answered that advance payment of stall rent happens, though only occasionally, and that unpaid rent carries over to January; it named no added fee. That supports IA-071's advance payment and IA-069's year-end Arrears. Overcharges and the seven questions above were not answered.
+
+**MEEDO's answer on the penalty rate, 2026-11-23** ([evidence](../evidence/2026-11-23_meedo_late_penalty_rate.md)). The office stated a 25% penalty on late rent and a monthly surcharge, relayed as 20% a month. Cantilan's Head records the 25%, charged once, under IA-072, with the statement as its authority; the monthly part waits for the ordinance's figure, as 20% a month is above the 2% RA 7160 Sec. 168 allows. The owner can send no further question, so the rest stay StallTrack Rules.
 
 ## 8. Progress log
 

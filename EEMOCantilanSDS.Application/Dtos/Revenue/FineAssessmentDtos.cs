@@ -17,7 +17,12 @@ public sealed record CreateFineAssessmentRequest(Guid ClientOperationId, FineAcc
 public sealed record FineAssessmentDto(Guid Id, FineAccountRef Account, string Occupant, string Unit, string Source,
     string Penalty, string Description, DateOnly ViolationDate, DateOnly AssessmentDate, string? IncidentReference,
     decimal Assessed, decimal Settled, decimal Remaining, string Status, long Version, string GoverningReference,
-    DateTime RecordedAtUtc, string? DuplicateWarning, FinePeriodOption? RelatedPeriod = null, bool CanAdjust = false);
+    DateTime RecordedAtUtc, string? DuplicateWarning, FinePeriodOption? RelatedPeriod = null, bool CanAdjust = false,
+    // The penalty's code, so a late month's surcharge and interest can be told apart from other fines without reading their names.
+    string? PenaltyCode = null);
+/// <summary>One account's late charges (surcharge and monthly interest) together: the office register lists accounts, not each charge.</summary>
+public sealed record LateChargeAccountDto(FineAccountRef Account, string Occupant, string Source, string Unit, int Months,
+    decimal Surcharge, decimal Interest, decimal Settled, decimal Remaining, Guid? StallId = null, FacilityCode? Facility = null);
 public sealed record AdjustFineAssessmentRequest(decimal Amount, string Reason, long ExpectedVersion);
 public sealed record FineAssessmentEventDto(Guid Id, string Kind, decimal Previous, decimal Resulting, Guid ActorId,
     DateTime RecordedAtUtc, string Evidence);

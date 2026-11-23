@@ -19,6 +19,7 @@ public sealed class BillingPolicyVersionConfiguration : IEntityTypeConfiguration
         b.HasKey(x => x.Id);
         b.Property(x => x.PenaltyValue).HasPrecision(18, 2);
         b.Property(x => x.PenaltyMonthCap).HasPrecision(18, 2);
+        b.Property(x => x.InterestPercent).HasPrecision(5, 2);
         b.Property(x => x.GoverningReference).HasMaxLength(200);
         b.HasIndex(x => new { x.MunicipalityId, x.EffectiveFrom });
         b.HasOne<Municipality>().WithMany().HasForeignKey(x => x.MunicipalityId).OnDelete(DeleteBehavior.Restrict);

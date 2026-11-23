@@ -20,6 +20,8 @@ public sealed class PenaltiesApiClient(HttpClient http) : HandleResponse(http), 
     public Task<Result<EcfPostOutcomeDto>> PostFineDraftAsync(Guid id, PostEcfCollectionDraftRequest request) => PostAsync<PostEcfCollectionDraftRequest,EcfPostOutcomeDto>($"api/fine-settlements/drafts/{id}/post",request);
     public Task<Result<IReadOnlyList<FineAssessmentDto>>> GetAssessmentsAsync(FineAccountKind? kind = null, Guid? accountId = null, string? search = null) =>
         GetAsync<IReadOnlyList<FineAssessmentDto>>($"api/fine-assessments?kind={kind}&accountId={accountId}&search={Uri.EscapeDataString(search ?? "")}");
+    public Task<Result<IReadOnlyList<LateChargeAccountDto>>> GetLateChargesAsync(string? search = null) =>
+        GetAsync<IReadOnlyList<LateChargeAccountDto>>($"api/fine-assessments/late-charges?search={Uri.EscapeDataString(search ?? "")}");
     public Task<Result<IReadOnlyList<FineAccountOption>>> SearchFineAccountsAsync(string search) =>
         GetAsync<IReadOnlyList<FineAccountOption>>($"api/fine-assessments/accounts?search={Uri.EscapeDataString(search)}");
     public Task<Result<FineAccountOption>> GetFineAccountAsync(FineAccountRef account) =>

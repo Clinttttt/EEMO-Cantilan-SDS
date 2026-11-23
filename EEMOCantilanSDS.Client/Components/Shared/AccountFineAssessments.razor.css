@@ -16,7 +16,29 @@
 .fine-details h4 { font-size: 13px; margin: 12px 0 6px; }
 .fine-history { padding-left: 16px; font-size: 12px; }
 .fine-history li { margin: 6px 0; }
+
+/* Late charges: one line closed; open, a register of each month's surcharge and interest. */
+.late-charges { margin: 0 0 12px; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.late-summary { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 10px 12px; border: 0; background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.late-summary:hover { background: var(--surface-muted); }
+.late-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.late-title { font-weight: 600; }
+.late-months { flex: 1; color: var(--text-muted); font-size: 12px; }
+.late-summary strong { color: var(--navy); font-variant-numeric: tabular-nums; }
+.late-chevron { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; color: var(--text-muted); transition: transform .15s ease; }
+.late-summary[aria-expanded="true"] .late-chevron { transform: rotate(180deg); }
+.late-wrap { max-height: 420px; overflow: auto; border-top: 1px solid var(--border); }
+.late-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.late-table th, .late-table td { padding: 6px 12px; text-align: left; white-space: nowrap; }
+.late-table thead th { position: sticky; top: 0; z-index: 1; background: var(--surface-muted); font-size: 12px; font-weight: 500; color: var(--text-muted); }
+.late-table tbody td { border-top: 1px solid var(--border); }
+.late-month th, .late-month td { padding-top: 10px; border-top: 1px solid var(--border); font-weight: 600; color: var(--navy); }
+.late-table .late-num { text-align: right; font-variant-numeric: tabular-nums; }
+.late-action { text-align: right; }
+.late-action .fine-meta { margin: 0; white-space: normal; }
 @media (max-width: 420px) {
     .fine-heading { flex-wrap: wrap; gap: 4px; }
     .fine-amounts { font-size: 13px; }
+    .late-table th, .late-table td { padding: 6px 8px; }
 }
+@media (prefers-reduced-motion: reduce) { .late-chevron { transition: none; } }

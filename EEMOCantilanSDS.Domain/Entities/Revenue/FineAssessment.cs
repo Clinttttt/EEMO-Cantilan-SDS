@@ -64,13 +64,18 @@ public sealed class FineAssessment : BaseEntity, IMunicipalityOwned
     public decimal? AdjustedAmount { get; private set; }
     /// <summary>What this assessment now asks for. Every balance reads this, never <see cref="AssessedAmount"/>.</summary>
     public decimal AmountDue => AdjustedAmount ?? AssessedAmount;
-    public bool IsLatePenalty => PenaltyCode == LatePaymentCode;
+    public bool IsLatePenalty => LateCodes.Contains(PenaltyCode);
     public Guid ClientOperationId { get; private set; }
     public string RequestFingerprint { get; private set; } = "";
     public Guid ActorId { get; private set; }
     public DateTime RecordedAtUtc { get; private set; }
     public long Version { get; private set; } = 1;
     public const string LatePaymentCode = "LATE_PAYMENT";
+    /// <summary>The one-time surcharge on a late rent month (ruled 2026-11-24). <see cref="LatePaymentCode"/> is the single penalty of the rules before it.</summary>
+    public const string SurchargeCode = "LATE_SURCHARGE";
+    /// <summary>One month's interest on a late rent month and its surcharge.</summary>
+    public const string InterestCode = "LATE_INTEREST";
+    public static readonly string[] LateCodes = [LatePaymentCode, SurchargeCode, InterestCode];
     private FineAssessment() { }
     /// <summary>
     /// The Head updates or waives a late penalty the system assessed. It never falls below money already collected, and it moves the version so a quote

@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
 using EEMOCantilanSDS.Domain.Common;
@@ -94,6 +95,54 @@ public class LatePenaltyTests(PostgresFixture db)
     }
 
     [SkippableFact]
+    public async Task TheBillingRegister_StatesEverySpaceExactlyAsItsStatementOfAccount()
+    {
+        var seeded = await SeedAsync("LAT-REG", Penalised);
+        await using (var write = db.CreateContext(seeded.Tenant))
+        {
+            var facilityId = (await write.Stalls.FirstAsync(s => s.Id == seeded.Stall)).FacilityId;
+            var partial = Stall.Create(facilityId, "8", Rate, ApplicableFees.BaseRental, municipalityId: seeded.Tenant);
+            var paid = Stall.Create(facilityId, "10", Rate, ApplicableFees.BaseRental, municipalityId: seeded.Tenant);
+            var partialMonth = PaymentRecord.Create(partial.Id, ThisMonth.Year, ThisMonth.Month, Rate, "test");
+            partialMonth.MarkPartiallyPaidOnline(400m, "test");
+            var paidMonth = PaymentRecord.Create(paid.Id, ThisMonth.Year, ThisMonth.Month, Rate, "test");
+            paidMonth.UpdateStatus(PaymentStatus.Paid, 0m, null, "test", null);
+            // Space 10 has also paid ahead: next month in full and the one after in part.
+            var (next, after) = (ThisMonth.AddMonths(1), ThisMonth.AddMonths(2));
+            var aheadPaid = PaymentRecord.Create(paid.Id, next.Year, next.Month, Rate, "test");
+            aheadPaid.UpdateStatus(PaymentStatus.Paid, 0m, null, "test", null);
+            var aheadPart = PaymentRecord.Create(paid.Id, after.Year, after.Month, Rate, "test");
+            aheadPart.MarkPartiallyPaidOnline(400m, "test");
+            write.AddRange(partial, paid, partialMonth, paidMonth, aheadPaid, aheadPart,
+                Contract.Create(partial.Id, "Ana Cruz", "Ana Cruz", ThisMonth, 5, Rate), Contract.Create(paid.Id, "Ben Uy", "Ben Uy", ThisMonth, 5, Rate));
+            await write.SaveChangesAsync();
+        }
+        await RunAsync(seeded.Tenant, seeded.Stall);   // space 7: three late months, three penalties
+
+        await using var read = db.CreateContext(seeded.Tenant);
+        var reports = new FacilityReportsRepository(read);
+        var register = await reports.GetBillingRegisterAsync(FacilityCode.TCC, CancellationToken.None);
+
+        Assert.NotNull(register);
+        Assert.Equal(["7", "8", "10"], register.Rows.Select(r => r.StallNo));
+        foreach (var row in register.Rows)
+        {
+            var s = await reports.GetStallStatementAsync(row.StallId, CancellationToken.None);
+            Assert.NotNull(s);
+            Assert.Equal((s.ArrearsMonths + s.DelinquentMonths, s.PreviousBalance, s.CurrentCharges, s.Payments, s.CurrentBalance, s.UtilityBalance, s.PenaltiesDue, s.TotalDue),
+                (row.PreviousMonths, row.PreviousBalance, row.Charges, row.Paid, row.Balance, row.UtilityBalance, row.PenaltiesDue, row.TotalDue));
+            Assert.Equal((s.PaidAheadMonths, s.PaidAhead, s.PaidAheadThrough), (row.PaidAheadMonths, row.PaidAhead, row.PaidAheadThrough));
+        }
+        // Not vacuous: each kind of figure is really there.
+        Assert.Equal((3, 3 * Rate, 60m), (register.Rows[0].PreviousMonths, register.Rows[0].PreviousBalance, register.Rows[0].PenaltiesDue));
+        Assert.Equal(600m, register.Rows[1].Balance);
+        Assert.Equal(0m, register.Rows[2].TotalDue);   // money paid ahead belongs to later bills: stated, never taken off what is due now
+        Assert.Equal((2, Rate + 400m, (DateOnly?)ThisMonth.AddMonths(2)), (register.Rows[2].PaidAheadMonths, register.Rows[2].PaidAhead, register.Rows[2].PaidAheadThrough));
+        Assert.Equal((0, 0m), (register.Rows[0].PaidAheadMonths, register.Rows[0].PaidAhead));
+        Assert.Null(await reports.GetBillingRegisterAsync(FacilityCode.NCC, CancellationToken.None));   // a facility this office does not have
+    }
+
+    [SkippableFact]
     public async Task EachLateMonth_GetsOneCharge_OnItsOwnUnpaidRent_AndNoCash()
     {
         var seeded = await SeedAsync("LAT-A", Penalised);
@@ -107,6 +156,48 @@ public class LatePenaltyTests(PostgresFixture db)
         await using var read = db.CreateContext(seeded.Tenant);
         Assert.Empty(await read.Collections.ToListAsync());
         Assert.Empty(await read.PaymentRecords.ToListAsync());
+    }
+
+    [SkippableFact]
+    public async Task UnderSec168_EachLateMonth_GetsOneSurcharge_AndInterestEachMonth_AndTheStatementAndRegisterStateThemApart()
+    {
+        // Clint's worked example: ₱1,000 rent unpaid for three months. 25% surcharge on each, 2% a month on rent and surcharge:
+        // oldest 3 months of interest, then 2, then 1. Surcharges ₱750 + interest ₱150 = ₱900; with this month's ₱1,000, ₱4,900 due.
+        var rules = BillingPolicy.StallTrackDefaults with
+        {
+            PenaltyBasis = LatePenaltyBasis.PercentOfUnpaid, PenaltyValue = 25m, InterestPercent = 2m, InterestMaxMonths = 36, CountsMonthsFrom = Oldest
+        };
+        var seeded = await SeedAsync("LAT-S", rules);
+
+        Assert.Equal(9, await RunAsync(seeded.Tenant, seeded.Stall));
+        Assert.Equal(0, await RunAsync(seeded.Tenant, seeded.Stall));   // a rerun reaches nothing new
+
+        var fines = await AssessedAsync(seeded.Tenant);
+        Assert.Equal(3, fines.Count(f => f.PenaltyCode == FineAssessment.SurchargeCode));
+        Assert.All(fines.Where(f => f.PenaltyCode == FineAssessment.SurchargeCode), f => Assert.Equal(250m, f.AssessedAmount));
+        Assert.Equal(new[] { 3, 2, 1 }, fines.Where(f => f.PenaltyCode == FineAssessment.InterestCode).GroupBy(f => f.RelatedPeriodStart).Select(g => g.Count()));
+        Assert.All(fines.Where(f => f.PenaltyCode == FineAssessment.InterestCode), f => Assert.Equal(25m, f.AssessedAmount));
+        Assert.All(fines, f => Assert.True(f.IsLatePenalty));
+
+        await using var read = db.CreateContext(seeded.Tenant);
+        var reports = new FacilityReportsRepository(read);
+        var statement = (await reports.GetStallStatementAsync(seeded.Stall, CancellationToken.None))!;
+        Assert.Equal((3_000m, 750m, 150m, 0m), (statement.PreviousBalance, statement.Surcharges, statement.Interest, statement.OtherPenalties));
+        Assert.Equal(3_900m, statement.OverdueBalance);
+        Assert.Equal(4_900m, statement.TotalDue);
+        Assert.Equal((25m, 2m), (statement.SurchargePercent, statement.InterestPercent));
+        Assert.Equal(new LateChargeMonthDto(Oldest.Year, Oldest.Month, 250m, 75m), statement.LateCharges![0]);
+
+        var row = Assert.Single((await reports.GetBillingRegisterAsync(FacilityCode.TCC, CancellationToken.None))!.Rows);
+        Assert.Equal((750m, 150m, 0m, statement.TotalDue), (row.Surcharge, row.Interest, row.OtherPenalties, row.TotalDue));
+
+        // The Fines register: the account once, with the same figures; office-wide the charges are not listed one by one, the account's own read still lists all nine.
+        var register = Fines(read, seeded.Tenant);
+        var account = Assert.Single((await register.LateChargesAsync()).Value!);
+        Assert.Equal((3, 750m, 150m, 0m, 900m, seeded.Stall, FacilityCode.TCC),
+            (account.Months, account.Surcharge, account.Interest, account.Settled, account.Remaining, account.StallId, account.Facility));
+        Assert.Empty((await register.ReadAsync()).Value!);
+        Assert.Equal(9, (await register.ReadAsync(account.Account.Kind, account.Account.AccountId)).Value!.Count);
     }
 
     [SkippableFact]

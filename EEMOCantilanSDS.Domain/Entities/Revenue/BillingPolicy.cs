@@ -10,6 +10,8 @@ public enum LatePenaltyBasis { None = 0, PercentOfUnpaid = 1, FixedAmount = 2 }
 /// until the Head sets one.
 /// </summary>
 /// <param name="CountsMonthsFrom">The first of the month these rules begin at (IA-075). A term can begin years before an office kept its records here, so an earlier month with no record says nothing about whether it was paid.</param>
+/// <param name="InterestPercent">Interest a month on a late month's unpaid rent and its surcharge (RA 7160 Sec. 168, ruled 2026-11-24). With it set, the penalty above is the one-time surcharge.</param>
+/// <param name="InterestMaxMonths">The most months interest is charged on one late month (Sec. 168 allows 36).</param>
 public sealed record BillingPolicy(
     int? DueDay,
     int GraceDays,
@@ -20,7 +22,9 @@ public sealed record BillingPolicy(
     decimal? PenaltyValue,
     bool PenaltyRepeatsMonthly,
     decimal? PenaltyMonthCap,
-    DateOnly CountsMonthsFrom)
+    DateOnly CountsMonthsFrom,
+    decimal? InterestPercent = null,
+    int? InterestMaxMonths = null)
 {
     public static readonly BillingPolicy StallTrackDefaults = new(null, 0, true, 3, true, LatePenaltyBasis.None, null, false, null, new DateOnly(2026, 12, 1));
 
@@ -37,7 +41,27 @@ public sealed record BillingPolicy(
         return new DateOnly(year, month, DueDay is { } day ? Math.Min(day, last) : last);
     }
 
-    public bool ChargesPenalty => PenaltyBasis != LatePenaltyBasis.None && PenaltyValue > 0m;
+    public bool ChargesSurcharge => PenaltyBasis != LatePenaltyBasis.None && PenaltyValue > 0m;
+
+    public bool ChargesInterest => InterestPercent > 0m;
+
+    /// <summary>Whether a late month is charged anything: under the 2026-11-24 rules a one-time surcharge and monthly interest, before them one penalty.</summary>
+    public bool ChargesPenalty => ChargesSurcharge || ChargesInterest;
+
+    /// <summary>One month's interest on what a late month still owes, its rent and unpaid surcharge together.</summary>
+    public decimal InterestFor(decimal unpaidWithSurcharge) =>
+        decimal.Round(unpaidWithSurcharge * (InterestPercent ?? 0m) / 100m, 2, MidpointRounding.AwayFromZero);
+
+    /// <summary>How many months of interest a late month has reached: the first on its first late day, one more each month after, up to the limit.</summary>
+    public int InterestMonthsReached(int year, int month, DateOnly today)
+    {
+        if (!ChargesInterest) return 0;
+        var firstLate = FirstLateDay(year, month);
+        if (today < firstLate) return 0;
+        var months = 1;
+        while (firstLate.AddMonths(months) <= today) months++;
+        return InterestMaxMonths is { } most ? Math.Min(months, most) : months;
+    }
 
     /// <summary>One penalty charge on what a month still owes. Worked on the rent only, so a penalty never earns a penalty.</summary>
     public decimal PenaltyFor(decimal unpaid) => PenaltyBasis == LatePenaltyBasis.PercentOfUnpaid
@@ -73,6 +97,10 @@ public sealed record BillingPolicy(
         if (MaxAdvanceMonths is < 0 or > 12) return "Months payable ahead must be from 0 to 12.";
         if (CountsMonthsFrom.Year < 2000 || CountsMonthsFrom.Day != 1) return "Choose the month unpaid rent is counted from.";
         if (!Enum.IsDefined(PenaltyBasis)) return "Choose how the late penalty is worked out.";
+        if (InterestPercent is { } interest && (interest <= 0m || interest > 100m || decimal.Round(interest, 2) != interest)) return "Enter a monthly interest rate above 0 and up to 100, with at most two decimals.";
+        if (InterestMaxMonths is < 1 or > 360) return "Interest can run for 1 to 360 months.";
+        if (InterestMaxMonths is not null && InterestPercent is null) return "Set the monthly interest rate before its limit.";
+        if (InterestPercent is not null && PenaltyRepeatsMonthly) return "With monthly interest, the surcharge is charged once.";
         if (PenaltyBasis == LatePenaltyBasis.None)
             return PenaltyValue is not null || PenaltyRepeatsMonthly || PenaltyMonthCap is not null ? "Choose how the late penalty is worked out before giving it a rate." : null;
         if (PenaltyValue is not > 0m || decimal.Round(PenaltyValue.Value, 2) != PenaltyValue) return "Enter a positive penalty rate with at most two decimals.";
@@ -97,6 +125,8 @@ public sealed class BillingPolicyVersion : BaseEntity, IMunicipalityOwned
     public bool PenaltyRepeatsMonthly { get; private set; }
     public decimal? PenaltyMonthCap { get; private set; }
     public DateOnly CountsMonthsFrom { get; private set; }
+    public decimal? InterestPercent { get; private set; }
+    public int? InterestMaxMonths { get; private set; }
     public string? GoverningReference { get; private set; }
     public Guid ActorId { get; private set; }
     public DateTime RecordedAtUtc { get; private set; }
@@ -104,7 +134,7 @@ public sealed class BillingPolicyVersion : BaseEntity, IMunicipalityOwned
     private BillingPolicyVersion() { }
 
     public BillingPolicy Rules => new(DueDay, GraceDays, OldestMonthFirst, MaxAdvanceMonths, AnnualPaymentAllowed,
-        PenaltyBasis, PenaltyValue, PenaltyRepeatsMonthly, PenaltyMonthCap, CountsMonthsFrom);
+        PenaltyBasis, PenaltyValue, PenaltyRepeatsMonthly, PenaltyMonthCap, CountsMonthsFrom, InterestPercent, InterestMaxMonths);
 
     public static BillingPolicyVersion Create(Guid tenant, DateOnly effectiveFrom, DateOnly today, BillingPolicy rules, string? reference, Guid actor, DateTime now)
     {
@@ -120,7 +150,7 @@ public sealed class BillingPolicyVersion : BaseEntity, IMunicipalityOwned
             MunicipalityId = tenant, EffectiveFrom = effectiveFrom, DueDay = rules.DueDay, GraceDays = rules.GraceDays,
             OldestMonthFirst = rules.OldestMonthFirst, MaxAdvanceMonths = rules.MaxAdvanceMonths, AnnualPaymentAllowed = rules.AnnualPaymentAllowed,
             PenaltyBasis = rules.PenaltyBasis, PenaltyValue = rules.PenaltyValue, PenaltyRepeatsMonthly = rules.PenaltyRepeatsMonthly, PenaltyMonthCap = rules.PenaltyMonthCap,
-            CountsMonthsFrom = rules.CountsMonthsFrom, GoverningReference = governing, ActorId = actor, RecordedAtUtc = now
+            CountsMonthsFrom = rules.CountsMonthsFrom, InterestPercent = rules.InterestPercent, InterestMaxMonths = rules.InterestMaxMonths, GoverningReference = governing, ActorId = actor, RecordedAtUtc = now
         };
     }
 

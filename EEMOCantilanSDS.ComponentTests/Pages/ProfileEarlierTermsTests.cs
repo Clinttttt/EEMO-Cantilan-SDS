@@ -120,11 +120,40 @@ public class ProfileEarlierTermsTests : TestContext
 
         page.WaitForAssertion(() =>
         {
-            var rows = page.FindAll(".prof-stmt-row").Select(r => r.TextContent).ToList();
-            Assert.Contains(rows, r => r.Contains("Fines and late penalties") && r.Contains("₱60.00"));
-            Assert.Contains(rows, r => r.Contains("This month is due") && r.Contains("Nov 30, 2026"));
-            Assert.Contains(rows, r => r.Contains("Total due") && r.Contains("₱11,680.00"));
+            var rows = page.FindAll(".acct-row").Select(r => r.TextContent).ToList();
+            Assert.Contains(rows, r => r.Contains("Other fines and penalties") && r.Contains("₱60.00"));
+            Assert.Contains(rows, r => r.Contains("November 2026 rent") && r.Contains("due Nov 30"));
+            Assert.Contains(rows, r => r.Contains("Total amount due") && r.Contains("₱11,680.00"));
         }, RenderTimeout);
+    }
+
+    [Fact]
+    public void LateMonths_StateTheirSurchargeAndInterest_ApartFromTheRent_AndEachMonthOnItsOwnLine()
+    {
+        statementForFixture = Result<StallStatementDto>.Success(Statement() with
+        {
+            UnpaidMonths = [new UnpaidMonthDto(2026, 9, 1_000m), new UnpaidMonthDto(2026, 10, 1_000m)],
+            PenaltiesDue = 575m,
+            LateCharges = [new LateChargeMonthDto(2026, 9, 250m, 50m), new LateChargeMonthDto(2026, 10, 250m, 25m)],
+            SurchargePercent = 25m,
+            InterestPercent = 2m,
+        });
+
+        var page = RenderProfile("Rosa Magbanua");
+
+        page.WaitForAssertion(() =>
+        {
+            var rows = page.FindAll(".acct-row").Select(r => r.TextContent).ToList();
+            Assert.Contains(rows, r => r.Contains("Surcharges (25%)") && r.Contains("₱500.00"));
+            Assert.Contains(rows, r => r.Contains("Accrued interest (2% a month)") && r.Contains("₱75.00"));
+            Assert.Contains(rows, r => r.Contains("Total overdue balance") && r.Contains("₱11,375.00"));   // unpaid rent 10,800 + 500 + 75
+            Assert.DoesNotContain(rows, r => r.Contains("Other fines"));
+            Assert.Contains(rows, r => r.Contains("Total amount due") && r.Contains("₱12,195.00"));
+        }, RenderTimeout);
+        Assert.Contains("September–October 2026", page.Find(".acct-head").TextContent);
+        var september = page.FindAll(".acct-months tbody tr")[0].TextContent;
+        Assert.Contains("Sep 2026", september);
+        Assert.Contains("1,300.00", september);   // 1,000 rent + 250 surcharge + 50 interest
     }
 
     [Fact]
@@ -139,7 +168,7 @@ public class ProfileEarlierTermsTests : TestContext
             var note = page.Find(".prof-stmt-note");
             Assert.Contains("₱900.00", note.TextContent);
             Assert.Contains("December 2026", note.TextContent);
-            Assert.Contains(page.FindAll(".prof-stmt-row"), r => r.TextContent.Contains("Total due") && r.TextContent.Contains("₱11,620.00"));
+            Assert.Contains(page.FindAll(".acct-row"), r => r.TextContent.Contains("Total amount due") && r.TextContent.Contains("₱11,620.00"));
         }, RenderTimeout);
     }
 
@@ -150,7 +179,7 @@ public class ProfileEarlierTermsTests : TestContext
 
         var page = RenderProfile("Rosa Magbanua");
 
-        page.WaitForAssertion(() => Assert.Contains("Total due", page.Markup), RenderTimeout);
+        page.WaitForAssertion(() => Assert.Contains("Total amount due", page.Markup), RenderTimeout);
         Assert.Empty(page.FindAll(".prof-stmt-note"));
     }
 
@@ -161,9 +190,9 @@ public class ProfileEarlierTermsTests : TestContext
 
         var page = RenderProfile("Rosa Magbanua");
 
-        page.WaitForAssertion(() => Assert.Contains("Total due", page.Markup), RenderTimeout);
-        Assert.DoesNotContain("Fines and late penalties", page.Markup);
-        Assert.DoesNotContain("This month is due", page.Markup);
+        page.WaitForAssertion(() => Assert.Contains("Total amount due", page.Markup), RenderTimeout);
+        Assert.DoesNotContain("Other fines and penalties", page.Markup);
+        Assert.DoesNotContain("due Nov", page.Markup);
     }
 
     [Fact]
@@ -175,14 +204,14 @@ public class ProfileEarlierTermsTests : TestContext
 
         page.WaitForAssertion(() =>
         {
-            var rows = page.FindAll(".prof-stmt-row").Select(r => r.TextContent).ToList();
-            Assert.Contains(rows, r => r.Contains("Previous balance") && r.Contains("₱10,800.00"));
+            var rows = page.FindAll(".acct-row").Select(r => r.TextContent).ToList();
+            Assert.Contains(rows, r => r.Contains("Unpaid rent") && r.Contains("₱10,800.00"));
             Assert.Contains(rows, r => r.Contains("Arrears") && r.Contains("10 months") && r.Contains("₱9,000.00"));
             Assert.Contains(rows, r => r.Contains("Delinquent") && r.Contains("2 months") && r.Contains("₱1,800.00"));
             Assert.Contains(rows, r => r.Contains("Electricity and water") && r.Contains("₱220.00"));
-            Assert.Contains(rows, r => r.Contains("Charges this month") && r.Contains("₱900.00"));
-            Assert.Contains(rows, r => r.Contains("Paid this month") && r.Contains("−₱300.00"));
-            Assert.Contains(rows, r => r.Contains("Total due") && r.Contains("₱11,620.00"));
+            Assert.Contains(rows, r => r.Contains("₱900.00 billed"));
+            Assert.Contains(rows, r => r.Contains("₱300.00 paid"));
+            Assert.Contains(rows, r => r.Contains("Total amount due") && r.Contains("₱11,620.00"));
         }, RenderTimeout);
     }
 
@@ -210,7 +239,7 @@ public class ProfileEarlierTermsTests : TestContext
         page.WaitForAssertion(() =>
         {
             Assert.Contains("could not be read", page.Find(".prof-stmt-failed").TextContent);
-            Assert.Empty(page.FindAll(".prof-stmt-row"));
+            Assert.Empty(page.FindAll(".acct-row"));
         }, RenderTimeout);
     }
 

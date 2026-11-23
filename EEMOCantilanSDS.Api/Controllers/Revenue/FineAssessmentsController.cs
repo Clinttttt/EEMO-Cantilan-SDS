@@ -11,6 +11,8 @@ public sealed class FineAssessmentsController(ISender sender, FineAssessmentWork
 {
     [HttpGet] public async Task<ActionResult<IReadOnlyList<FineAssessmentDto>>> Read(FineAccountKind? kind, Guid? accountId, string? search, CancellationToken ct)
         => HandleResponse(await workflow.ReadAsync(kind, accountId, search, ct));
+    [HttpGet("late-charges")] public async Task<ActionResult<IReadOnlyList<LateChargeAccountDto>>> LateCharges(string? search, CancellationToken ct)
+        => HandleResponse(await workflow.LateChargesAsync(search, ct));
     [HttpGet("accounts")] public async Task<ActionResult<IReadOnlyList<FineAccountOption>>> Accounts(string? search, CancellationToken ct)
         => HandleResponse(await workflow.SearchAccountsAsync(search, ct));
     [HttpGet("accounts/{kind}/{id:guid}")] public async Task<ActionResult<FineAccountOption>> Account(FineAccountKind kind, Guid id, CancellationToken ct)

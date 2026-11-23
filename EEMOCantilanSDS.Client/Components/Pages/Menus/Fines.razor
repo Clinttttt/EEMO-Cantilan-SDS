@@ -20,7 +20,7 @@
         <Figures>
             <V3HeroFigure Label="@($"Collected · {PeriodLabel}")" Value="@HeroMoney(_summary?.Collected)" Note="@(_summaryError ? "Unavailable right now" : null)" />
             <V3HeroFigure Label="Direct fine collections" Value="@HeroMoney(_summary?.DirectCollected)" Note="@(_summaryError ? "Unavailable right now" : null)" />
-            <V3HeroFigure Label="Outstanding assessments" Value="@HeroMoney(_summary?.OutstandingAssessed)" Note="@(_summary is null ? (_summaryError ? "Unavailable right now" : "Loading…") : $"{_summary.OutstandingAssessments} unpaid · not yet collected")" />
+            <V3HeroFigure Label="Outstanding assessments" Value="@HeroMoney(_summary?.OutstandingAssessed)" Note="@(_summary is null ? (_summaryError ? "Unavailable right now" : "Loading…") : "Not yet collected")" />
         </Figures>
     </V3Hero>
 

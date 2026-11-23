@@ -23,6 +23,10 @@
         else
         {
             <p class="review-scope">As of @PhilippineTime.Today.ToString("MMM d, yyyy")@if (Context.SnapshotDate != PhilippineTime.Today) { <span> · Queue dated @Context.SnapshotDate.ToString("MMM d, yyyy")</span> }</p>
+            @if (_statement is { } statement)
+            {
+                <section class="review-account-summary" aria-labelledby="review-acct-h"><h3 id="review-acct-h">Account summary</h3><AccountSummary Statement="statement" /></section>
+            }
             @if (_hasLedger && (Owed.Any() || Context.FacilityItem?.ReasonKind != "contract"))
             {
                 @if (Context.FacilityItem is { ReasonKind: "delinquent" or "arrears" or "current", Amount: { } queueAmount })
@@ -164,6 +168,8 @@
     private List<Period> _periods = [];
     private ObligationAccountDto? _account;
     private bool _loading = true, _hasLedger;
+    // The space's present account as its Statement of Account states it (rent, surcharge, interest), shown only for a row of that same account.
+    private EEMOCantilanSDS.Application.Dtos.Facilities.StallStatementDto? _statement;
     private bool _assessingFine, _head, _focusNeedsBind=true;
     private int _fineRefreshVersion;
     private Guid? _payingFine;
@@ -244,7 +250,7 @@
     }
     private async Task Load()
     {
-        _loading = true; _error = null; _periods = []; _account = null; _hasLedger = false; _reconciliationWarning = null; _facilityFineAccount=null; _verifiedOccupant=null; _fineAccountError=null;
+        _loading = true; _error = null; _periods = []; _account = null; _hasLedger = false; _statement = null; _reconciliationWarning = null; _facilityFineAccount=null; _verifiedOccupant=null; _fineAccountError=null;
         try
         {
             if (Context.ObligationItem is { } obligation)
@@ -282,6 +288,13 @@
                     _periods.Add(new(date, date.ToString("MMMM yyyy"), p.TotalBill, p.AmountPaid, p.BalanceDue, true, p.ORNumber, p.PaidAt));
                 }
                 _periods = _periods.OrderBy(p => p.Date).ToList(); _hasLedger = true;
+                // Best effort: the periods above stand on their own if the statement cannot be read.
+                try
+                {
+                    var statement = await Payments.GetStallStatementAsync(id);
+                    _statement = statement is { IsSuccess: true, Value: { } s } && (item.ContractId is null || s.ContractId == item.ContractId) ? s : null;
+                }
+                catch { _statement = null; }
             }
             await ResolveFineAccount();
         }

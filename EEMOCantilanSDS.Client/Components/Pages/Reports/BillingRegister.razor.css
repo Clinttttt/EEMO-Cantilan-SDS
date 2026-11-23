@@ -1,0 +1,136 @@
+.br-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.br-scope {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+}
+
+.br-view .v3-btn[aria-pressed="true"],
+.br-view .v3-btn[aria-pressed="true"]:hover {
+    background: var(--surface-blue-subtle);
+    color: var(--accent);
+}
+
+.br-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.br-loading {
+    display: grid;
+    gap: 12px;
+    padding: 24px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+}
+
+.br-meta {
+    margin: 0 0 12px;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+.br-meta:has(+ .br-rules) { margin-bottom: 2px; }
+
+/* The sheet's bordered cells come from OfficeReportShell; this only sets the register's own column rules. */
+.br-table th[scope="colgroup"] {
+    text-align: center;
+}
+
+.br-table thead th {
+    vertical-align: bottom;
+}
+
+.br-table td {
+    white-space: nowrap;
+}
+
+.br-table td:nth-child(2) {
+    white-space: normal;
+    min-width: 10rem;
+}
+
+.br-space a {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.br-space a:hover {
+    text-decoration: underline;
+}
+
+.br-space a:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+}
+
+.br-or {
+    font-variant-numeric: tabular-nums;
+}
+
+.br-total {
+    font-weight: 700;
+}
+
+.br-through {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.br-band th {
+    background: var(--surface-muted);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.br-none {
+    padding: 28px 12px;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+.br-wrap:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+@media print {
+    .br-meta {
+        margin-bottom: 8px;
+        color: #374151;
+        font-size: 10.5px;
+    }
+
+    .br-space a {
+        color: inherit;
+        font-weight: 600;
+    }
+
+    .br-band th {
+        background: none;
+        color: #111827;
+        font-size: 9.5px;
+    }
+
+    .br-table td:nth-child(2) {
+        min-width: 0;
+    }
+}
