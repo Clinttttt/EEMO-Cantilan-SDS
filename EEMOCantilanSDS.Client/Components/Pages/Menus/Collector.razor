@@ -949,7 +949,7 @@
             FullName = c.FullName,
             EmployeeId = c.EmployeeId,
             ContactNumber = "",
-            Email = c.Email,
+            Email = c.Email ?? string.Empty,   // a collector saved without an email arrives as null and would crash Save
             Username = "",
             Password = string.Empty,
             AssignedFacilities = new(c.AssignedFacilities)
