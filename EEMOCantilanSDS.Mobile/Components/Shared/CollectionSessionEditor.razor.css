@@ -175,4 +175,7 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-monthly-route .collection-small { justify-self: start; }
 
 /* The one-receipt field sits under the item list's divider: breathing room above its label so it does not crowd the line. */
-.form-field.sheet-receipt { padding-top: 16px; }
+.form-field.sheet-receipt { display: block; padding-top: 16px; }   /* a <label> is inline: without block its padding never moved it off the divider */
+/* The last item's divider sits midway between "Remove" and the receipt field, and the note stays close to its input. */
+.item-row:has(+ .sheet-receipt) { padding-bottom: 16px; }
+.sheet-receipt + .sheet-note { padding-top: 6px; }

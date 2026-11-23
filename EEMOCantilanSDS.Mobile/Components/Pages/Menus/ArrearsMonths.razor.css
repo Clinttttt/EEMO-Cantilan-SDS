@@ -22,13 +22,16 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .collection-small:disabled, .collection-secondary:disabled { border-color: #c3cfdc; color: #46586d; background: transparent; }
 .collection-primary:disabled { border-color: #d5dde7; background: #d5dde7; color: #3b4d62; }
 
-.collection-entry .form-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--mobile-text-secondary); }
+.collection-entry .form-label { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--mobile-text-secondary); }
 .collection-entry .form-optional { font-weight: 400; color: var(--mobile-text-secondary); }
 .collection-entry .form-input, .sheet .form-input { min-height: 46px; padding: 10px 14px; border: 1px solid var(--mobile-border); border-radius: 12px; background: var(--mobile-surface); color: var(--mobile-text); font-size: 16px; }
 .collection-entry .form-input:focus, .sheet .form-input:focus { border-color: var(--mobile-blue); box-shadow: inset 0 0 0 1px var(--mobile-blue); background: var(--mobile-surface); }
 .sheet .form-field { display: block; margin: 0 0 14px; }
 .sheet .form-field .form-input { display: block; width: 100%; box-sizing: border-box; }
-.form-field.sheet-receipt { padding-top: 16px; }
+.form-field.sheet-receipt { display: block; padding-top: 16px; }   /* a <label> is inline: without block its padding never moved it off the divider */
+/* The last item's divider sits midway between "Remove" and the receipt field, and the note stays close to its input. */
+.item-row:has(+ .sheet-receipt) { padding-bottom: 16px; }
+.sheet-receipt + .sheet-note { padding-top: 6px; }
 
 .payer-selected { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 8px; }
 .payer-name { min-width: 0; overflow-wrap: anywhere; font-size: 17px; font-weight: 700; line-height: 1.25; color: var(--mobile-navy); }

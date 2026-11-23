@@ -53,4 +53,21 @@ public class UnpaidMonthPaymentTests
         var (charges, error) = UnpaidMonthPayment.Plan([], "100");
         Assert.Empty(charges); Assert.NotNull(error);
     }
+
+    [Fact]
+    public void Under_oldest_first_a_month_brings_the_earlier_ones_and_dropping_one_drops_the_later_ones()
+    {
+        MobileUnpaidMonthDto Ordered(int month) => Month(month) with { InOrder = true };
+        var free = Month(1);                                            // before the rules begin: payable out of turn
+        MobileUnpaidMonthDto[] open = [free, Ordered(2), Ordered(8), Ordered(9), Ordered(10)];
+
+        Assert.Equal([2, 8, 9], UnpaidMonthPayment.WithEarlier(open, [Ordered(9)]).Select(m => m.Month));   // February and September never leave August behind
+        Assert.Equal([1], UnpaidMonthPayment.WithEarlier(open, [free]).Select(m => m.Month));
+        Assert.Equal([8, 9, 10], UnpaidMonthPayment.WithLater(open, [Ordered(8)]).Select(m => m.Month));
+
+        // With the rule off the server marks nothing, and a tap picks only itself.
+        MobileUnpaidMonthDto[] unordered = [Month(2), Month(8), Month(9)];
+        Assert.Equal([9], UnpaidMonthPayment.WithEarlier(unordered, [Month(9)]).Select(m => m.Month));
+        Assert.Equal([8], UnpaidMonthPayment.WithLater(unordered, [Month(8)]).Select(m => m.Month));
+    }
 }

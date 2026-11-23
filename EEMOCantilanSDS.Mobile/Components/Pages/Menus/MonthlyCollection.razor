@@ -203,6 +203,19 @@
                 </div>
             </div>
 
+            @if (_earlier.Count > 0)
+            {
+                @* The space's older unpaid months, as the server lists them. Tapping opens the unpaid-months screen, which collects them oldest first. *@
+                <button class="earlier-card" type="button" @onclick="OpenEarlier">
+                    <span class="earlier-info">
+                        <span class="earlier-label">Unpaid before @MonthLabel</span>
+                        <span class="earlier-detail">@_earlier.Count @(_earlier.Count == 1 ? "month" : "months") · from @(new DateTime(_earlier[0].Year, _earlier[0].Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))</span>
+                    </span>
+                    <span class="earlier-amount">₱@_earlier.Sum(m => m.BalanceDue).ToString("N2", CultureInfo.InvariantCulture)</span>
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+            }
+
             @* The server's own figures for this account and month: obligation, what has been paid, and what remains. *@
             <dl class="money-rows" aria-label="Monthly obligation">
                 <div class="money-row"><dt>Monthly obligation</dt><dd>@FormatCurrency(SelectedStall.MonthlyRate)</dd></div>
@@ -600,6 +613,13 @@
     // dedicated command, not generic record-payment); everything else opens the record-payment sheet.
     private void OnCardTap(MobileMonthlyStallCollectionDto stall)
     {
+        // A payment saved on this device is already taken: the server still reads the month as unpaid until it syncs, so reopening the
+        // sheet would offer the same month again (a second collection offline, a confusing refusal online). Say where it stands instead.
+        if (IsQueuedOffline(stall))
+        {
+            RentNotice = $"{stall.PayorName}'s payment is saved on this device. It is recorded when the app reaches the office; Records lists it until then.";
+            return;
+        }
         // Encoding an OR for an online payment needs the server, so offline we just open the read-only view.
         if (Sync.IsOnline && stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue)
             OpenEncodeOr(stall);
@@ -1086,6 +1106,32 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         ORNumber = stall.ORNumber ?? string.Empty;
         SheetError = null;
         ShowSheet = true;
+        _earlier = [];
+        _ = LoadEarlierAsync(stall.StallId);
+    }
+
+    // The space's unpaid months before the one on screen, read live each time the sheet opens (never from a device cache). Empty when none or unreadable:
+    // the card only adds information, and the server still refuses a newer month while an older one is open.
+    private IReadOnlyList<MobileUnpaidMonthDto> _earlier = [];
+
+    private async Task LoadEarlierAsync(Guid stallId)
+    {
+        try
+        {
+            var result = await MobileApi.GetUnpaidMonthsAsync(stallId);
+            if (!result.IsSuccess || result.Value is not { } months || SelectedStall?.StallId != stallId) return;
+            var shown = new DateOnly(SelectedYear, SelectedMonth, 1);
+            _earlier = months.Where(m => m.BalanceDue > 0m && new DateOnly(m.Year, m.Month, 1) < shown).OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception) { /* offline or refused: the sheet works without the card */ }
+    }
+
+    private void OpenEarlier()
+    {
+        if (SelectedStall is not { } stall) return;
+        Navigation.NavigateTo($"/arrears/months?stall={stall.StallId}&back={Uri.EscapeDataString("/collect/" + Facility)}"
+            + $"&payer={Uri.EscapeDataString(stall.PayorName)}&space={Uri.EscapeDataString("Stall " + stall.StallNo)}");
     }
 
     private void SelectStatus(PaymentStatus status)
@@ -1306,6 +1352,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
     {
         ShowSheet = false;
         SelectedStall = null;
+        _earlier = [];
         SelectedStatus = PaymentStatus.Paid;
         PartialAmount = null;
         ORNumber = string.Empty;

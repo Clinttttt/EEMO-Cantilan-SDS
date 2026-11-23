@@ -10,12 +10,16 @@ namespace EEMOCantilanSDS.Mobile.Platform;
 /// </summary>
 public sealed class MauiConnectivityMonitor : IConnectivityMonitor
 {
+    // A Debug build pointed at an API on this machine reaches it whatever Windows says about the internet, so only a failed request
+    // means offline there. Release builds use the production API (never loopback) and keep the platform's answer.
+    private readonly bool _apiOnThisMachine = Uri.TryCreate(MauiProgram.GetApiBaseUrl(), UriKind.Absolute, out var api) && api.IsLoopback;
+
     public MauiConnectivityMonitor()
     {
         Connectivity.Current.ConnectivityChanged += OnConnectivityChanged;
     }
 
-    public bool IsOnline => Connectivity.Current.NetworkAccess == NetworkAccess.Internet;
+    public bool IsOnline => _apiOnThisMachine || Connectivity.Current.NetworkAccess == NetworkAccess.Internet;
 
     public event Action? ConnectivityRestored;
 

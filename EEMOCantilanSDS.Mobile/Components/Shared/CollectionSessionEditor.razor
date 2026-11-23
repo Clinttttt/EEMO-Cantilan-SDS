@@ -225,7 +225,7 @@ else
                 var problem = _quote?.Problems.Any(x => x.ClientItemId == item.ClientItemId) == true;
                 var shown = _shown.GetValueOrDefault(item.ClientItemId);
                 @* A Terminal row always reads as the official section with how it was entered, never as the server's repeated operation name. *@
-                var own = (item.Native?.OperationCode == CollectorOperationCodes.Terminal || item.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water) && shown is not null;
+                var own = (item.Native?.OperationCode == CollectorOperationCodes.Terminal || item.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water or CollectionSessionItemKind.FineAssessment) && shown is not null;
                 <div class="item-row @(problem ? "item-row-problem" : "")">
                     <div class="item-main">
                         <strong class="item-name">@(own ? shown!.Name : quote?.DisplayName ?? shown?.Name ?? RecoveredItemName(item))</strong>
@@ -243,8 +243,8 @@ else
             }
             @if (Correction is null && ReferenceOffered)
             {
-                <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
-                <div class="sheet-note">@(_items.Count > 1 ? "One reference for these charges. It is for reference only; registration is not required." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
+                <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">(optional)</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_spaceReceipt" @onchange="OnSpaceReceiptChanged" /></label>
+                <div class="sheet-note">@(_items.Count > 1 ? "Covers all items; for reference only." : "For reference only; not verified.")</div>
             }
         </section>
         @if (_supersededSessionId.HasValue)
@@ -385,7 +385,7 @@ else
                 }
                 else if (Choices.Count == 1)
                 {
-                    <div class="sheet-source"><strong>@Choices[0].DisplayName</strong>@if (!string.IsNullOrWhiteSpace(Choices[0].Context)) { <span>@Choices[0].Context</span> }</div>
+                    <div class="sheet-source"><strong>@(Choices[0].Kind == CollectionSessionItemKind.FineAssessment ? FineName(Choices[0].DisplayName) : Choices[0].DisplayName)</strong>@if (!string.IsNullOrWhiteSpace(Choices[0].Context)) { <span>@Choices[0].Context</span> }</div>
                 }
                 else if (IsSpaceMonths)
                 {
@@ -395,6 +395,12 @@ else
                         <div class="sheet-meta"><span>@_months.Count months, each at its full balance</span><strong>@Money(MultiTotal)</strong></div>
                         <div class="sheet-note">Edit an item afterwards to take a part payment.</div>
                     }
+                }
+                else if (IsFineGroup)
+                {
+                    <div class="sheet-source"><strong>@string.Join(", ", Choices.Select(c => FineName(c.DisplayName)).Distinct())</strong><span>@Choices.Count penalties</span></div>
+                    <div class="sheet-meta"><span>Total</span><strong>@Money(FineTotal)</strong></div>
+                    <div class="sheet-meta"><span>Instrument</span><strong>@Instrument(Choices[0].Instrument)</strong></div>
                 }
                 else
                 {
@@ -440,15 +446,13 @@ else
                         }
                         <div class="sheet-note">Approved amount confirmed on review</div>
                     }
-                    @if (_choice.Kind == CollectionSessionItemKind.FineAssessment)
-                    { <div class="sheet-note">Full outstanding assessed fine · Official Receipt. The server verifies the remaining amount before recording.</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmWholePayment) { <div class="sheet-note">Remaining monthly rent is confirmed on review</div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmDaily)
                     {
                         <label class="form-field"><span class="form-label">Official Receipt No. (Optional)</span><input class="form-input" type="text" maxlength="100" @bind="_npmReceipt" /></label>
                     }
                     @if (_choice.Kind == CollectionSessionItemKind.FineAssessment && _choice.MaximumAmount is { } fineCap)
-                    { <div class="sheet-note">Outstanding assessed fine: @Money(fineCap). The amount is pre-filled; a partial amount can be entered. The remaining balance is confirmed on review.</div> }
+                    { <div class="sheet-meta"><span>Outstanding</span><strong>@Money(fineCap)</strong></div> }
                     @if (_choice.Kind == CollectionSessionItemKind.NpmPartPayment) { <div class="sheet-note">Applied to the oldest unpaid day first. The server shows how it is applied on review@(_choice.MaximumAmount is { } most ? $" · up to {Money(most)} is payable now" : "").</div> }
                     @if (TakesTypedAmount)
                     {
@@ -462,7 +466,7 @@ else
                 <button class="btn-cancel" type="button" @onclick="CancelPicker">@(_confirmRepeat ? "Cancel" : "Close")</button>
                 @if (_operation is not null)
                 {
-                    <button class="btn-primary" type="button" disabled="@(!(CanAddItem || MultiMonths))" @onclick="AddOrAddMonths">@(MultiMonths ? $"Add {_months.Count} months" : _confirmRepeat ? "Continue" : "Add item")</button>
+                    <button class="btn-primary" type="button" disabled="@(!(CanAddItem || MultiMonths || IsFineGroup))" @onclick="AddOrAddMonths">@(MultiMonths ? $"Add {_months.Count} months" : IsFineGroup ? $"Add {Choices.Count} penalties" : _confirmRepeat ? "Continue" : "Add item")</button>
                 }
             </div>
         </section>
@@ -678,7 +682,8 @@ else
     {
         "NPM_DAILY" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " · Today",
         "NPM_WHOLE_PAYMENT" when row.Choices is [{ ServerAmount: { } amount }] => Money(amount) + " remaining",
-        RevenueClassificationCodes.PenaltiesAndFines when row.Choices is [{ ServerAmount: { } fine }] => Money(fine) + " outstanding",
+        RevenueClassificationCodes.PenaltiesAndFines when row.Choices is { Count: > 0 } fines && fines.All(c => c.ServerAmount is not null)
+            => Money(fines.Sum(c => c.ServerAmount!.Value)) + " outstanding",
         "NPM_PART_PAYMENT" when row.Choices is [{ MaximumAmount: { } most }] => "Any amount up to " + Money(most),
         _ => null
     };
@@ -1084,7 +1089,20 @@ else
         else { _choice = null; _choiceKey = ""; _amount = 0; _confirmRepeat = false; }
     }
 
-    private void AddOrAddMonths() { if (MultiMonths) AddMonths(); else AddItem(); }
+    private void AddOrAddMonths() { if (MultiMonths) AddMonths(); else if (IsFineGroup) AddFines(); else AddItem(); }
+
+    // Several assessed fines on one account read as one row and their total; each is still added as its own item at its full balance,
+    // since each fine is settled on its own. Editing one item afterwards takes a part payment.
+    private bool IsFineGroup => _editingId is null && Choices.Count > 1 && Choices.All(c => c.Kind == CollectionSessionItemKind.FineAssessment);
+    private decimal FineTotal => Choices.Sum(c => c.ServerAmount ?? 0m);
+
+    // Under a "Penalty" title, "Late payment penalty" reads as "Late payment". The office's own penalty name is otherwise shown as it is.
+    private static string FineName(string name) => name.EndsWith(" penalty", StringComparison.OrdinalIgnoreCase) ? name[..^" penalty".Length] : name;
+
+    private void AddFines()
+    {
+        foreach (var key in Choices.Select(c => c.SelectionKey).ToList()) { ChooseChoice(key); AddItem(); }
+    }
 
     private void AddMonths()
     {
@@ -1152,6 +1170,8 @@ else
         _shown[id] = IsTerminal ? new(TerminalDraftName(c), TerminalDraftContext(c))
             : c.Kind is CollectionSessionItemKind.Electricity or CollectionSessionItemKind.Water
                 ? new(_operation?.DisplayName ?? c.DisplayName, CleanContext(SourceName, c.DisplayName, c.Context))
+            // A fine reads as "Penalty", then what it is for and the month; the payer is already named at the top of the collection.
+            : c.Kind == CollectionSessionItemKind.FineAssessment ? new("Penalty", CleanContext(FineName(c.DisplayName), c.Context))
             : new(c.DisplayName, CleanContext(SourceName, c.Context));
         _drafts[id] = new(c.OperationCode, c.SelectionKey, _amount, _quantity, _heads, _owner, _termSection, _byVehicle, _slhPicked.Count > 0 ? new Dictionary<Guid, int>(_slhPicked) : null);
         if (Correction is not null) _sessionId = Guid.NewGuid();
@@ -1173,7 +1193,7 @@ else
         CollectionSessionItemKind.NpmWholePayment => "NPM monthly rent",
         CollectionSessionItemKind.NpmPartPayment => "NPM partial rent",
         CollectionSessionItemKind.MonthlyRent => "Monthly stall rent",
-        CollectionSessionItemKind.FineAssessment => "Fines / Penalties",
+        CollectionSessionItemKind.FineAssessment => "Penalty",
         CollectionSessionItemKind.Obligation => "Space rental",
         CollectionSessionItemKind.GovernedService => item.Service?.OperationCode switch
         {

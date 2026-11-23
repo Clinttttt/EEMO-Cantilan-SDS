@@ -16,7 +16,7 @@
     <div class="header">
         <div class="header-eyebrow">Arrears and delinquency</div>
         <div class="header-row">
-            <button class="back-btn" type="button" aria-label="Back to Arrears and Delinquency" @onclick='() => Navigation.NavigateTo("/arrears")'><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
+            <button class="back-btn" type="button" aria-label="@(FromRentSheet ? "Back to the rent sheet" : "Back to Arrears and Delinquency")" @onclick="() => Navigation.NavigateTo(BackTo)"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg></button>
             <div class="header-title-block"><div class="header-title">Collect arrears</div><div class="header-sub">@Session.CollectorName</div></div>
             <img class="header-logo" src="@Session.BrandingSeal" alt="Municipality seal" />
         </div>
@@ -38,7 +38,7 @@
             <section class="collection-entry collection-payer">
                 <h2>Source</h2>
                 <div class="payer-selected">
-                    <span class="payer-option-text"><strong class="payer-name">@(_account?.Payer ?? "Account")</strong><small>@SourceContext</small></span>
+                    <span class="payer-option-text"><strong class="payer-name">@(_account?.Payer ?? Payer ?? "Account")</strong><small>@SourceContext</small></span>
                     <button class="collection-small" type="button" disabled="@_busy" @onclick='() => Navigation.NavigateTo("/arrears")'>Change</button>
                 </div>
             </section>
@@ -72,8 +72,8 @@
                 }
                 @if (_items.Count > 0)
                 {
-                    <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">optional</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_reference" @onchange="OnReferenceChanged" /></label>
-                    <div class="sheet-note">@(_items.Count > 1 ? "One reference for these charges. It is for reference only; registration is not required." : "For reference only; not a verified or issued receipt. Leave blank if none.")</div>
+                    <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">(optional)</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_reference" @onchange="OnReferenceChanged" /></label>
+                    <div class="sheet-note">@(_items.Count > 1 ? "Covers all items; for reference only." : "For reference only; not verified.")</div>
                 }
             </section>
 
@@ -135,6 +135,12 @@
 @code {
     [SupplyParameterFromQuery] public Guid Stall { get; set; }
     [SupplyParameterFromQuery] public Guid Contract { get; set; }
+    // Opened from a facility's rent sheet: return there, and name the payor and space the Arrears list would otherwise have supplied.
+    [SupplyParameterFromQuery] public string? Back { get; set; }
+    [SupplyParameterFromQuery] public string? Payer { get; set; }
+    [SupplyParameterFromQuery] public string? Space { get; set; }
+    private bool FromRentSheet => Back is { } b && b.StartsWith("/collect/", StringComparison.Ordinal) && !b.Contains("//", StringComparison.Ordinal);
+    private string BackTo => FromRentSheet ? Back! : "/arrears";
     private enum State { Loading, Offline, Ready }
     private State _state = State.Loading;
     private IReadOnlyList<MobileUnpaidMonthDto> _months = [];
@@ -155,8 +161,8 @@
     private decimal Total => _items.Sum(AmountOf);
     private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
     private static string Label(MobileUnpaidMonthDto m) => new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
-    private string SourceContext => _account is null ? "Monthly rent" : $"{_account.OperationName} · {_account.Space}";
-    private string ItemContext => _account is null ? "Monthly rent" : $"{_account.OperationName} · {_account.Space}";
+    private string SourceContext => _account is not null ? $"{_account.OperationName} · {_account.Space}" : Space is { Length: > 0 } space ? $"Monthly rent · {space}" : "Monthly rent";
+    private string ItemContext => SourceContext;
 
     // The same shape New Collection's picker reads: one choice per unpaid month, the office's own balance as its amount.
     private IReadOnlyList<CollectionSessionSourceChoice> Choices => Remaining.Select(m => new CollectionSessionSourceChoice(
@@ -189,10 +195,15 @@
     private void OpenPicker() { _picked.Clear(); _pickError = string.Empty; _amount = string.Empty; _picker = true; }
     private void ClosePicker() => _picker = false;
     private void SyncAmount() => _amount = PickedMonths.Count == 1 ? PickedMonths[0].BalanceDue.ToString("0.##", CultureInfo.InvariantCulture) : string.Empty;
-    private void Toggle(string key) { if (!_picked.Remove(key)) _picked.Add(key); _pickError = string.Empty; SyncAmount(); }
+    private void Toggle(string key) => ToggleMany([key]);
+    // Under the office's oldest-first rule a month brings the earlier ones with it, and dropping one drops the later ones (the server marks which months).
     private void ToggleMany(IReadOnlyList<string> keys)
     {
-        if (keys.All(_picked.Contains)) foreach (var k in keys) _picked.Remove(k); else foreach (var k in keys) _picked.Add(k);
+        var tapped = Remaining.Where(m => keys.Contains(Key(m))).ToList();
+        if (keys.All(_picked.Contains))
+            foreach (var m in UnpaidMonthPayment.WithLater(Remaining.Where(m => _picked.Contains(Key(m))).ToList(), tapped)) _picked.Remove(Key(m));
+        else
+            foreach (var m in UnpaidMonthPayment.WithEarlier(Remaining, tapped)) _picked.Add(Key(m));
         _pickError = string.Empty; SyncAmount();
     }
 
@@ -213,7 +224,7 @@
         _picked.Clear(); _picker = false; _reviewed = false; _error = string.Empty;
     }
 
-    private void Remove(MobileUnpaidMonthDto m) { _items.RemoveAll(i => Key(i) == Key(m)); _itemAmount = string.Empty; _reviewed = false; _error = string.Empty; }
+    private void Remove(MobileUnpaidMonthDto m) { var gone = UnpaidMonthPayment.WithLater(_items, [m]).Select(Key).ToHashSet(); _items.RemoveAll(i => gone.Contains(Key(i))); _itemAmount = string.Empty; _reviewed = false; _error = string.Empty; }
     private void OnReferenceChanged(ChangeEventArgs e) { _reference = e.Value?.ToString() ?? string.Empty; _reviewed = false; }
 
     private void Review()
@@ -253,5 +264,5 @@
         _reviewed = false;
     }
 
-    private void DismissRecorded() { _showRecorded = false; if (_months.Count == 0) Navigation.NavigateTo("/arrears"); }
+    private void DismissRecorded() { _showRecorded = false; if (_months.Count == 0) Navigation.NavigateTo(BackTo); }
 }

@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Persistence;
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Interface.Time;
+using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Enums;
@@ -17,7 +18,7 @@ public sealed record GetMobileUnpaidMonthsQuery(Guid StallId, Guid? ContractId =
 /// each figure is the monthly record's own.
 /// </summary>
 public sealed class GetMobileUnpaidMonthsQueryHandler(
-    IStallRepository stalls, ICollectorRepository collectors, ICurrentUserService user, IStallLedgerQueries ledger, IClock clock)
+    IStallRepository stalls, ICollectorRepository collectors, ICurrentUserService user, IStallLedgerQueries ledger, IClock clock, BillingRules billing)
     : IRequestHandler<GetMobileUnpaidMonthsQuery, Result<IReadOnlyList<MobileUnpaidMonthDto>>>
 {
     public async Task<Result<IReadOnlyList<MobileUnpaidMonthDto>>> Handle(GetMobileUnpaidMonthsQuery request, CancellationToken ct)
@@ -45,6 +46,7 @@ public sealed class GetMobileUnpaidMonthsQueryHandler(
                 && (contract is null || contract.BillsCalendarMonth(start.Year, start.Month)))
             .Select(r => new MobileUnpaidMonthDto(int.Parse(r.Period[..4]), int.Parse(r.Period[5..7]), r.TotalBill, r.AmountPaid, r.BalanceDue))
             .OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
-        return Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success(months);
+        var inOrder = await billing.InOrderAsync(request.StallId, months.Select(m => (m.Year, m.Month)), ct);
+        return Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success(months.Select(m => m with { InOrder = inOrder.Contains((m.Year, m.Month)) }).ToList());
     }
 }

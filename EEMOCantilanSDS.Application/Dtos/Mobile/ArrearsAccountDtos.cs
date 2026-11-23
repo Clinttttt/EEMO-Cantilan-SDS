@@ -29,4 +29,5 @@ public sealed record ArrearsAccountDto(
 public sealed record ArrearsWorkspaceDto(DateOnly AsOf, IReadOnlyList<ArrearsAccountDto> Accounts, decimal Total, decimal ArrearsTotal, decimal DelinquentTotal);
 
 /// <summary>One unpaid billing month of a stall's current contract, collected on the facility's own monthly operation. Every figure is the monthly record's own.</summary>
-public sealed record MobileUnpaidMonthDto(int Year, int Month, decimal TotalBill, decimal AmountPaid, decimal BalanceDue);
+/// <param name="InOrder">The office takes this month strictly oldest first (BillingRules.InOrderAsync); false from a server that predates it, which still refuses out-of-order months itself.</param>
+public sealed record MobileUnpaidMonthDto(int Year, int Month, decimal TotalBill, decimal AmountPaid, decimal BalanceDue, bool InOrder = false);

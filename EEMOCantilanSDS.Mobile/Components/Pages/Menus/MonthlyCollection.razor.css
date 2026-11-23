@@ -889,3 +889,64 @@
 .money-row.strong dd {
     font-size: 17px;
 }
+
+/* Older unpaid months of this space: one tappable row that opens the unpaid-months screen. */
+.earlier-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    min-height: 56px;
+    margin: 0 0 12px;
+    padding: 10px 12px 10px 14px;
+    border: 1px solid var(--mobile-border);
+    border-left: 3px solid var(--mobile-warning);
+    border-radius: 10px;
+    background: var(--mobile-warning-subtle);
+    font: inherit;
+    text-align: left;
+    color: var(--mobile-text);
+    cursor: pointer;
+}
+
+.earlier-card:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: 2px;
+}
+
+.earlier-info {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.earlier-label {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.earlier-detail {
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+}
+
+.earlier-amount {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.earlier-card svg {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    fill: none;
+    stroke: var(--mobile-text-secondary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
