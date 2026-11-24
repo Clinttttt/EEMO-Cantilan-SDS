@@ -20,12 +20,13 @@ namespace EEMOCantilanSDS.Mobile.ComponentTests;
 public sealed class MonthlyPenaltiesTests : TestContext
 {
     private static readonly DateOnly Today = new(2026, 11, 24);
-    private readonly Guid _stall = Guid.NewGuid(), _contract = Guid.NewGuid(), _surcharge = Guid.NewGuid(), _interest = Guid.NewGuid();
+    private readonly Guid _stall = Guid.NewGuid(), _contract = Guid.NewGuid(), _surcharge = Guid.NewGuid(), _interest = Guid.NewGuid(), _interestNov = Guid.NewGuid();
     private readonly Mock<IMobileApiClient> _api = new();
     private readonly List<PendingOperation> _queue = [];
     private readonly List<string> _calls = [];
 
-    private IRenderedComponent<MonthlyCollection> Render(PaymentStatus status, decimal penaltiesDue, bool quoteRefuses = false)
+    private IRenderedComponent<MonthlyCollection> Render(PaymentStatus status, decimal penaltiesDue, bool quoteRefuses = false,
+        IReadOnlyList<MobileUnpaidMonthDto>? earlier = null, Guid? openStall = null)
     {
         var paid = status == PaymentStatus.Paid ? 1200m : 0m;
         var row = new MobileMonthlyStallCollectionDto(_stall, "2", "Ruel Ramirez", "Ruel Ramirez", "", 1200m, status, paid, 1200m - paid,
@@ -33,16 +34,17 @@ public sealed class MonthlyPenaltiesTests : TestContext
         _api.Setup(x => x.GetMonthlyCollectionAsync(FacilityCode.NCC, 2026, 11)).ReturnsAsync(Result<MobileMonthlyCollectionDto>.Success(
             new(FacilityCode.NCC, "Scratch Center", 2026, 11, Today, 1, status == PaymentStatus.Paid ? 1 : 0, 0,
                 status == PaymentStatus.Unpaid ? 1 : 0, paid, 1200m - paid, [row])));
-        _api.Setup(x => x.GetUnpaidMonthsAsync(_stall, null)).ReturnsAsync(Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success([]));
+        _api.Setup(x => x.GetUnpaidMonthsAsync(_stall, null)).ReturnsAsync(Result<IReadOnlyList<MobileUnpaidMonthDto>>.Success(earlier ?? []));
 
-        CollectionSessionSourceChoice Fine(Guid id, string name, decimal amount) => new($"FINE|{id:N}", CollectionSessionItemKind.FineAssessment,
-            "PENALTIES", name, "November 2026", new(FineAssessmentId: id, FineVersion: 1), RevenueInstrumentType.OfficialReceipt,
+        CollectionSessionSourceChoice Fine(Guid id, string name, string month, decimal amount) => new($"FINE|{id:N}", CollectionSessionItemKind.FineAssessment,
+            "PENALTIES", name, month, new(FineAssessmentId: id, FineVersion: 1), RevenueInstrumentType.OfficialReceipt,
             CollectionSessionAmountRule.PreparedBalance, ServerAmount: amount, MaximumAmount: amount);
+        // Listed as the server orders them (by when they were assessed); the statement puts the surcharge first.
         _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(It.Is<CollectionSourceIdentity?>(i => i!.Kind == SourceIdentityKind.Occupancy && i.Id == _contract)))
             .Callback(() => _calls.Add("discover"))
             .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
                 [new(CollectionSessionItemKind.FineAssessment, "PENALTIES", "Fines / Penalties", true, true, null, null, false, [], true,
-                    [Fine(_surcharge, "Surcharge", 300m), Fine(_interest, "Interest", 30m)])])));
+                    [Fine(_interest, "Interest", "October 2026", 20m), Fine(_surcharge, "Surcharge", "October 2026", 300m), Fine(_interestNov, "Interest", "November 2026", 10m)])])));
         _api.Setup(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>()))
             .Callback(() => _calls.Add("quote"))
             .ReturnsAsync((CollectionSessionIntent i) => Result<CollectionSessionQuote>.Success(new(i.ClientCollectionSessionId, null, i.BusinessDate,
@@ -69,11 +71,22 @@ public sealed class MonthlyPenaltiesTests : TestContext
             [new(FacilityCode.NCC, "Scratch Center", "Monthly", true, true)]) });
         Services.AddSingleton(new MobilePaymentHubService());
         JSInterop.Mode = JSRuntimeMode.Loose;
+        if (openStall is { } stall) Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo($"/collect/ncc?stall={stall}");
         return RenderComponent<MonthlyCollection>(p => p.Add(x => x.Facility, "ncc"));
     }
 
     private static AngleSharp.Dom.IElement Sheet(IRenderedComponent<MonthlyCollection> cut, string title) =>
         cut.FindAll(".sheet").Single(x => x.QuerySelector(".sheet-title")?.TextContent.Trim() == title);
+
+    // Each statement line as (name, the months it is for, amount).
+    private static List<(string Name, string? Months, string Amount)> Statement(AngleSharp.Dom.IElement sheet) =>
+        sheet.QuerySelectorAll("dl[aria-label='Amount due'] .money-row").Select(r =>
+        {
+            var dt = r.QuerySelector("dt")!;
+            var months = dt.QuerySelector("small")?.TextContent.Trim();
+            var name = months is null ? dt.TextContent : dt.TextContent.Replace(months, "");
+            return (name.Trim(), months, r.QuerySelector("dd")!.TextContent.Trim());
+        }).ToList();
 
     [Fact]
     public void Unpaid_rent_with_penalties_shows_the_statement_total_and_records_both_on_one_receipt()
@@ -84,8 +97,8 @@ public sealed class MonthlyPenaltiesTests : TestContext
         cut.Find(".tx-card").Click();
         cut.WaitForAssertion(() => Assert.Contains("Total amount due", Sheet(cut, "Record Monthly Payment").TextContent));
         var sheet = Sheet(cut, "Record Monthly Payment");
-        var rows = sheet.QuerySelectorAll("dl[aria-label='Penalties'] .money-row").Select(r => r.TextContent.Trim()).ToList();
-        Assert.Equal(["Surcharge₱300", "Interest₱30", "Total amount due₱1,530"], rows);
+        Assert.Equal([("November 2026 rental", null, "₱1,200"), ("Surcharge", "October 2026", "₱300"),
+            ("Interest", "October – November 2026 · 2 months", "₱30"), ("Total amount due", null, "₱1,530")], Statement(sheet));
         Assert.Contains("Rent and penalties on one receipt - ₱1,530", sheet.TextContent);
 
         sheet.QuerySelector("input[placeholder='000001']")!.Input("123456");
@@ -101,7 +114,7 @@ public sealed class MonthlyPenaltiesTests : TestContext
         Assert.Equal("123456", checkout.Intent.ReceiptReference);
         Assert.Equal(new CollectionSourceIdentity(SourceIdentityKind.Occupancy, _contract), checkout.Intent.SourceIdentity);
         Assert.Equal(Today, checkout.Intent.BusinessDate);
-        Assert.Equal([(_surcharge, 300m), (_interest, 30m)], checkout.Intent.Items.Select(i => (i.Fine!.AssessmentId, i.ConfirmedAmount)));
+        Assert.Equal([(_interest, 20m), (_surcharge, 300m), (_interestNov, 10m)], checkout.Intent.Items.Select(i => (i.Fine!.AssessmentId, i.ConfirmedAmount)));
     }
 
     [Fact]
@@ -128,13 +141,36 @@ public sealed class MonthlyPenaltiesTests : TestContext
         Assert.Contains("0 of 1", cut.Find(".npm-context").TextContent);
 
         cut.Find(".tx-card").Click();
-        cut.WaitForAssertion(() => Assert.Contains("Total penalties", Sheet(cut, "Collect Penalties").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Total amount due", Sheet(cut, "Collect Penalties").TextContent));
+        Assert.Equal([("November 2026 rental", "₱1,200 of ₱1,200 paid", "Paid"), ("Surcharge", "October 2026", "₱300"),
+            ("Interest", "October – November 2026 · 2 months", "₱30"), ("Total amount due", null, "₱330")], Statement(Sheet(cut, "Collect Penalties")));
         Sheet(cut, "Collect Penalties").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Collect ₱330").Click();
 
         cut.WaitForAssertion(() => Assert.Single(_queue));
         _api.Verify(x => x.RecordMonthlyCollectionAsync(It.IsAny<RecordMobileMonthlyCollectionRequest>()), Times.Never);
-        Assert.Equal([300m, 30m], _queue[0].CollectionSession!.Intent.Items.Select(i => i.ConfirmedAmount));
+        Assert.Equal([20m, 300m, 10m], _queue[0].CollectionSession!.Intent.Items.Select(i => i.ConfirmedAmount));
         Assert.Null(_queue[0].CollectionSession!.Intent.ReceiptReference);
+    }
+
+    [Fact]
+    public void Earlier_unpaid_months_show_as_rental_arrears_outside_the_receipt_total()
+    {
+        var cut = Render(PaymentStatus.Unpaid, 330m, earlier: [new(2026, 9, 1200m, 0m, 1200m), new(2026, 10, 1200m, 0m, 1200m)]);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Rental arrears", Sheet(cut, "Record Monthly Payment").TextContent));
+
+        var arrears = Sheet(cut, "Record Monthly Payment").QuerySelector(".earlier-card")!;
+        Assert.Contains("September – October 2026 · 2 months · collected separately", arrears.TextContent);
+        Assert.Contains("₱2,400", arrears.TextContent);
+        cut.WaitForAssertion(() => Assert.Equal(("Total amount due", null, "₱1,530"), Statement(Sheet(cut, "Record Monthly Payment")).Last()));
+    }
+
+    [Fact]
+    public void Opened_for_one_stall_goes_straight_to_its_sheet()
+    {
+        var cut = Render(PaymentStatus.Unpaid, 330m, openStall: _stall);
+        cut.WaitForAssertion(() => Assert.Equal("Total amount due", Statement(Sheet(cut, "Record Monthly Payment")).Last().Name));
     }
 
     [Fact]
@@ -144,7 +180,7 @@ public sealed class MonthlyPenaltiesTests : TestContext
         cut.WaitForAssertion(() => cut.Find(".tx-card"));
         cut.Find(".tx-card").Click();
         cut.WaitForAssertion(() => Sheet(cut, "Record Monthly Payment"));
-        Assert.Empty(Sheet(cut, "Record Monthly Payment").QuerySelectorAll("dl[aria-label='Penalties']"));
+        Assert.Equal([("November 2026 rental", null, "₱1,200"), ("Total amount due", null, "₱1,200")], Statement(Sheet(cut, "Record Monthly Payment")));
 
         Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
 

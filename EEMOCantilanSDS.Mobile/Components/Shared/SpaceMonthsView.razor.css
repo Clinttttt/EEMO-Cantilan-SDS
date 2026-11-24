@@ -137,6 +137,13 @@
     overflow-wrap: anywhere;
 }
 
+.smv-detail {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--mobile-text-secondary);
+    overflow-wrap: anywhere;
+}
+
 .smv-amount {
     flex: 0 0 auto;
     font-size: 15px;

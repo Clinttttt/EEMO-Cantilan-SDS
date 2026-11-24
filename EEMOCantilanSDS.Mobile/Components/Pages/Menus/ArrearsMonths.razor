@@ -2,10 +2,12 @@
 @using global::EEMOCantilanSDS.Application.Dtos.Mobile
 @using global::EEMOCantilanSDS.Domain.Enums
 @using global::EEMOCantilanSDS.Mobile.Collections
+@using global::EEMOCantilanSDS.Mobile.Models
 @using System.Globalization
 @inject NavigationManager Navigation
 @inject EEMOCantilanSDS.Mobile.Services.MobileSessionService Session
 @inject EEMOCantilanSDS.Application.Common.Interface.ApiClients.IMobileApiClient Api
+@inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 @inject ArrearsWorkspaceHolder Held
 
 @* Collect arrears for a stall of a monthly facility whose rent is still collected on that facility's own monthly operation. New Collection takes only canonical
@@ -53,7 +55,7 @@
                         <div class="collection-available-fees" role="group" aria-label="Available charges">
                             <span class="collection-available-caption">Available charges</span>
                             <button type="button" class="collection-option" disabled="@_busy" @onclick="OpenPicker">
-                                <span class="option-text"><strong>Monthly rent</strong><small>@Remaining.Count unpaid @(Remaining.Count == 1 ? "month" : "months") · @Peso(Remaining.Sum(m => m.BalanceDue))</small></span>
+                                <span class="option-text"><strong>Monthly rent</strong><small>@Remaining.Count unpaid @(Remaining.Count == 1 ? "month" : "months") · @Peso(Remaining.Sum(m => m.BalanceDue))@(Remaining.Sum(PenaltyOf) is var owed && owed > 0m ? $" + {Peso(owed)} penalties" : "")</small></span>
                                 <span aria-hidden="true">›</span>
                             </button>
                         </div>
@@ -61,15 +63,27 @@
                 }
                 @foreach (var m in _items)
                 {
-                    <div class="item-row">
-                        <div class="item-main">
-                            <strong class="item-name">@Label(m)</strong>
-                            <span class="item-context">@ItemContext</span>
-                            <span class="item-actions"><button class="collection-link" type="button" disabled="@_busy" @onclick="() => Remove(m)">Remove</button></span>
-                        </div>
-                        <div class="item-amount"><strong>@Peso(AmountOf(m))</strong><span>OR</span></div>
+                    @* One month as a small statement: the month and its total, then what the total is made of (rent, surcharge, interest), one line each. *@
+                    <div class="month-item">
+                        <div class="month-head"><strong class="item-name">@Label(m)</strong><strong class="month-total">@Peso(AmountOf(m))</strong></div>
+                        @if (!InFull(m))
+                        {
+                            <span class="item-context">Part payment of rent@(PenaltyOf(m) > 0m ? " · penalties not included" : "")</span>
+                        }
+                        else if (PenaltyOf(m) > 0m)
+                        {
+                            <dl class="month-lines" aria-label="@($"{Label(m)} breakdown")">
+                                <div><dt>Rent</dt><dd>@Peso(m.BalanceDue)</dd></div>
+                                @foreach (var line in AccountPenalties.Lines(FinesOf(m)))
+                                {
+                                    <div><dt>@line.Name</dt><dd>@Peso(line.Amount)</dd></div>
+                                }
+                            </dl>
+                        }
+                        <span class="item-actions"><button class="collection-link" type="button" disabled="@_busy" @onclick="() => Remove(m)">Remove</button></span>
                     </div>
                 }
+                @if (_finesUnreadable) { <div class="sheet-note" role="status">Penalties could not be read and are not included.</div> }
                 @if (_items.Count > 0)
                 {
                     <label class="form-field sheet-receipt"><span class="form-label">Receipt reference <span class="form-optional">(optional)</span></span><input class="form-input" type="text" maxlength="100" autocomplete="off" disabled="@_busy" value="@_reference" @onchange="OnReferenceChanged" /></label>
@@ -80,7 +94,9 @@
             @if (_reviewed && _items.Count > 0)
             {
                 <section class="collection-entry review-summary" aria-live="polite" aria-label="Collection total">
-                    <div class="review-row"><span>Official Receipt</span><strong>@Peso(Total)</strong></div>
+                    <div class="review-row"><span>Rent</span><strong>@Peso(_items.Sum(RentOf))</strong></div>
+                    @foreach (var line in AccountPenalties.Lines(CollectedFines))
+                    { <div class="review-row"><span>@line.Name</span><strong>@Peso(line.Amount)</strong></div> }
                     <div class="review-row review-total"><span>Total</span><strong>@Peso(Total)</strong></div>
                 </section>
             }
@@ -111,10 +127,12 @@
                 <div class="sheet-context">@SourceContext</div>
             </header>
             <div class="sheet-body">
-                <SpaceMonthsView Choices="Choices" Selected="_picked" OnToggle="Toggle" OnToggleMany="ToggleMany" Label="Unpaid months" />
+                <SpaceMonthsView Choices="Choices" Selected="_picked" OnToggle="Toggle" OnToggleMany="ToggleMany" Label="Unpaid months" Detail="PickerDetail" />
                 @if (PickedMonths.Count == 1 && _items.Count == 0)
                 {
-                    <label class="form-field"><span class="form-label">Amount received</span><input class="form-input" type="text" inputmode="decimal" autocomplete="off" value="@_amount" @oninput="e => _amount = e.Value?.ToString() ?? string.Empty" /></label>
+                    var penalty = PenaltyOf(PickedMonths[0]);
+                    <label class="form-field"><span class="form-label">@(penalty > 0m ? "Rent received" : "Amount received")</span><input class="form-input" type="text" inputmode="decimal" autocomplete="off" value="@_amount" @oninput="e => _amount = e.Value?.ToString() ?? string.Empty" /></label>
+                    @if (penalty > 0m) { <div class="sheet-note">Penalties of @Peso(penalty) are added when the rent is paid in full.</div> }
                     @if (PickedMonths[0].AmountPaid > 0m) { <div class="sheet-note">Something was already paid on this month, so the full remaining balance is collected.</div> }
                 }
                 @if (!string.IsNullOrWhiteSpace(_pickError)) { <div class="sheet-note" role="alert">@_pickError</div> }
@@ -157,17 +175,33 @@
     private static string Key(MobileUnpaidMonthDto m) => Key(m.Year, m.Month);
     private IReadOnlyList<MobileUnpaidMonthDto> Remaining => _months.Where(m => !_items.Any(i => Key(i) == Key(m))).ToList();
     private IReadOnlyList<MobileUnpaidMonthDto> PickedMonths => _months.Where(m => _picked.Contains(Key(m))).OrderBy(m => m.Year).ThenBy(m => m.Month).ToList();
-    private decimal AmountOf(MobileUnpaidMonthDto m) => _items.Count == 1 && decimal.TryParse(_itemAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var typed) && typed > 0m && typed <= m.BalanceDue ? typed : m.BalanceDue;
+    // The rent taken for a month: a typed part payment of a single month, otherwise its whole balance.
+    private decimal RentOf(MobileUnpaidMonthDto m) => _items.Count == 1 && decimal.TryParse(_itemAmount, NumberStyles.Number, CultureInfo.InvariantCulture, out var typed) && typed > 0m && typed <= m.BalanceDue ? typed : m.BalanceDue;
+    private bool InFull(MobileUnpaidMonthDto m) => RentOf(m) == m.BalanceDue;
+    // A month's penalties are taken with its rent only when the rent is paid in full, as on the monthly sheet.
+    private decimal AmountOf(MobileUnpaidMonthDto m) => RentOf(m) + (InFull(m) ? PenaltyOf(m) : 0m);
     private decimal Total => _items.Sum(AmountOf);
     private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
     private static string Label(MobileUnpaidMonthDto m) => new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
     private string SourceContext => _account is not null ? $"{_account.OperationName} · {_account.Space}" : Space is { Length: > 0 } space ? $"Monthly rent · {space}" : "Monthly rent";
-    private string ItemContext => SourceContext;
 
-    // The same shape New Collection's picker reads: one choice per unpaid month, the office's own balance as its amount.
+    // ── Penalties (surcharge, interest) ──
+    // The account's open penalties, matched to each unpaid month by the month the server says each is for, and collected in full with that month's rent on
+    // the same receipt. Read live with the months; when they cannot be read, the months are shown and collected without them and the screen says so.
+    private IReadOnlyList<CollectionSessionSourceChoice> _fines = [];
+    private bool _finesUnreadable;
+    private IEnumerable<CollectionSessionSourceChoice> FinesOf(MobileUnpaidMonthDto m) => _fines.Where(c => c.Context == Label(m));
+    private decimal PenaltyOf(MobileUnpaidMonthDto m) => AccountPenalties.Total(FinesOf(m));
+    private IReadOnlyList<CollectionSessionSourceChoice> CollectedFines => _items.Where(InFull).SelectMany(FinesOf).ToList();
+
+    // In the picker a month stays one line: its total above, and this short note of what it includes.
+    private string? PickerDetail(string key) => Remaining.FirstOrDefault(m => Key(m) == key) is { } m && PenaltyOf(m) is var penalty && penalty > 0m
+        ? $"Rent {Peso(m.BalanceDue)} + penalties {Peso(penalty)}" : null;
+
+    // The same shape New Collection's picker reads: one choice per unpaid month, the office's own balance (and that month's penalties) as its amount.
     private IReadOnlyList<CollectionSessionSourceChoice> Choices => Remaining.Select(m => new CollectionSessionSourceChoice(
         Key(m), CollectionSessionItemKind.MonthlyRent, _account?.OperationCode ?? string.Empty, _account?.OperationName ?? "Monthly rent", string.Empty,
-        new(PeriodStart: new DateOnly(m.Year, m.Month, 1)), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, m.BalanceDue)).ToList();
+        new(PeriodStart: new DateOnly(m.Year, m.Month, 1)), RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, m.BalanceDue + PenaltyOf(m))).ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,11 +219,25 @@
             var result = await Api.GetUnpaidMonthsAsync(Stall, Contract == Guid.Empty ? null : Contract);
             if (result.IsSuccess && result.Value is { } months)
             {
-                _months = months; _items.RemoveAll(i => !months.Any(m => Key(m) == Key(i))); _state = State.Ready;
+                _months = months; _items.RemoveAll(i => !months.Any(m => Key(m) == Key(i)));
+                await LoadFinesAsync();
+                _state = State.Ready;
             }
             else _state = State.Offline;
         }
         catch { _state = State.Offline; }
+    }
+
+    private async Task LoadFinesAsync()
+    {
+        _fines = []; _finesUnreadable = false;
+        if (Contract == Guid.Empty) return;
+        try
+        {
+            var found = await Api.GetSourceCollectionDiscoveryAsync(new(SourceIdentityKind.Occupancy, Contract));
+            if (found.IsSuccess) _fines = AccountPenalties.Open(found.Value); else _finesUnreadable = true;
+        }
+        catch { _finesUnreadable = true; }
     }
 
     private void OpenPicker() { _picked.Clear(); _pickError = string.Empty; _amount = string.Empty; _picker = true; }
@@ -239,10 +287,14 @@
         var (charges, error) = UnpaidMonthPayment.Plan(_items.ToList(), _itemAmount);
         if (error is not null) { _error = error; _reviewed = false; return; }
         var reference = ReceiptReferenceEntry.Number(true, _reference);
+        var fines = CollectedFines; // read before the months leave the list as they are recorded
         _busy = true; _error = string.Empty;
         var recorded = 0m; var count = 0;
+        RecordCollectionSessionRequest? penalties = null;
         try
         {
+            // The months' penalties are confirmed with the office before any money is recorded: a refusal records nothing, never the rent without them.
+            if (fines.Count > 0 && (penalties = await QuotePenaltiesAsync(fines)) is null) return;
             // One monthly record per month, oldest first. A failure stops here: what was recorded stays recorded, the list is read again, and the rest can be retried.
             foreach (var c in charges)
             {
@@ -253,7 +305,15 @@
             }
         }
         catch { _error = (count > 0 ? $"Recorded {count} of {charges.Count}. " : "") + "Couldn't reach the server. Check your connection and try again."; }
-        finally { _busy = false; }
+        finally { _busy = false; _reviewed = false; }
+
+        // The penalties go on the same receipt once every month's rent is recorded. If the rent stopped partway they are not recorded, and the collector is told.
+        if (penalties is not null && count == charges.Count)
+        {
+            if (await SavePenaltiesAsync(penalties)) recorded += AccountPenalties.Total(fines);
+        }
+        else if (penalties is not null && count > 0)
+            _error += " Their penalties were not recorded; collect them from the stall's monthly sheet.";
 
         if (count > 0)
         {
@@ -262,6 +322,33 @@
             await LoadAsync();
         }
         _reviewed = false;
+    }
+
+    private async Task<RecordCollectionSessionRequest?> QuotePenaltiesAsync(IReadOnlyList<CollectionSessionSourceChoice> fines)
+    {
+        var intent = AccountPenalties.Intent(Guid.NewGuid(), Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now), Contract, fines, _reference);
+        var quote = await Api.QuoteCollectionSessionAsync(intent);
+        if (quote.IsSuccess && quote.Value is { CanRecord: true } q) return new(intent, q.QuoteFingerprint);
+        _error = (quote.Value?.Problems.FirstOrDefault()?.Message ?? "The penalties could not be confirmed.") + " Nothing was recorded.";
+        return null;
+    }
+
+    // Saved on this device first (the durable boundary every checkout uses), then recorded now. False, with the reason on screen, when it was refused.
+    private async Task<bool> SavePenaltiesAsync(RecordCollectionSessionRequest checkout)
+    {
+        try
+        {
+            await Sync.EnqueueCollectionSessionAsync(checkout);
+            if (Sync.IsOnline) await Sync.SyncNowAsync(force: true);
+            var saved = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == checkout.Intent.ClientCollectionSessionId);
+            if (saved?.LocalStatus is not (PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)) return true;
+            _error = $"The penalties were not recorded: {saved.ResultMessage ?? "the office could not accept them."} Review them in Records.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            _error = "The penalties could not be saved on this device and were not recorded. Collect them from the stall's monthly sheet.";
+        }
+        return false;
     }
 
     private void DismissRecorded() { _showRecorded = false; if (_months.Count == 0) Navigation.NavigateTo(BackTo); }

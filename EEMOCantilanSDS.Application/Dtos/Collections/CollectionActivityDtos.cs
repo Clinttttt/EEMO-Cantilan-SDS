@@ -57,7 +57,18 @@ public sealed record CollectionActivityEventDto(
     IReadOnlyList<CollectionActivityLineDto> Lines,
     IReadOnlyList<CollectionActivityCorrectionDto> Corrections,
     // Only for Collector direct collections: the verification state of the cash (null for every source this does not govern).
-    string? Verification = null);
+    string? Verification = null,
+    // Only for monthly rent: each rent month's late charges as they stand now. Never part of this event's money (null for every other source).
+    IReadOnlyList<CollectionActivityLateMonthDto>? LateCharges = null);
+
+/// <summary>
+/// A rent month's late charges: the late penalties assessed on that space's contract for that month (linked by contract and period, never by
+/// name or receipt number), each with what has been collected on it and the SRCs that collected it. An empty list means none was charged.
+/// </summary>
+public sealed record CollectionActivityLateMonthDto(int PeriodYear, int PeriodMonth, IReadOnlyList<CollectionActivityLateChargeDto> Charges);
+
+/// <summary>One late penalty. <see cref="AmountDue"/> is what it asks for now (an update by the Head included); <see cref="Collected"/> is net of corrections.</summary>
+public sealed record CollectionActivityLateChargeDto(string Code, string Name, decimal AmountDue, decimal Collected, IReadOnlyList<string> ReferenceCodes);
 
 /// <summary>One classified line of an event: what the money was for, and the source it settled.</summary>
 public sealed record CollectionActivityLineDto(

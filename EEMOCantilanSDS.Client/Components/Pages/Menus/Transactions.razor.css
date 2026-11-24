@@ -825,6 +825,9 @@
 .txr .txr-items tfoot tr:first-child th,
 .txr .txr-items tfoot tr:first-child td { padding-top: 12px; }
 .txr .txr-download { margin-right: auto; }
+/* Late charges: the itemized table's columns again, each charge's standing under its name. */
+.txr .txr-late .txr-sub { margin-top: 2px; font-size: 0.75rem; color: var(--text-tertiary); }
+.txr .txr-late-note { margin: -4px 0 0; font-size: 0.75rem; line-height: 1.45; color: var(--text-tertiary); }
 @media (max-width: 560px) {
     .txr .txr-body { padding: 16px; }
     .txr .txr-foot { padding: 12px 16px; }

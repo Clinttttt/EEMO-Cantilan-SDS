@@ -2,6 +2,7 @@
 @page "/collections/activity"
 @attribute [Authorize(Roles = "SuperAdmin,Admin")]
 @using EEMOCantilanSDS.Application.Dtos.Collections
+@using EEMOCantilanSDS.Domain.Entities.Revenue
 @using EEMOCantilanSDS.Client.Services
 @using EEMOCantilanSDS.Client.Components.Shared
 @inject ICollectionActivityApiClient ActivityApi
@@ -411,6 +412,30 @@
                     </tfoot>
                 </table>
 
+                @if (r.LateCharges is { Count: > 0 } lateMonths)
+                {
+                    <div class="txr-section-heading txr-items-heading">Late charges</div>
+                    <table class="txr-items txr-late" aria-label="Late charges">
+                        <thead>
+                            <tr><th scope="col">Charge</th><th scope="col">Period</th><th scope="col" class="txn-num">Amount</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var month in lateMonths)
+                            {
+                                @foreach (var charge in LateRows(month))
+                                {
+                                    <tr>
+                                        <td>@charge.Name<span class="txr-sub">@charge.Status</span></td>
+                                        <td>@MonthOf(month)</td>
+                                        <td class="txn-num">&#8369;@charge.Amount.ToString("N2")</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                    <p class="txr-late-note">As they stand today. Not part of this entry's total; a penalty collected on its own receipt is counted there.</p>
+                }
+
         @if (r.Corrections.Count > 0)
         {
             <h3 class="txn-drawer-h">Correction history</h3>
@@ -524,6 +549,20 @@
                 }
             </tfoot>
         </table>
+        @if (r.LateCharges is { Count: > 0 } printedLate)
+        {
+            <h2>Late charges (not part of this entry's total)</h2>
+            <table class="txr-paper-items">
+                <thead><tr><th>Charge</th><th>Period</th><th>Amount (PHP)</th></tr></thead>
+                <tbody>
+                    @foreach (var month in printedLate)
+                    {
+                        @foreach (var charge in LateRows(month))
+                        { <tr><td>@charge.Name · @charge.Status</td><td>@MonthOf(month)</td><td>@charge.Amount.ToString("N2")</td></tr> }
+                    }
+                </tbody>
+            </table>
+        }
         @if (r.Corrections.Count > 0)
         {
             <h2>Recorded corrections</h2>
@@ -630,6 +669,31 @@
 
     private static string LinePeriod(CollectionActivityLineDto line) =>
         line.PeriodYear is { } y && line.PeriodMonth is { } m ? new DateOnly(y, m, 1).ToString("MMM yyyy") : "";
+
+    private static string MonthOf(CollectionActivityLateMonthDto month) => new DateOnly(month.PeriodYear, month.PeriodMonth, 1).ToString("MMM yyyy");
+
+    private sealed record LateRow(string Name, decimal Amount, string Status);
+
+    /// <summary>A rent month's surcharge and interest, each always stated (₱0.00 when none was charged), then any other late penalty.</summary>
+    private static IEnumerable<LateRow> LateRows(CollectionActivityLateMonthDto month)
+    {
+        string[] standard = [FineAssessment.SurchargeCode, FineAssessment.InterestCode];
+        foreach (var code in standard.Concat(month.Charges.Select(c => c.Code).Where(c => !standard.Contains(c)).Distinct()))
+        {
+            var charges = month.Charges.Where(c => c.Code == code).ToList();
+            var name = charges.Select(c => c.Name).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
+                ?? (code == FineAssessment.SurchargeCode ? "Surcharge" : code == FineAssessment.InterestCode ? "Interest" : "Late charge");
+            if (charges.Count == 0) { yield return new(name, 0m, "None charged"); continue; }
+            var due = charges.Sum(c => c.AmountDue);
+            var collected = charges.Sum(c => c.Collected);
+            var receipts = string.Join(", ", charges.SelectMany(c => c.ReferenceCodes).Distinct());
+            yield return new(name, due,
+                due == 0m ? "Waived"
+                : collected >= due ? (receipts.Length > 0 ? $"Collected · {receipts}" : "Collected")
+                : collected > 0m ? $"₱{collected:N2} collected · ₱{due - collected:N2} unpaid"
+                : "Unpaid");
+        }
+    }
     private void CancelArming() { _arming = false; _ack = false; _reason = string.Empty; _reverseError = null; _operationId = Guid.NewGuid(); }
 
     private static string ReverseMessage(string? code) => code switch

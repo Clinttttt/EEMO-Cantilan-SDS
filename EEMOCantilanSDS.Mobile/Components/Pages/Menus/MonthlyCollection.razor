@@ -208,30 +208,8 @@
                 </div>
             </div>
 
-            @if (_earlier.Count > 0)
-            {
-                @* The space's older unpaid months, as the server lists them. Tapping opens the unpaid-months screen, which collects them oldest first. *@
-                <button class="earlier-card" type="button" @onclick="OpenEarlier">
-                    <span class="earlier-info">
-                        <span class="earlier-label">Unpaid before @MonthLabel</span>
-                        <span class="earlier-detail">@_earlier.Count @(_earlier.Count == 1 ? "month" : "months") · from @(new DateTime(_earlier[0].Year, _earlier[0].Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))</span>
-                    </span>
-                    <span class="earlier-amount">₱@_earlier.Sum(m => m.BalanceDue).ToString("N2", CultureInfo.InvariantCulture)</span>
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
-                </button>
-            }
-
-            @* The server's own figures for this account and month: obligation, what has been paid, and what remains. *@
-            <dl class="money-rows" aria-label="Monthly obligation">
-                <div class="money-row"><dt>Monthly obligation</dt><dd>@FormatCurrency(SelectedStall.MonthlyRate)</dd></div>
-                <div class="money-row"><dt>Paid</dt><dd>@FormatCurrency(SelectedStall.AmountPaid)</dd></div>
-                <div class="money-row strong"><dt>Remaining</dt><dd>@FormatCurrency(SelectedStall.Balance)</dd></div>
-            </dl>
-
-            @if (SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
-            {
-                @PenaltyRows(SelectedStall.Balance)
-            }
+            @Arrears
+            @AmountDue(SelectedStall, SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
 
             <button class="status-option @(SelectedStatus == PaymentStatus.Paid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
                 <div class="status-option-icon paid-icon-sm">
@@ -420,10 +398,8 @@
                 </div>
             </div>
 
-            <div class="balance-recap">
-                <div class="balance-recap-row"><span>Already paid</span><strong>@FormatCurrency(SelectedStall.AmountPaid)</strong></div>
-                <div class="balance-recap-row balance-recap-due"><span>Remaining balance</span><strong>@FormatCurrency(SelectedStall.Balance)</strong></div>
-            </div>
+            @Arrears
+            @AmountDue(SelectedStall, HasPenalties(SelectedStall))
 
             <div class="or-number-wrap">
                 <div class="form-label">Amount collected now</div>
@@ -433,11 +409,6 @@
                 </div>
                 <div class="form-hint">Up to the remaining balance of @FormatCurrency(SelectedStall.Balance). Paying it in full marks the stall Paid.@(PenaltiesOpen > 0m ? " Clearing it also collects the penalties on the same receipt." : "")</div>
             </div>
-
-            @if (HasPenalties(SelectedStall) && ClearsBalance)
-            {
-                @PenaltyRows(SelectedStall.Balance)
-            }
 
             @if (SelectedStall is { RentCanonical: false })
             {
@@ -483,7 +454,7 @@
         <div class="sheet" @onclick:stopPropagation="true">
             <div class="sheet-handle"></div>
             <div class="sheet-title">Collect Penalties</div>
-            <div class="sheet-sub">@MonthLabel rent is paid. These penalties are still open on the account.</div>
+            <div class="sheet-sub">These penalties are still open on the account.</div>
 
             <div class="sheet-preview">
                 <div class="preview-num" title="@SelectedStall.StallNo">@SelectedStall.StallNo</div>
@@ -493,7 +464,8 @@
                 </div>
             </div>
 
-            @PenaltyRows(0m)
+            @Arrears
+            @AmountDue(SelectedStall, true)
 
             <details class="or-number-wrap">
                 <summary>Receipt details (optional entry)</summary>
@@ -644,6 +616,8 @@
     private bool RecordConfirmed => RentNotice?.StartsWith("Collection recorded", StringComparison.Ordinal) == true || RentNotice == "Payment recorded successfully.";
     private void DismissRecorded() => RentNotice = null;
     [Parameter] public string Facility { get; set; } = string.Empty;
+    // Opened from New Collection for one stall: its sheet opens as if its card were tapped.
+    [SupplyParameterFromQuery(Name = "stall")] public Guid? StallQuery { get; set; }
 
     private FacilityCode FacilityCode;
     private MobileMonthlyCollectionDto? Collection;
@@ -878,6 +852,8 @@
         PaymentHub.ConnectionRestored += OnConnectionRestored;
 
         await LoadCollectionAsync();
+        if (StallQuery is { } asked && Collection?.Stalls.FirstOrDefault(s => s.StallId == asked) is { } stall)
+            OnCardTap(stall);
     }
 
     // Realtime: when a payor pays online for a stall in THIS facility/month, refresh so the card flips
@@ -1068,6 +1044,7 @@
         BalanceOrNumber = SelectedStall.ORNumber ?? string.Empty; // carry the existing OR forward, if any
         CollectBalanceError = null;
         ShowCollectBalance = true;
+        LoadEarlier(SelectedStall);
         LoadPenalties(SelectedStall);
     }
 
@@ -1078,6 +1055,7 @@
         BalanceOrNumber = string.Empty;
         CollectBalanceError = null;
         SelectedStall = null;
+        _earlier = [];
         ResetPenalties();
     }
 
@@ -1213,8 +1191,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         ORNumber = stall.ORNumber ?? string.Empty;
         SheetError = null;
         ShowSheet = true;
-        _earlier = [];
-        _ = LoadEarlierAsync(stall.StallId);
+        LoadEarlier(stall);
         // A month already paid is opened here only to edit its record; its penalties are collected from their own sheet, never by an edit.
         if (stall.Status != PaymentStatus.Paid) LoadPenalties(stall);
     }
@@ -1222,6 +1199,12 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
     // The space's unpaid months before the one on screen, read live each time the sheet opens (never from a device cache). Empty when none or unreadable:
     // the card only adds information, and the server still refuses a newer month while an older one is open.
     private IReadOnlyList<MobileUnpaidMonthDto> _earlier = [];
+
+    private void LoadEarlier(MobileMonthlyStallCollectionDto stall)
+    {
+        _earlier = [];
+        _ = LoadEarlierAsync(stall.StallId);
+    }
 
     private async Task LoadEarlierAsync(Guid stallId)
     {
@@ -1239,7 +1222,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
     private void OpenEarlier()
     {
         if (SelectedStall is not { } stall) return;
-        Navigation.NavigateTo($"/arrears/months?stall={stall.StallId}&back={Uri.EscapeDataString("/collect/" + Facility)}"
+        Navigation.NavigateTo($"/arrears/months?stall={stall.StallId}{(stall.ContractId is { } contract ? $"&contract={contract}" : "")}&back={Uri.EscapeDataString("/collect/" + Facility)}"
             + $"&payer={Uri.EscapeDataString(stall.PayorName)}&space={Uri.EscapeDataString("Stall " + stall.StallNo)}");
     }
 
@@ -1506,30 +1489,59 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
     private static bool HasPenalties(MobileMonthlyStallCollectionDto stall) => stall.PenaltiesDue > 0m && stall.ContractId is not null;
     private decimal PenaltiesOpen => _penalties is { } open ? AccountPenalties.Total(open) : 0m;
 
-    // The account's open penalties as register rows (Surcharge, Interest, …) and the total collected together with `rent` on one receipt.
-    // A template of this page so the page's own scoped styles apply.
-    private RenderFragment PenaltyRows(decimal rent) =>@<dl class="money-rows" aria-label="Penalties">
-        @if (_penalties is { Count: > 0 } open)
+    // One statement on every collect sheet, like the Statement of Account: the month's rental (what remains of it), each open penalty with the months it
+    // is for, and the total, which is what one receipt records when the rent is cleared. Arrears sit above it: they are taken on their own receipt.
+    // Templates of this page so the page's own scoped styles apply.
+    private RenderFragment AmountDue(MobileMonthlyStallCollectionDto stall, bool withPenalties) =>@<dl class="money-rows" aria-label="Amount due">
+        <div class="money-row">
+            <dt>
+                @MonthLabel rental
+                @if (stall.AmountPaid > 0m) { <small>@FormatCurrency(stall.AmountPaid) of @FormatCurrency(stall.MonthlyRate) paid</small> }
+            </dt>
+            <dd>@(stall.Balance > 0m ? FormatCurrency(stall.Balance) : "Paid")</dd>
+        </div>
+        @if (withPenalties)
         {
-            @foreach (var line in AccountPenalties.Lines(open))
+            @if (_penalties is { Count: > 0 } open)
             {
-                <div class="money-row"><dt>@line.Name</dt><dd>@FormatCurrency(line.Amount)</dd></div>
+                @foreach (var line in AccountPenalties.Lines(open))
+                {
+                    <div class="money-row"><dt>@line.Name@if (line.Months is { } months) { <small>@months</small> }</dt><dd>@FormatCurrency(line.Amount)</dd></div>
+                }
             }
-            <div class="money-row strong"><dt>@(rent > 0m ? "Total amount due" : "Total penalties")</dt><dd>@FormatCurrency(rent + AccountPenalties.Total(open))</dd></div>
+            else if (_penaltiesLoading)
+            {
+                <div class="money-row"><dt>Penalties</dt><dd>Loading…</dd></div>
+            }
+            else if (_penaltiesUnreadable)
+            {
+                <div class="money-row"><dt>Penalties<small>Not included · offline</small></dt><dd>@FormatCurrency(stall.PenaltiesDue)</dd></div>
+            }
+            else
+            {
+                <div class="money-row"><dt>Penalties</dt><dd>None open</dd></div>
+            }
         }
-        else if (_penaltiesLoading)
+        @if (stall.Balance + (withPenalties ? PenaltiesOpen : 0m) is var total && total > 0m)
         {
-            <div class="money-row"><dt>Penalties</dt><dd>Loading…</dd></div>
-        }
-        else if (_penaltiesUnreadable)
-        {
-            <div class="money-row"><dt>Penalties @FormatCurrency(SelectedStall?.PenaltiesDue ?? 0m)</dt><dd>Not included · offline</dd></div>
-        }
-        else
-        {
-            <div class="money-row"><dt>Penalties</dt><dd>None open to collect</dd></div>
+            <div class="money-row strong"><dt>Total amount due</dt><dd>@FormatCurrency(total)</dd></div>
         }
     </dl>;
+
+    // The space's older unpaid months, as the server lists them. Tapping opens the unpaid-months screen, which collects them oldest first.
+    private RenderFragment Arrears =>@<text>
+        @if (_earlier.Count > 0)
+        {
+            <button class="earlier-card" type="button" @onclick="OpenEarlier">
+                <span class="earlier-info">
+                    <span class="earlier-label">Rental arrears</span>
+                    <span class="earlier-detail">@(AccountPenalties.Months(_earlier.Select(m => new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture))) ?? $"{_earlier.Count} months") · collected separately</span>
+                </span>
+                <span class="earlier-amount">@FormatCurrency(_earlier.Sum(m => m.BalanceDue))</span>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+            </button>
+        }
+    </text>;
 
     private void ResetPenalties()
     {
@@ -1544,6 +1556,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
         PenaltyReceipt = string.Empty;
         SheetError = null;
         ShowPenalties = true;
+        LoadEarlier(stall);
         LoadPenalties(stall);
     }
 

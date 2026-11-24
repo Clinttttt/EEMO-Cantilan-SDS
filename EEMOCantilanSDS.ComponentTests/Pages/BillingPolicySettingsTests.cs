@@ -37,7 +37,7 @@ public sealed class BillingPolicySettingsTests : TestContext
         Assert.Contains("Oldest month first", failed.Markup);
     }
 
-    private IRenderedComponent<BillingPolicySettings> Open(string role, Result<BillingPolicyPageDto> page)
+    private IRenderedComponent<BillingPolicySettings> Open(string role, Result<BillingPolicyPageDto> page, bool edit = true)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.AddTestAuthorization().SetAuthorized("Staff").SetRoles(role);
@@ -50,8 +50,8 @@ public sealed class BillingPolicySettingsTests : TestContext
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         var cut = RenderComponent<BillingPolicySettings>();
-        // The amendment form opens from Edit; the tests below work in the open form.
-        if (role == "SuperAdmin" && page.IsSuccess)
+        // The amendment form opens from Edit, in place of the statement; the tests below work in the open form unless they read the statement.
+        if (edit && role == "SuperAdmin" && page.IsSuccess)
         {
             cut.WaitForState(() => cut.FindAll(".bp-edit").Count > 0);
             cut.Find(".bp-edit").Click();
@@ -65,6 +65,8 @@ public sealed class BillingPolicySettingsTests : TestContext
         var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()));
         Assert.NotEmpty(cut.FindAll("form.bp-form"));
         Assert.Empty(cut.FindAll(".bp-edit"));
+        Assert.Empty(cut.FindAll(".bp-terms"));   // the fields stand in place of the statement, not under it
+        Assert.Equal(["Payment terms", "Advance payment", "Late charges"], cut.FindAll("form .bp-group h3").Select(h => h.TextContent));
 
         cut.FindAll(".bp-form-foot button").Single(b => b.TextContent.Trim() == "Cancel").Click();
 
@@ -75,12 +77,12 @@ public sealed class BillingPolicySettingsTests : TestContext
     [Fact]
     public void WithNothingSet_TheDefaultsAreStated_AndNoPenaltyIsClaimed()
     {
-        var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()));
+        var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()), edit: false);
 
         cut.WaitForAssertion(() => Assert.Contains("StallTrack defaults", cut.Markup));
-        Assert.Contains("Last day of the month", cut.Markup);
-        Assert.Contains("Oldest month first", cut.Markup);
-        Assert.Contains("Up to 3 months", cut.Markup);
+        Assert.Equal([("Due date", "Last day of the month"), ("Grace period", "None"), ("Payment order", "Oldest month first"), ("Counted from", "December 2026"),
+                ("Pay ahead", "Up to 3 months"), ("Whole-year payment", "Allowed")],
+            cut.FindAll(".bp-terms .bp-list > div").Select(r => (r.QuerySelector("dt")!.TextContent, r.QuerySelector("dd")!.TextContent)));
         Assert.Contains("Not configured", cut.Markup);
         Assert.Contains("Nothing is charged", cut.Find(".bp-terms").TextContent);
         Assert.DoesNotContain("Per ", cut.Find(".bp-terms").TextContent);
@@ -92,8 +94,9 @@ public sealed class BillingPolicySettingsTests : TestContext
         RecordBillingPolicyRequest? sent = null;
         _api.Setup(a => a.RecordAsync(It.IsAny<RecordBillingPolicyRequest>())).Callback((RecordBillingPolicyRequest r) => sent = r)
             .ReturnsAsync(Result<BillingPolicyPageDto>.Failure("stop here"));
-        var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()));
-        cut.WaitForAssertion(() => Assert.Contains("December 2026", cut.Markup));
+        var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()), edit: false);
+        cut.WaitForAssertion(() => Assert.Contains("December 2026", cut.Find(".bp-terms").TextContent));
+        cut.Find(".bp-edit").Click();
 
         cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Count unpaid months from")).QuerySelector("input")!.Change("2024-03");
         cut.FindAll("label.v3-field").Single(l => l.TextContent.StartsWith("Due day")).QuerySelector("select")!.Change("10");
@@ -133,7 +136,13 @@ public sealed class BillingPolicySettingsTests : TestContext
         cut.WaitForAssertion(() => Assert.Contains("The billing policy was recorded.", cut.Markup));
         Assert.Equal(new RecordBillingPolicyRequest(Today, rules, "RA 7160 Sec. 168"), sent);
         Assert.Contains("25% surcharge once + 2% a month", cut.Markup);
-        Assert.Contains(cut.FindAll(".bp-term-note"), n => n.TextContent == "Interest up to 36 months · RA 7160 Sec. 168");
+        // Late charges read one term to a row, with the authority they rest on.
+        Assert.Equal([("Surcharge", "25% once"), ("Interest", "2% a month"), ("Interest stops after", "36 months"), ("Authority", "RA 7160 Sec. 168")],
+            cut.FindAll(".bp-terms .bp-group").Last().QuerySelectorAll(".bp-list > div").Select(r => (r.QuerySelector("dt")!.TextContent, r.QuerySelector("dd")!.TextContent)));
+        // The amendment reads in the same three groups: each cell a headline over its detail.
+        Assert.Equal(["Last day of the month · no grace | Oldest month first · from Dec 2026", "Up to 3 months | Whole year allowed",
+                "25% surcharge once + 2% a month | Interest up to 36 months · RA 7160 Sec. 168"],
+            cut.FindAll(".bp-history tbody td").Skip(1).Select(c => string.Join(" | ", c.Children.Select(s => s.TextContent))));
     }
 
     private static AngleSharp.Dom.IElement Field(IRenderedComponent<BillingPolicySettings> cut, string label) =>

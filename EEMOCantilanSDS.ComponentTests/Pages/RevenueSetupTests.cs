@@ -434,9 +434,10 @@ public sealed class RevenueSetupTests : TestContext
 
         cut.WaitForAssertion(() =>
         {
-            Assert.Equal(["Office", "Revenue", "People", "Data", "Help", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
+            // Two balanced columns: the office's configuration and help on the left, people, data and your account on the right.
+            Assert.Equal(["Office", "Revenue", "Help", "People", "Data", "Your account"], cut.FindAll("h2").Select(h => h.TextContent.Trim()).ToArray());
             string[] destinations = ["/office-profile", "/settings/report-signatories", "/settings/facilities", "/settings/operations", "/settings/revenue",
-                "/settings/billing-policy", "/accounts", "/collectors", "/settings/backups", "/settings/storage", "/settings/user-guide"];
+                "/settings/billing-policy", "/settings/user-guide", "/accounts", "/collectors", "/settings/backups", "/settings/storage"];
             Assert.Equal(destinations, cut.FindAll("a.set-item").Select(a => a.GetAttribute("href")).ToArray());
         }, RenderTimeout);
 

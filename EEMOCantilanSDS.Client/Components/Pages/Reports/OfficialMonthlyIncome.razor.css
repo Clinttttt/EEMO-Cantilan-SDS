@@ -105,8 +105,11 @@
     color: var(--navy);
 }
 
+/* The sheet fits its width: the type (and with it every em-sized padding) scales with the sheet, so all twelve months, the total
+   and the percentage stay in view. Only below a legible 10px does the sheet scroll sideways. */
 .omi-scroll {
     overflow-x: auto;
+    container-type: inline-size;
 }
 
     .omi-scroll:focus-visible {
@@ -114,26 +117,26 @@
         outline-offset: 2px;
     }
 
+/* Auto layout: a column is never narrower than its widest amount, so a figure can never run into the next column. */
 .omi-table {
     width: 100%;
-    min-width: 1240px;
-    table-layout: fixed;
+    table-layout: auto;
     border-collapse: separate;
     border-spacing: 0;
-    font-size: 0.75rem;
+    font-size: clamp(0.625rem, 0.79cqi, 0.75rem);
     color: var(--text);
 }
 
-/* Identical column proportions on both preview sheets; paper widths below use the same proportions. */
-.omi-col-line { width: 20.13%; }
-.omi-col-wide { width: 6.34%; }
-.omi-col-month { width: 5.26%; }
-.omi-col-pct { width: 4.07%; }
+/* The same column proportions on both preview sheets, sized for amounts to ₱999,999.99 a month; a larger figure widens its column. */
+.omi-col-line { width: 15.6%; }
+.omi-col-wide { width: 7%; }
+.omi-col-month { width: 5.55%; }
+.omi-col-pct { width: 3.8%; }
 
     /* Separate borders (right and bottom per cell) so the sticky line column keeps its rule while scrolling. */
     .omi-table th,
     .omi-table td {
-        padding: 5px 7px;
+        padding: 0.42em 0.55em;
         border-right: 1px solid var(--border-strong);
         border-bottom: 1px solid var(--border-strong);
     }
@@ -146,9 +149,11 @@
         border-top: 1px solid var(--border-strong);
     }
 
+    /* A heading wraps onto two lines ("Annual / target") rather than running into the next column. */
     .omi-table thead th {
         background: var(--surface-muted);
-        font-size: 0.71875rem;
+        font-size: 0.96em;
+        white-space: normal;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.03em;
@@ -163,7 +168,7 @@
     position: sticky;
     left: 0;
     z-index: 1;
-    min-width: 220px;
+    min-width: 15em;
     background: var(--surface);
     text-align: left;
     font-weight: 500;
@@ -204,7 +209,7 @@
 }
 
 .omi-section th {
-    font-size: 0.75rem;
+    font-size: 1em;
 }
 
 .omi-group th {
@@ -285,6 +290,7 @@
 
     .omi-scroll {
         overflow: visible;
+        container-type: normal;
     }
 
     .omi-table {

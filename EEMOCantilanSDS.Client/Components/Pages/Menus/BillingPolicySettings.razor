@@ -61,50 +61,69 @@
                         }
                     </Authorized></AuthorizeView>
                 </header>
-                @* Four headline terms, each with its detail beneath, then the standing definitions in a quiet band. *@
-                <dl class="bp-terms">
-                    <div>
-                        <dt>Due date</dt>
-                        <dd>@DueLabel(_page.Current)</dd>
-                        <dd class="bp-term-note">@(_page.Current.GraceDays == 0 ? "No grace period" : $"{Days(_page.Current.GraceDays)} grace")</dd>
-                    </div>
-                    <div>
-                        <dt>Payment order</dt>
-                        <dd>@(_page.Current.OldestMonthFirst ? "Oldest month first" : "Any open month")</dd>
-                        <dd class="bp-term-note">From @_page.Current.CountsMonthsFrom.ToString("MMMM yyyy")</dd>
-                    </div>
-                    <div>
-                        <dt>Advance payment</dt>
-                        <dd>@(_page.Current.MaxAdvanceMonths == 0 ? "Not taken" : $"Up to {_page.Current.MaxAdvanceMonths} months")</dd>
-                        <dd class="bp-term-note">@(_page.Current.AnnualPaymentAllowed ? "Whole year allowed" : "No whole-year payment")</dd>
-                    </div>
-                    <div>
-                        <dt>Late charges</dt>
-                        <dd>@PenaltyLabel(_page.Current)</dd>
-                        <dd class="bp-term-note">@LateNote(_page.Current, _page.InForce?.GoverningReference)</dd>
-                    </div>
-                </dl>
-                @if (_definitions is { } definitions)
+                @* The policy in three groups side by side, the standing definitions in a quiet band beneath. Edit turns the groups into the same three columns of fields. *@
+                @if (!_editing)
                 {
-                    <dl class="bp-defs">
-                        <div><dt>Delinquent</dt><dd>@definitions.DelinquentThresholdMonths+ overdue month@(definitions.DelinquentThresholdMonths == 1 ? "" : "s") this year</dd></div>
-                        <div><dt>Arrears</dt><dd>Earlier years, expired or ended contracts, per obligation</dd></div>
-                    </dl>
+                    <div class="bp-groups bp-terms">
+                        <div class="bp-group">
+                            <h3>Payment terms</h3>
+                            <dl class="bp-list">
+                                <div><dt>Due date</dt><dd>@DueLabel(_page.Current)</dd></div>
+                                <div><dt>Grace period</dt><dd>@Days(_page.Current.GraceDays)</dd></div>
+                                <div><dt>Payment order</dt><dd>@(_page.Current.OldestMonthFirst ? "Oldest month first" : "Any open month")</dd></div>
+                                <div><dt>Counted from</dt><dd>@_page.Current.CountsMonthsFrom.ToString("MMMM yyyy")</dd></div>
+                            </dl>
+                        </div>
+                        <div class="bp-group">
+                            <h3>Advance payment</h3>
+                            <dl class="bp-list">
+                                <div><dt>Pay ahead</dt><dd>@(_page.Current.MaxAdvanceMonths == 0 ? "Not taken" : $"Up to {Months(_page.Current.MaxAdvanceMonths)}")</dd></div>
+                                <div><dt>Whole-year payment</dt><dd>@(_page.Current.AnnualPaymentAllowed ? "Allowed" : "Not allowed")</dd></div>
+                            </dl>
+                        </div>
+                        <div class="bp-group">
+                            <h3>Late charges</h3>
+                            @if (!_page.Current.ChargesPenalty)
+                            {
+                                <p class="bp-group-note">Not configured. Nothing is charged.</p>
+                            }
+                            else
+                            {
+                                <dl class="bp-list">
+                                    <div><dt>Surcharge</dt><dd>@SurchargeLabel(_page.Current)</dd></div>
+                                    <div><dt>Interest</dt><dd>@(_page.Current.ChargesInterest ? $"{_page.Current.InterestPercent:0.##}% a month" : "None")</dd></div>
+                                    @if (_page.Current is { ChargesInterest: true, InterestMaxMonths: { } most })
+                                    {
+                                        <div><dt>Interest stops after</dt><dd>@Months(most)</dd></div>
+                                    }
+                                    @if (_page.InForce?.GoverningReference is { } authority)
+                                    {
+                                        <div><dt>Authority</dt><dd>@authority</dd></div>
+                                    }
+                                </dl>
+                            }
+                        </div>
+                    </div>
+                    @if (_definitions is { } definitions)
+                    {
+                        <dl class="bp-defs">
+                            <div><dt>Delinquent</dt><dd>@definitions.DelinquentThresholdMonths+ overdue month@(definitions.DelinquentThresholdMonths == 1 ? "" : "s") this year</dd></div>
+                            <div><dt>Arrears</dt><dd>Earlier years, expired or ended contracts, per obligation</dd></div>
+                        </dl>
+                    }
+                    else
+                    {
+                        <p class="bp-defs" role="status">The Delinquent and Arrears definitions could not be loaded.</p>
+                    }
                 }
-                else
-                {
-                    <p class="bp-defs" role="status">The Delinquent and Arrears definitions could not be loaded.</p>
-                }
-                @* Edit opens the amendment form inside this panel, under the terms it changes; the panel grows downward. *@
+                @* Edit: the same three columns, each value now its field. One amendment covers all three, recorded whole from one effective date. *@
                 <AuthorizeView Roles="SuperAdmin">
                     <Authorized>
                         @if (_editing) {
-                        <div class="bp-editor">
                         <form class="bp-form" aria-label="Amend policy" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
-                            @* Settings layout: what a section governs on the left, its fields on the right. *@
-                            <div class="bp-section" role="group" aria-labelledby="bp-terms-h">
-                                <div class="bp-section-head"><h3 id="bp-terms-h">Payment terms</h3></div>
-                                <div class="bp-fields">
+                            <div class="bp-groups">
+                                <div class="bp-group" role="group" aria-labelledby="bp-terms-h">
+                                    <h3 id="bp-terms-h">Payment terms</h3>
                                     <label class="v3-field"><span>Due day</span>
                                         <select @bind="_dueDay">
                                             <option value="">Last day of the month</option>
@@ -117,18 +136,20 @@
                                     <label class="v3-field"><span>Grace period</span>
                                         <span class="bp-affix"><input type="number" min="0" max="90" @bind="_graceDays" /><span class="bp-unit">days</span></span>
                                     </label>
+                                    <label class="v3-field"><span>Count unpaid months from</span><input type="month" required @bind="_countsFrom" /></label>
+                                    <label class="bp-switch"><span>Oldest month first</span><input type="checkbox" role="switch" @bind="_oldestFirst" /><span class="bp-track" aria-hidden="true"></span></label>
+                                </div>
+
+                                <div class="bp-group" role="group" aria-labelledby="bp-advance-h">
+                                    <h3 id="bp-advance-h">Advance payment</h3>
                                     <label class="v3-field"><span>Pay ahead up to</span>
                                         <span class="bp-affix"><input type="number" min="0" max="12" @bind="_maxAdvance" /><span class="bp-unit">months</span></span>
                                     </label>
-                                    <label class="v3-field"><span>Count unpaid months from</span><input type="month" required @bind="_countsFrom" /></label>
-                                    <label class="bp-switch"><input type="checkbox" role="switch" @bind="_oldestFirst" /><span class="bp-track" aria-hidden="true"></span><span>Oldest month first</span></label>
-                                    <label class="bp-switch"><input type="checkbox" role="switch" @bind="_annual" /><span class="bp-track" aria-hidden="true"></span><span>Allow whole-year payment</span></label>
+                                    <label class="bp-switch"><span>Allow whole-year payment</span><input type="checkbox" role="switch" @bind="_annual" /><span class="bp-track" aria-hidden="true"></span></label>
                                 </div>
-                            </div>
 
-                            <div class="bp-section" role="group" aria-labelledby="bp-penalty-h">
-                                <div class="bp-section-head"><h3 id="bp-penalty-h">Late charges</h3></div>
-                                <div class="bp-fields">
+                                <div class="bp-group" role="group" aria-labelledby="bp-penalty-h">
+                                    <h3 id="bp-penalty-h">Late charges</h3>
                                     <label class="v3-field"><span>Surcharge</span>
                                         <span class="bp-affix"><input type="number" min="0.01" max="100" step="0.01" placeholder="None" @bind="_surcharge" /><span class="bp-unit">% once</span></span>
                                     </label>
@@ -143,7 +164,7 @@
                                     }
                                     @if (Charges)
                                     {
-                                        <label class="v3-field bp-wide"><span>Authority</span><input type="text" maxlength="200" placeholder="Ordinance or resolution" @bind="_reference" /></label>
+                                        <label class="v3-field bp-grow"><span>Authority</span><input type="text" maxlength="200" placeholder="Ordinance or resolution" @bind="_reference" /></label>
                                     }
                                 </div>
                             </div>
@@ -155,7 +176,6 @@
                                 <button type="submit" class="v3-btn v3-btn-primary" disabled="@_saving">Record amendment</button>
                             </div>
                         </form>
-                        </div>
                         }
                     </Authorized>
                 </AuthorizeView>
@@ -172,20 +192,39 @@
                 else
                 {
                     <div class="v3-table-wrap" tabindex="0">
-                        <table class="v3-table">
-                            <thead><tr><th>Effective</th><th>Due date</th><th>Grace</th><th>Order</th><th>Counted from</th><th>Ahead</th><th>Late charges</th><th>Authority</th></tr></thead>
+                        @* One row per amendment, in the same three groups as the policy above: each group's headline, its detail beneath. *@
+                        <table class="v3-table bp-history">
+                            <thead><tr><th scope="col">Effective</th><th scope="col">Payment terms</th><th scope="col">Advance payment</th><th scope="col">Late charges</th></tr></thead>
                             <tbody>
                                 @foreach (var v in _page.Versions)
                                 {
                                     <tr>
-                                        <td>@v.EffectiveFrom.ToString("MMM d, yyyy")</td>
-                                        <td>@DueLabel(v.Rules)</td>
-                                        <td>@Days(v.Rules.GraceDays)</td>
-                                        <td>@(v.Rules.OldestMonthFirst ? "Oldest first" : "Any")</td>
-                                        <td>@v.Rules.CountsMonthsFrom.ToString("MMM yyyy")</td>
-                                        <td>@v.Rules.MaxAdvanceMonths</td>
-                                        <td>@PenaltyLabel(v.Rules)</td>
-                                        <td>@(v.GoverningReference ?? "—")</td>
+                                        <td>
+                                            <span class="bp-cell-main">@v.EffectiveFrom.ToString("MMM d, yyyy")</span>
+                                            @if (v.Id == _page.InForce?.Id)
+                                            {
+                                                <span class="bp-cell-sub bp-in-force">In force</span>
+                                            }
+                                            else if (v.EffectiveFrom > _page.Today)
+                                            {
+                                                <span class="bp-cell-sub">Scheduled</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            <span class="bp-cell-main">@DueLabel(v.Rules) · @(v.Rules.GraceDays == 0 ? "no grace" : $"{Days(v.Rules.GraceDays)} grace")</span>
+                                            <span class="bp-cell-sub">@(v.Rules.OldestMonthFirst ? "Oldest month first" : "Any open month") · from @v.Rules.CountsMonthsFrom.ToString("MMM yyyy")</span>
+                                        </td>
+                                        <td>
+                                            <span class="bp-cell-main">@(v.Rules.MaxAdvanceMonths == 0 ? "Not taken" : $"Up to {Months(v.Rules.MaxAdvanceMonths)}")</span>
+                                            <span class="bp-cell-sub">@(v.Rules.AnnualPaymentAllowed ? "Whole year allowed" : "No whole-year payment")</span>
+                                        </td>
+                                        <td>
+                                            <span class="bp-cell-main">@PenaltyLabel(v.Rules)</span>
+                                            @if (LateDetail(v) is { Length: > 0 } detail)
+                                            {
+                                                <span class="bp-cell-sub">@detail</span>
+                                            }
+                                        </td>
                                     </tr>
                                 }
                             </tbody>
@@ -303,9 +342,23 @@
     // Drops trailing zeros, so a stored 25.00 reads 25 in its field.
     private static decimal? Plain(decimal? value) => value / 1.000000000000000000000000000000000m;
 
-    private static string LateNote(BillingPolicy rules, string? reference) =>
-        !rules.ChargesPenalty ? "Nothing is charged"
-        : string.Join(" · ", new[] { rules is { ChargesInterest: true, InterestMaxMonths: { } most } ? $"Interest up to {most} months" : null, reference }.OfType<string>());
+    private static string Months(int months) => months == 1 ? "1 month" : $"{months} months";
+
+    // Under an amendment's late charges: how long interest runs, and the authority it rests on.
+    private static string LateDetail(BillingPolicyVersionDto version) => string.Join(" · ", new[]
+    {
+        version.Rules is { ChargesInterest: true, InterestMaxMonths: { } most } ? $"Interest up to {Months(most)}" : null,
+        version.GoverningReference,
+    }.OfType<string>());
+
+    // The surcharge alone, for its own row; an older policy's repeating or fixed penalty reads in the same row.
+    private static string SurchargeLabel(BillingPolicy rules)
+    {
+        if (!rules.ChargesSurcharge) return "None";
+        var rate = rules.PenaltyBasis == LatePenaltyBasis.PercentOfUnpaid ? $"{rules.PenaltyValue:0.##}%" : $"₱{rules.PenaltyValue:N2}";
+        var when = rules.PenaltyRepeatsMonthly ? " each month unpaid" : " once";
+        return rules.PenaltyMonthCap is { } cap ? $"{rate}{when}, at most ₱{cap:N2} a month" : rate + when;
+    }
 
     private static string PenaltyLabel(BillingPolicy rules)
     {

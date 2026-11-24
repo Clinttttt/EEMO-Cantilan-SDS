@@ -7,6 +7,7 @@ using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
 using EEMOCantilanSDS.Application.Queries.Settings.GetOperationSetup;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Facilities;
 using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Entities.Tenancy;
 using EEMOCantilanSDS.Domain.Entities.Users;
@@ -231,5 +232,60 @@ public sealed class OperationSetupTests(PostgresFixture db)
             Assert.Equal(OperationSetupState.SetupRequired, blocked.State);
             Assert.Contains("An assigned collector is inactive", blocked.Gaps);
         }
+    }
+
+    [SkippableFact]
+    public async Task Electricity_IsJudgedByTheNpmCollectorsTheAppOffersItTo_NotByAnOperationAssignment()
+    {
+        Skip.IfNot(db.Available, db.UnavailableReason ?? string.Empty);
+        await db.ResetAsync();
+        var tenant = await SeedTenantAsync("ECF");
+        Facility market, commercial;
+        CollectorUser collector;
+        await using (var seed = db.CreateContext(tenant))
+        {
+            var source = RevenueClassification.Create(RevenueClassificationCodes.Ecf, tenant, "test");
+            seed.RevenueClassifications.Add(source);
+            seed.RevenueClassificationPolicies.Add(RevenueClassificationPolicy.Create(source.Id, Today.AddYears(-1), "Electricity", RevenueInstrumentType.OfficialReceipt, tenant));
+            market = Facility.Create(FacilityCode.NPM, "Market", "NPM", municipalityId: tenant);
+            commercial = Facility.Create(FacilityCode.TCC, "Commercial Center", "TCC", municipalityId: tenant);
+            collector = CollectorUser.Create("Ops Collector", "OC-02", "oc-" + Guid.NewGuid().ToString("N")[..8], null, null, new HashedPassword("test-hash"), tenant);
+            seed.AddRange(market, commercial, collector);
+            await seed.SaveChangesAsync();
+        }
+
+        // A collector of another facility is not offered Electricity by the app, so does not make it ready.
+        await using (var assign = db.CreateContext(tenant))
+        {
+            assign.Add(CollectorFacilityAssignment.Create(collector.Id, commercial.Id, FacilityCode.TCC));
+            await assign.SaveChangesAsync();
+        }
+        await using (var ctx = db.CreateContext(tenant))
+        {
+            var unassigned = await StateOf(ctx, tenant, "ECF");
+            Assert.Equal(OperationSetupState.Added, unassigned.State);
+            Assert.Equal(["No active collector is assigned to the NPM facility"], unassigned.Gaps);
+        }
+
+        await using (var assign = db.CreateContext(tenant))
+        {
+            assign.Add(CollectorFacilityAssignment.Create(collector.Id, market.Id, FacilityCode.NPM));
+            await assign.SaveChangesAsync();
+        }
+        await using (var ctx = db.CreateContext(tenant))
+        {
+            var ready = await StateOf(ctx, tenant, "ECF");
+            Assert.Equal((OperationSetupState.Ready, 1, 1), (ready.State, ready.AssignedCollectors, ready.ReadyCollectors));
+            Assert.Empty(ready.Gaps);
+            Assert.Empty(await ctx.CollectorOperationAssignments.ToListAsync());   // judged, never granted
+        }
+
+        await using (var off = db.CreateContext(tenant))
+        {
+            (await off.CollectorUsers.SingleAsync(c => c.Id == collector.Id)).Deactivate("head");
+            await off.SaveChangesAsync();
+        }
+        await using (var ctx = db.CreateContext(tenant))
+            Assert.Equal(OperationSetupState.Added, (await StateOf(ctx, tenant, "ECF")).State);   // an inactive collector collects nothing
     }
 }

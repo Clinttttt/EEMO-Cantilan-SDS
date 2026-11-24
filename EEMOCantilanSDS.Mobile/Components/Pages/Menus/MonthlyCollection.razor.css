@@ -881,6 +881,15 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* The months a line is for, under its name */
+.money-row dt small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--mobile-text-secondary);
+}
+
 .money-row.strong dt {
     color: var(--mobile-text);
     font-weight: 600;
@@ -890,7 +899,7 @@
     font-size: 17px;
 }
 
-/* Older unpaid months of this space: one tappable row that opens the unpaid-months screen. */
+/* Older unpaid months of this space: one plain tappable row, in the statement's own style, that opens the unpaid-months screen. */
 .earlier-card {
     display: flex;
     align-items: center;
@@ -900,9 +909,8 @@
     margin: 0 0 12px;
     padding: 10px 12px 10px 14px;
     border: 1px solid var(--mobile-border);
-    border-left: 3px solid var(--mobile-warning);
     border-radius: 10px;
-    background: var(--mobile-warning-subtle);
+    background: var(--mobile-surface);
     font: inherit;
     text-align: left;
     color: var(--mobile-text);
