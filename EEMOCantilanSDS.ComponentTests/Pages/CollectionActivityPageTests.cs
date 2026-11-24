@@ -295,4 +295,41 @@ public sealed class CollectionActivityPageTests : TestContext
         page.WaitForAssertion(() => Assert.Equal(2, page.FindAll(".txr-items tbody tr").Count));
         Assert.Contains("Sep 2026", page.Markup);
     }
+
+    [Fact]
+    public void ARentMonth_StatesItsSurchargeAndInterest_ZeroWhenNoneWasCharged_OutsideTheEntrysTotal()
+    {
+        var rent = new CollectionActivityLineDto("PERMANENT_STALL_RENT", "Permanent Stall Rent", 1_200m, "PaymentRecord", null, Guid.NewGuid(), 2026, 10, "Stall D-01");
+        var page = RenderPage(
+            Event("PaymentRecord:1", "Legacy", "PERMANENT_STALL_RENT", "Permanent Stall Rent", 1_200m, FacilityCode.TCC, lines: [rent])
+                with { LateCharges = [new(2026, 10, [])] },
+            Event("PaymentRecord:2", "Legacy", "PERMANENT_STALL_RENT", "Permanent Stall Rent", 1_200m, FacilityCode.TCC, lines: [rent with { PeriodMonth = 9 }])
+                with { LateCharges = [new(2026, 9, [
+                    new("LATE_SURCHARGE", "Surcharge", 300m, 300m, ["SRC-2026-000140"]),
+                    new("LATE_INTEREST", "Interest", 30m, 0m, []),
+                    new("LATE_INTEREST", "Interest", 30m, 0m, [])])] });
+        page.WaitForAssertion(() => Assert.Equal(2, page.FindAll(".txn-row").Count));
+
+        string[] Rows() => page.FindAll(".txr-late tbody tr").Select(r => string.Join(" | ", r.QuerySelectorAll("td").Select(c => c.TextContent.Trim()))).ToArray();
+        page.FindAll(".txn-row")[0].Click();
+        Assert.Equal(["SurchargeNone charged | Oct 2026 | ₱0.00", "InterestNone charged | Oct 2026 | ₱0.00"], Rows());
+        Assert.Contains("₱1,200.00", page.Find(".txr-items tfoot").TextContent);   // the total stays the rent
+
+        page.Find(".txr-close").Click();
+        page.FindAll(".txn-row")[1].Click();
+        Assert.Equal(["SurchargeCollected · SRC-2026-000140 | Sep 2026 | ₱300.00", "InterestUnpaid | Sep 2026 | ₱60.00"], Rows());
+        Assert.Contains("₱1,200.00", page.Find(".txr-items tfoot").TextContent);
+    }
+
+    [Fact]
+    public void AnEntryThatIsNotRent_HasNoLateCharges()
+    {
+        var page = RenderPage(Event("Collection:7", "Canonical", "PENALTIES_AND_FINES", "Fines / Penalties", 300m,
+            lines: [new("PENALTIES_AND_FINES", "Fines / Penalties", 300m, "FineAssessment", null, Guid.NewGuid(), 2026, 10, "Surcharge")]));
+        page.WaitForAssertion(() => Assert.Single(page.FindAll(".txn-row")));
+        page.Find(".txn-row").Click();
+
+        Assert.Empty(page.FindAll(".txr-late"));
+        Assert.Equal(["Surcharge", "Oct 2026"], page.FindAll(".txr-items tbody td").Take(2).Select(c => c.TextContent));
+    }
 }

@@ -1,6 +1,7 @@
 using EEMOCantilanSDS.Application.Common.Interface.Services;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Common.Tenancy;
+using EEMOCantilanSDS.Application.Dtos.Collections;
 using EEMOCantilanSDS.Application.Dtos.Facilities;
 using EEMOCantilanSDS.Application.Dtos.Payors;
 using EEMOCantilanSDS.Application.Queries.Auth.GetCurrentUser;
@@ -433,5 +434,63 @@ public class LatePenaltyTests(PostgresFixture db)
         Assert.Equal(0, await Assessor(theirs, other.Id).AssessStallAsync(seeded.Stall));
         Assert.DoesNotContain(seeded.Stall, await Assessor(theirs, other.Id).StallsToReviewAsync());
         Assert.Equal(3, (await AssessedAsync(seeded.Tenant)).Count);
+    }
+
+    [SkippableFact]
+    public async Task CollectionActivity_ListsEachRentMonthsLateCharges_WhereTheyStand_WithoutAddingThemToTheRent()
+    {
+        var rules = BillingPolicy.StallTrackDefaults with
+        {
+            PenaltyBasis = LatePenaltyBasis.PercentOfUnpaid, PenaltyValue = 25m, InterestPercent = 2m, InterestMaxMonths = 36, CountsMonthsFrom = Oldest
+        };
+        var seeded = await SeedAsync("LAT-CA", rules);
+        Assert.Equal(9, await RunAsync(seeded.Tenant, seeded.Stall));
+        var surcharge = (await AssessedAsync(seeded.Tenant)).Single(f => f.RelatedPeriodStart == Oldest && f.PenaltyCode == FineAssessment.SurchargeCode);
+
+        // The oldest month's rent, and this month's, which was never late; then the oldest month's surcharge on a receipt of its own.
+        await using (var write = db.CreateContext(seeded.Tenant))
+        {
+            foreach (var month in new[] { Oldest, ThisMonth })
+            {
+                var rent = PaymentRecord.Create(seeded.Stall, month.Year, month.Month, Rate, "test");
+                rent.UpdateStatus(PaymentStatus.Paid, 0m, null, "test", null);
+                write.Add(rent);
+            }
+            await write.SaveChangesAsync();
+        }
+        string src;
+        await using (var office = db.CreateContext(seeded.Tenant))
+        {
+            var composer = new CollectionComposerWorkflow(office, new Caller(seeded.Tenant), new Pinned(seeded.Tenant), new SystemClock());
+            var quote = await composer.QuoteFineAsync(surcharge.Id);
+            Assert.True(quote.IsSuccess, quote.Error);
+            var draft = await composer.AddFineAssessmentAsync(new(surcharge.Id, quote.Value!.QuoteToken, quote.Value.Remaining));
+            Assert.True(draft.IsSuccess, draft.Error);
+            var reviewed = await composer.ReviewAsync(draft.Value!.DraftId, new(draft.Value.Revision));
+            Assert.True(reviewed.IsSuccess, reviewed.Error);
+            var posted = await composer.PostAsync(reviewed.Value!.DraftId, new(reviewed.Value.Revision, Guid.NewGuid()));
+            Assert.True(posted.IsSuccess, posted.Error);
+            src = (await office.Collections.AsNoTracking().SingleAsync()).ReferenceCode;
+        }
+
+        await using var read = db.CreateContext(seeded.Tenant);
+        var events = await new CollectionActivityReader(read).GetAsync(seeded.Tenant, Today, Today);
+        CollectionActivityEventDto Rent(DateOnly month) =>
+            events.Single(e => e.Authority == "Legacy" && e.Lines.Single() is var l && l.PeriodYear == month.Year && l.PeriodMonth == month.Month);
+
+        var late = Rent(Oldest);
+        Assert.Equal(Rate, late.Amount);   // the rent entry's money is its rent alone
+        var charged = Assert.Single(late.LateCharges!);
+        Assert.Equal((Oldest.Year, Oldest.Month), (charged.PeriodYear, charged.PeriodMonth));
+        Assert.Equal([("Surcharge", 250m, 250m), ("Interest", 25m, 0m), ("Interest", 25m, 0m), ("Interest", 25m, 0m)],
+            charged.Charges.Select(c => (c.Name, c.AmountDue, c.Collected)));
+        Assert.Equal([src], charged.Charges[0].ReferenceCodes);
+        Assert.Empty(Assert.Single(Rent(ThisMonth).LateCharges!).Charges);   // never late: nothing charged
+
+        var penalty = events.Single(e => e.Authority == "Canonical");
+        Assert.Null(penalty.LateCharges);
+        var line = Assert.Single(penalty.Lines);
+        Assert.Equal(("Surcharge", Oldest.Year, Oldest.Month, 250m), (line.Description, line.PeriodYear, line.PeriodMonth, line.Amount));
+        Assert.Equal(2 * Rate + 250m, events.Sum(e => e.Amount));   // every peso once
     }
 }

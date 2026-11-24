@@ -4,6 +4,7 @@ using EEMOCantilanSDS.Application.Common.Slaughterhouse;
 using EEMOCantilanSDS.Application.Dtos.Collections;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Entities.Revenue;
 using EEMOCantilanSDS.Domain.Enums;
 using EEMOCantilanSDS.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -65,7 +66,67 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
         // Collector direct collections carry the verification of their cash; every other source is untouched and keeps no label.
         var canonicalIds = events.Where(e => e.CollectionId.HasValue && e.Authority == Canonical).Select(e => e.CollectionId!.Value).ToArray();
         var labels = await EEMOCantilanSDS.Application.Common.Revenue.DirectCollectionVerification.LabelsAsync(context, tenantId, canonicalIds, ct);
-        return labels.Count == 0 ? events : events.Select(e => e.CollectionId is { } id && labels.TryGetValue(id, out var label) ? e with { Verification = label } : e).ToList();
+        if (labels.Count > 0)
+            events = events.Select(e => e.CollectionId is { } id && labels.TryGetValue(id, out var label) ? e with { Verification = label } : e).ToList();
+        return await WithLateChargesAsync(tenantId, events, ct);
+    }
+
+    /// <summary>
+    /// Each monthly rent event's late charges, as they stand now: the late penalties assessed on a contract of that space for that rent month. Linked
+    /// by contract (whose space is the rent row's space) and period, never by name or receipt number. Read-only, and never added to the event's money:
+    /// a penalty collected on its own Collection is counted there.
+    /// </summary>
+    private async Task<List<CollectionActivityEventDto>> WithLateChargesAsync(Guid tenant, List<CollectionActivityEventDto> events, CancellationToken ct)
+    {
+        static bool IsRent(CollectionActivityLineDto l) => l.SourceKind == nameof(CollectionSourceKind.PaymentRecord) && l.SourceId.HasValue
+            && l.PeriodYear.HasValue && l.PeriodMonth.HasValue && l.ClassificationCode != RevenueClassificationCodes.WeightAndMeasure;
+        var recordIds = events.SelectMany(e => e.Lines).Where(IsRent).Select(l => l.SourceId!.Value).Distinct().ToArray();
+        if (recordIds.Length == 0) return events;
+
+        var spaces = await context.PaymentRecords.AsNoTracking().Where(p => p.MunicipalityId == tenant && recordIds.Contains(p.Id))
+            .ToDictionaryAsync(p => p.Id, p => p.StallId, ct);
+        var stallIds = spaces.Values.Distinct().ToArray();
+        var contracts = await context.Contracts.AsNoTracking().Where(c => c.MunicipalityId == tenant && stallIds.Contains(c.StallId))
+            .ToDictionaryAsync(c => c.Id, c => c.StallId, ct);
+        var contractIds = contracts.Keys.ToArray();
+        var fines = await context.FineAssessments.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenant && f.ContractId != null && contractIds.Contains(f.ContractId.Value)
+                && FineAssessment.LateCodes.Contains(f.PenaltyCode) && f.RelatedPeriodStart != null)
+            .Select(f => new { f.Id, Contract = f.ContractId!.Value, f.PenaltyCode, f.PenaltyName, Period = f.RelatedPeriodStart!.Value, Due = f.AdjustedAmount ?? f.AssessedAmount, f.RecordedAtUtc })
+            .ToListAsync(ct);
+        var fineIds = fines.Select(f => f.Id).ToArray();
+        var settled = await new EEMOCantilanSDS.Application.Common.Revenue.FineAssessmentCollectionSource(context).SettledAsync(tenant, fineIds, ct);
+        // The SRCs that collected each penalty; an allocation a correction took back in full no longer names it.
+        var receipts = await (from a in context.CollectionAllocations.AsNoTracking()
+                join l in context.CollectionLines.AsNoTracking() on a.CollectionLineId equals l.Id
+                join c in context.Collections.AsNoTracking() on l.CollectionId equals c.Id
+                where a.MunicipalityId == tenant && a.SourceKind == CollectionSourceKind.FineAssessment && fineIds.Contains(a.SourceId)
+                select new { a.Id, a.SourceId, a.Amount, c.ReferenceCode }).ToListAsync(ct);
+        var receiptIds = receipts.Select(r => r.Id).ToArray();
+        var takenBack = (await context.CollectionCorrectionAllocations.AsNoTracking()
+                .Where(x => x.MunicipalityId == tenant && receiptIds.Contains(x.OriginalAllocationId))
+                .Select(x => new { x.OriginalAllocationId, x.FinancialEffectAmount }).ToListAsync(ct))
+            .GroupBy(x => x.OriginalAllocationId).ToDictionary(g => g.Key, g => g.Sum(x => x.FinancialEffectAmount));
+        var references = receipts.Where(r => r.Amount + takenBack.GetValueOrDefault(r.Id) > 0m)
+            .ToLookup(r => r.SourceId, r => r.ReferenceCode);
+        // shortcut: a month whose space changed hands mid-month lists both contracts' penalties; split by occupancy if that ever happens.
+        var byMonth = fines.ToLookup(f => (Space: contracts[f.Contract], f.Period));
+
+        return events.Select(e =>
+        {
+            var months = e.Lines.Where(IsRent).Where(l => spaces.ContainsKey(l.SourceId!.Value))
+                .Select(l => (Space: spaces[l.SourceId!.Value], Period: new DateOnly(l.PeriodYear!.Value, l.PeriodMonth!.Value, 1)))
+                .Distinct().OrderBy(m => m.Period).ToList();
+            if (months.Count == 0) return e;
+            return e with
+            {
+                LateCharges = months.Select(m => new CollectionActivityLateMonthDto(m.Period.Year, m.Period.Month,
+                    byMonth[m].OrderBy(f => Array.IndexOf(FineAssessment.LateCodes, f.PenaltyCode)).ThenBy(f => f.RecordedAtUtc)
+                        .Select(f => new CollectionActivityLateChargeDto(f.PenaltyCode, f.PenaltyName, f.Due, settled.GetValueOrDefault(f.Id),
+                            references[f.Id].Where(r => !string.IsNullOrEmpty(r)).Distinct().Order(StringComparer.Ordinal).ToList()))
+                        .ToList())).ToList()
+            };
+        }).ToList();
     }
 
     public async Task<DateOnly?> FindBusinessDateByReferenceAsync(Guid tenantId, string referenceCode, CancellationToken ct = default)
@@ -392,6 +453,13 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
             .Where(d => d.MunicipalityId == tenant && dayIds.Contains(d.Id))
             .Select(d => new { d.Id, d.CollectionDate, d.Stall!.StallNo, Code = d.Stall.Facility!.Code })
             .ToDictionaryAsync(d => d.Id, ct);
+        // A penalty line reads as the penalty and the month it was charged for.
+        var fineIds = lines.Where(l => l.SourceKind == CollectionSourceKind.FineAssessment && l.SourceId.HasValue).Select(l => l.SourceId!.Value)
+            .Concat(allocations.Where(a => a.SourceKind == CollectionSourceKind.FineAssessment).Select(a => a.SourceId)).Distinct().ToArray();
+        var fines = await context.FineAssessments.AsNoTracking()
+            .Where(f => f.MunicipalityId == tenant && fineIds.Contains(f.Id))
+            .Select(f => new { f.Id, f.PenaltyName, f.RelatedPeriodStart })
+            .ToDictionaryAsync(f => f.Id, ct);
 
         var knownCutovers = cutoffUtc.HasValue
             ? await context.CollectionSettlementCutovers.AsNoTracking()
@@ -497,6 +565,9 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     (year, month, description) = (rent.PeriodStart.Year, rent.PeriodStart.Month, $"Stall {rent.StallNo}");
                 else if (kind == CollectionSourceKind.DirectFineCollection)
                     description = "Direct fine collection";
+                else if (kind == CollectionSourceKind.FineAssessment && sourceId is { } fineId && fines.TryGetValue(fineId, out var fine)
+                    && !string.IsNullOrWhiteSpace(fine.PenaltyName))
+                    (year, month, description) = (fine.RelatedPeriodStart?.Year, fine.RelatedPeriodStart?.Month, fine.PenaltyName);
                 var display = policyNames.GetValueOrDefault(l.RevenueClassificationPolicyId, code);
                 // Itemized Slaughterhouse posts one SRC with a frozen approved-name snapshot per charge.
                 // A revenue policy names the operation, not the individual service: never replace that
@@ -520,7 +591,9 @@ public sealed class CollectionActivityReader(AppDbContext context, ISlaughterAni
                     : s.Item1 == CollectionSourceKind.NpmRentMonth && s.Item2 is { } m && rentMonths.TryGetValue(m, out var rent) ? rent.Code
                     : null)
                 .Where(f => f.HasValue).Distinct().ToList();
-            var stalls = detail.Select(d => d.Description).Where(d => d is not null).Distinct().ToList();
+            // A penalty's name is not the event's subject.
+            var stalls = detail.Where(d => d.SourceKind != nameof(CollectionSourceKind.FineAssessment))
+                .Select(d => d.Description).Where(d => d is not null).Distinct().ToList();
 
             var linked = corrections.Where(x => x.OriginalCollectionId == c.Id).OrderBy(x => x.RecordedAtUtc).ToList();
             var correctionDtos = linked.Select(x => new CollectionActivityCorrectionDto(x.Id, x.CorrectionType.ToString(),
