@@ -95,15 +95,12 @@
                 {
                     <p class="bp-defs" role="status">The Delinquent and Arrears definitions could not be loaded.</p>
                 }
-            </section>
-
-            @if (_saved) { <p class="v3-notice" role="status">The billing policy was recorded.</p> }
-            <AuthorizeView Roles="SuperAdmin">
-                <Authorized>
-                    @if (_editing) {
-                    <section class="v3-panel" aria-labelledby="bp-change">
-                        <header class="v3-panel-header"><h2 id="bp-change">Amend policy</h2></header>
-                        <form class="bp-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
+                @* Edit opens the amendment form inside this panel, under the terms it changes; the panel grows downward. *@
+                <AuthorizeView Roles="SuperAdmin">
+                    <Authorized>
+                        @if (_editing) {
+                        <div class="bp-editor">
+                        <form class="bp-form" aria-label="Amend policy" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
                             @* Settings layout: what a section governs on the left, its fields on the right. *@
                             <div class="bp-section" role="group" aria-labelledby="bp-terms-h">
                                 <div class="bp-section-head"><h3 id="bp-terms-h">Payment terms</h3></div>
@@ -158,10 +155,13 @@
                                 <button type="submit" class="v3-btn v3-btn-primary" disabled="@_saving">Record amendment</button>
                             </div>
                         </form>
-                    </section>
-                    }
-                </Authorized>
-            </AuthorizeView>
+                        </div>
+                        }
+                    </Authorized>
+                </AuthorizeView>
+            </section>
+
+            @if (_saved) { <p class="v3-notice" role="status">The billing policy was recorded.</p> }
 
             <section class="v3-panel" aria-labelledby="bp-history">
                 <header class="v3-panel-header"><h2 id="bp-history">Amendment history</h2></header>

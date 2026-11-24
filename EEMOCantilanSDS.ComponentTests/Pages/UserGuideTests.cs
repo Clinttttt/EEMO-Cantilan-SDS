@@ -38,6 +38,8 @@ public class UserGuideTests : TestContext
         string[] pages = ["/settings", "/settings/billing-policy", "/operations", "/operations/fines", "/online-payments", "/collectors", "/collections/activity",
             "/remittances", "/monitoring/follow-up", "/vendors", "/reports/billing-register", "/reports/month-end", "/reports", "/audit-trail"];
         Assert.Equal(pages, cut.FindAll(".ug-steps a").Select(a => a.GetAttribute("href")).ToArray());
+        // The page's name inside its sentence is the link; it is never repeated as a separate label after the sentence.
+        Assert.All(cut.FindAll(".ug-steps a"), a => Assert.Equal(2, a.ParentElement!.TextContent.Split(a.TextContent).Length));
 
         foreach (var tenantDetail in new[] { "Cantilan", "EEMO", "₱", "25%", "36 months" })
             Assert.DoesNotContain(tenantDetail, cut.Find(".ug-body").TextContent);
