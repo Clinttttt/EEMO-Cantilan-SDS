@@ -30,10 +30,13 @@ using Npgsql;
 // anyone can use, and sends no message. Every row it adds is written to the record file, and "remove" takes exactly those out again.
 // shortcut: registers kept on their own records (Tabo attendance, slaughter, terminal trips) stay empty, as in tools/demo-tenant.
 var mode = args.FirstOrDefault();
-Require(mode is "seed" or "resume" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
-    "Use: seed <office code> <new record file>   or   resume <office code> <record file>   or   remove <record file> [--confirm]");
+Require(mode is "seed" or "resume" or "backfill" or "npm" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
+    "Use: seed <office code> <new record file>   or   resume|backfill|npm <office code> <record file>   or   remove <record file> [--confirm]");
 // resume: a seed that stopped after its rental accounts adds the rest (late charges, other collections) to the same record file.
-var resume = mode == "resume";
+// backfill: like resume, but only the days before each source's first rate rule, under that first rule (no charges, no day posted twice).
+var backfill = mode == "backfill";
+var npm = mode == "npm";   // npm: sample rent on the office's own monthly-market accounts (see below)
+var resume = mode is "resume" or "backfill" or "npm";
 var connection = Environment.GetEnvironmentVariable("STALLTRACK_SAMPLE_CONNECTION");
 Require(!string.IsNullOrWhiteSpace(connection), "Set STALLTRACK_SAMPLE_CONNECTION.");
 if (mode == "remove")
@@ -272,6 +275,84 @@ foreach (var (bill, paidOn) in utilityPaid.OrderBy(p => p.PaidOn))
 }
 await db.SaveChangesAsync();
 
+// npm: the office's own monthly-npmMarket accounts get sample rent, by the same habits, only on months with no rent row yet. Every row is
+// recorded and "remove" deletes exactly those; the office's own rows and contracts are never changed.
+var npmStalls = new List<Guid>();
+if (npm)
+{
+    if (!facilities.TryGetValue(FacilityCode.NPM, out var npmMarket))
+        Console.WriteLine("  No market in this office; nothing to add.");
+    else if (!npmMarket.IsMonthlyRentMarket)
+    {
+        // A day-billed market: market days on the office's own held spaces, at each space's own day fee (the reports' rule,
+        // NpmDailyFee), only on days with no row yet; the same habits as the sample market days.
+        var snapshot = await new EEMOCantilanSDS.Infrastructure.Fees.FeeRateResolver(db).GetSnapshotAsync();
+        var marketStalls = await db.Stalls.Include(s => s.Contracts).Where(s => s.FacilityId == npmMarket.Id && s.Status == StallStatus.Active).ToListAsync();
+        var ids = marketStalls.Select(s => s.Id).ToList();
+        var hasDay = (await db.DailyCollections.Where(d => ids.Contains(d.StallId)).Select(d => new { d.StallId, d.CollectionDate }).ToListAsync())
+            .Select(d => (d.StallId, d.CollectionDate)).ToHashSet();
+        var unpriced = 0;
+        foreach (var stall in marketStalls)
+        {
+            if (stall.Occupancies(today).LastOrDefault(o => o.IsCurrent) is not { } held) continue;
+            var turnsUp = random.NextDouble() < .75 ? .92 : .6;
+            var added = false;
+            for (var day = held.Start > firstMonth ? held.Start : firstMonth; day < today; day = day.AddDays(1))
+            {
+                if (hasDay.Contains((stall.Id, day))) continue;
+                if (EEMOCantilanSDS.Application.Common.Fees.NpmDailyFee.ForStallOrNull(stall, snapshot, day) is not { } fee || fee <= 0m) { unpriced++; continue; }
+                var row = DailyCollection.Create(stall.Id, day, by, fee);
+                if (random.NextDouble() <= turnsUp)
+                {
+                    var collector = Collector();
+                    row.MarkPaid(string.Empty, collector.Id, updatedBy: By(collector));
+                    marketDays++;
+                }
+                else if (random.NextDouble() < .9) row.MarkAbsent(by);
+                else continue;
+                row.UpdatedAt = day.ToDateTime(new TimeOnly(1, 0), DateTimeKind.Utc);
+                db.Add(row);
+                added = true;
+            }
+            if (added) npmStalls.Add(stall.Id);
+        }
+        await db.SaveChangesAsync();
+        Console.WriteLine($"  {npmMarket.Name}: {marketDays} paid market days on {npmStalls.Count} of the office's own spaces."
+            + (unpriced > 0 ? $" {unpriced} days skipped: no day fee stated for them." : ""));
+    }
+    else
+    {
+        var marketStalls = await db.Stalls.Include(s => s.Contracts).Where(s => s.FacilityId == npmMarket.Id && s.Status == StallStatus.Active).ToListAsync();
+        var ids = marketStalls.Select(s => s.Id).ToList();
+        var hasRow = (await db.PaymentRecords.Where(p => ids.Contains(p.StallId)).Select(p => new { p.StallId, p.BillingYear, p.BillingMonth }).ToListAsync())
+            .Select(p => (p.StallId, p.BillingYear, p.BillingMonth)).ToHashSet();
+        var marketPaid = new List<(Guid Stall, decimal Rate, DateOnly Month, DateTime Received, decimal? Partial)>();
+        foreach (var stall in marketStalls)
+        {
+            if (stall.Occupancies(today).LastOrDefault(o => o.IsCurrent) is not { } held) continue;
+            npmStalls.Add(stall.Id);
+            var from = new DateOnly(held.Start.Year, held.Start.Month, 1);
+            if (from < firstMonth) from = firstMonth;
+            var habit = random.NextDouble();
+            var stoppedAt = habit >= .9 ? thisMonth.AddMonths(-random.Next(1, 6)) : (DateOnly?)null;
+            for (var month = from; month <= thisMonth; month = month.AddMonths(1))
+            {
+                if (stoppedAt is { } stop && month >= stop) break;
+                if (hasRow.Contains((stall.Id, month.Year, month.Month))) continue;
+                if (month == thisMonth && random.NextDouble() > .65) continue;
+                var rate = stall.MonthlyRentFor(month.Year, month.Month, today);
+                if (rate <= 0m) continue;
+                var partial = habit >= .65 && month < thisMonth && random.NextDouble() < .2 ? decimal.Round(rate / 2, 2) : (decimal?)null;
+                marketPaid.Add((stall.Id, rate, month, OnDay(month, habit >= .65 ? random.Next(16, 28) : random.Next(1, 15)), partial));
+            }
+        }
+        foreach (var p in marketPaid.OrderBy(p => p.Received))
+            db.Add(Paid(p.Stall, p.Rate, p.Month, p.Received > clock.UtcNow ? clock.UtcNow.Date.AddHours(1) : p.Received, p.Partial));
+        await db.SaveChangesAsync();
+        Console.WriteLine($"  {npmMarket.Name}: {marketPaid.Count} rent months on {npmStalls.Count} of the office's own accounts.");
+    }
+}
+
 // Late charges need billing rules. The office's own when it has set them; otherwise the ruled ones (25% surcharge once per late month, 2%
 // interest a month on rent and surcharge up to 36 months, RA 7160 Sec. 168) from the first sample month, so every late month carries both.
 // "remove" takes these rules out again. Backdated on purpose: the domain refuses a past start for a real policy, so "today" is passed as that day.
@@ -289,7 +370,7 @@ else if (BillingPolicyVersion.InForce(versions, today) is not { InterestPercent:
     Console.WriteLine("  WARNING: this office's own billing rules charge no interest, so most sample accounts show no late charges. They were left as they are.");
 var charges = 0;
 var sampleContracts = earlier.Where(r => r.T == "Contracts").Select(r => Guid.Parse(r.V[0])).ToList();
-var chargeStalls = resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
+var chargeStalls = npm ? npmStalls : backfill ? new List<Guid>() : resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
 foreach (var stallId in chargeStalls)
 {
     // The office's own late-charge job may charge the same space at the same moment (same charge id): its charge stands, nothing of ours is saved.
@@ -319,8 +400,45 @@ var feeLines = new (string Code, int PerMonth, int Low, int High)[]
 var postedAt = new Dated();
 var otherCollections = 0;
 var skippedSources = new HashSet<string>();
-for (var month = firstMonth; month <= thisMonth; month = month.AddMonths(1))
+// Backfill: a collection may not predate its rule (Collection.Post), so each source whose first rule starts after the sample's first
+// month gets one sample rule from that month, same receipt type, recorded like every sample row and removed with them.
+var backfillBefore = new Dictionary<Guid, DateOnly>();
+var backfilledMonths = new HashSet<DateOnly>();
+if (backfill)
 {
+    // Resumable: the office's own first rule is read without the sample ones, a sample rule is added only once per source,
+    // and a month that already holds collections under a sample rule (an earlier run) is not posted again.
+    const string sampleRuleBy = "StallTrack sample";
+    await using var setup = new AppDbContext(options, pinned);
+    var codes = feeLines.Select(l => l.Code).ToHashSet();
+    var rules = await setup.RevenueClassificationPolicies
+        .Where(p => p.BusinessContext == RevenuePolicyContext.Default && p.PermittedInstrumentType != null).ToListAsync();
+    var sampleRules = rules.Where(p => p.CreatedBy == sampleRuleBy).ToList();
+    var firstRules = rules.Where(p => p.CreatedBy != sampleRuleBy)
+        .GroupBy(p => p.RevenueClassificationId).Select(g => g.MinBy(p => p.EffectiveDate)!).ToList();
+    var bySource = (await setup.RevenueClassifications.ToListAsync()).Where(c => codes.Contains(c.SemanticCode)).Select(c => c.Id).ToHashSet();
+    var added = 0;
+    foreach (var first in firstRules.Where(r => bySource.Contains(r.RevenueClassificationId) && r.EffectiveDate > firstMonth))
+    {
+        backfillBefore[first.RevenueClassificationId] = first.EffectiveDate;
+        if (sampleRules.Any(s => s.RevenueClassificationId == first.RevenueClassificationId)) continue;
+        setup.Add(RevenueClassificationPolicy.Create(first.RevenueClassificationId, firstMonth, first.DisplayName, first.PermittedInstrumentType,
+            tenant, "Sample history before the office's first rule; removed with the sample records.", sampleRuleBy));
+        added++;
+    }
+    await setup.SaveChangesAsync();
+    var sampleIds = sampleRules.Select(s => s.Id).ToList();
+    var postedDays = await (from line in setup.CollectionLines
+                            join c in setup.Collections on line.CollectionId equals c.Id
+                            where sampleIds.Contains(line.RevenueClassificationPolicyId)
+                            select c.BusinessDate).Distinct().ToListAsync();
+    backfilledMonths = postedDays.Select(d => new DateOnly(d.Year, d.Month, 1)).ToHashSet();
+    Console.WriteLine($"  Earlier rules for {backfillBefore.Count} sources from {firstMonth:MMMM yyyy} ({added} added now)"
+        + (backfilledMonths.Count > 0 ? $"; {backfilledMonths.Count} months already filled by an earlier run are skipped." : "."));
+}
+for (var month = firstMonth; !npm && month <= thisMonth; month = month.AddMonths(1))
+{
+    if (backfill && backfilledMonths.Contains(month)) { Console.WriteLine($"  {month:MMMM yyyy}: already filled."); continue; }
     var length = DateTime.DaysInMonth(month.Year, month.Month);
     var days = month == thisMonth ? today.Day - 1 : length;
     if (days < 1) continue;
@@ -349,10 +467,12 @@ for (var month = firstMonth; month <= thisMonth; month = month.AddMonths(1))
             var collector = collectors[other.Next(collectors.Length)];
             var payer = $"{firstNames[other.Next(firstNames.Length)]} {lastNames[other.Next(lastNames.Length)]}";
             var at = day.ToDateTime(new TimeOnly(other.Next(0, 9), other.Next(60)), DateTimeKind.Utc);
-            var policy = sources.TryGetValue(line.Code, out var source)
+            var inForce = sources.TryGetValue(line.Code, out var source)
                 ? policies.Where(p => p.RevenueClassificationId == source.Id && p.EffectiveDate <= day).MaxBy(p => p.EffectiveDate)
                 : null;
-            if (policy is null) { skippedSources.Add(line.Code); continue; }
+            // Backfill takes only the days before the office's own first rule, under the sample rule added for them.
+            var policy = backfill && (source is null || day >= backfillBefore.GetValueOrDefault(source.Id)) ? null : inForce;
+            if (policy is null) { if (inForce is null) skippedSources.Add(line.Code); continue; }
             batch.Add((at, day, source!, policy, charge, terminal, amount, collector, policy.PermittedInstrumentType == RevenueInstrumentType.OfficialReceipt ? payer : null));
         }
     }
@@ -377,7 +497,7 @@ var mismatches = 0;
 await using (var read = new AppDbContext(options, pinned))
 {
     var reports = new FacilityReportsRepository(read);
-    foreach (var f in plan.Select(p => p.Code).Where(facilities.ContainsKey))
+    foreach (var f in plan.Select(p => p.Code).Append(FacilityCode.NPM).Where(c => facilities.ContainsKey(c) && (c != FacilityCode.NPM || npmStalls.Count > 0)))
     {
         var register = await reports.GetBillingRegisterAsync(f, CancellationToken.None);
         foreach (var row in register?.Rows ?? [])
@@ -546,6 +666,43 @@ static class Removal
 
         // A table goes before every table it points at, so no row is deleted while another still refers to it.
         await using var modelContext = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options, new Pinned(office));
+        // A run stopped after a save committed but before its record line was written leaves a collection the file never got. On a
+        // sample rule it would block that rule's removal, so those collections join the rows to remove, with every row pointing at them.
+        if (Ids("RevenueClassificationPolicies") is { Length: > 0 } sampleRules)
+        {
+            var orphans = new List<Guid>();
+            await using (var command = new NpgsqlCommand("SELECT DISTINCT \"CollectionId\" FROM \"CollectionLines\" WHERE \"MunicipalityId\" = @o AND \"RevenueClassificationPolicyId\" = ANY(@p) AND NOT (\"Id\" = ANY(@l))", db, tx)
+                { Parameters = { new("o", office), new("p", sampleRules), new("l", Ids("CollectionLines")) } })
+            await using (var reader = await command.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) orphans.Add(reader.GetGuid(0));
+            var known = rows.Select(r => r.T + ":" + string.Join("|", r.V)).ToHashSet();
+            var pending = new Queue<(IEntityType Type, Guid[] Ids)>();
+            if (orphans.Count > 0) pending.Enqueue((modelContext.Model.FindEntityType(typeof(Collection))!, orphans.ToArray()));
+            while (pending.TryDequeue(out var item))
+            {
+                var table = item.Type.GetTableName()!;
+                var store = StoreObjectIdentifier.Table(table, item.Type.GetSchema());
+                foreach (var id in item.Ids.Where(id => known.Add(table + ":" + id)))
+                    rows.Add(new Row(table, item.Type.GetSchema(), [item.Type.FindPrimaryKey()!.Properties[0].GetColumnName(store)!], [id.ToString()], ["uuid"]));
+                foreach (var fk in modelContext.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()).Where(fk => fk.PrincipalEntityType == item.Type))
+                {
+                    var child = fk.DeclaringEntityType;
+                    var idIndex = fk.PrincipalKey.Properties.ToList().FindIndex(p => p.Name == "Id");
+                    // shortcut: only rows with one Guid key are followed; widen if a composite-keyed row ever hangs off a collection.
+                    if (child.IsOwned() || child.GetTableName() is not { } childTable || idIndex < 0
+                        || child.FindPrimaryKey() is not { Properties: [{ ClrType: var keyType } key] } || keyType != typeof(Guid)) continue;
+                    var childStore = StoreObjectIdentifier.Table(childTable, child.GetSchema());
+                    var found = new List<Guid>();
+                    await using (var command = new NpgsqlCommand($"SELECT \"{key.GetColumnName(childStore)}\" FROM {Name(child.GetSchema(), childTable)} WHERE \"{fk.Properties[idIndex].GetColumnName(childStore)}\" = ANY(@ids)", db, tx)
+                        { Parameters = { new("ids", item.Ids) } })
+                    await using (var reader = await command.ExecuteReaderAsync())
+                        while (await reader.ReadAsync()) found.Add(reader.GetGuid(0));
+                    if (found.Count > 0) pending.Enqueue((child, found.ToArray()));
+                }
+            }
+            report.Add($"Collections a stopped run left out of the record file: {orphans.Count}");
+        }
+
         var refs = modelContext.Model.GetEntityTypes().Where(e => e.GetTableName() is not null)
             .SelectMany(e => e.GetForeignKeys().Select(fk => (Child: e.GetTableName()!, Parent: fk.PrincipalEntityType.GetTableName())))
             .Where(x => x.Parent is not null && x.Child != x.Parent).Distinct().ToList();

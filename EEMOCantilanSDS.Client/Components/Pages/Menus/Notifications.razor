@@ -60,11 +60,28 @@
                 }
                 else
                 {
-                    <ul class="ib-list">
-                        @foreach (var item in _page.Items)
+                    @* Filters by what a message is about, read from where it leads: online payments, late charges, or the system itself. *@
+                    <div class="ib-filters" role="group" aria-label="Show notifications">
+                        @foreach (var f in Filters)
                         {
+                            var count = _page.Items.Count(i => Shows(f, i));
+                            <button type="button" class="ib-filter @(_filter == f ? "on" : "")" aria-pressed="@(_filter == f ? "true" : "false")" @onclick="() => _filter = f">
+                                @f <span class="ib-count">@count</span>
+                            </button>
+                        }
+                    </div>
+                    @if (!_page.Items.Any(i => Shows(_filter, i)))
+                    {
+                        <p class="ib-empty">No @(_filter == "All" ? "" : _filter.ToLowerInvariant() + " ")notifications.</p>
+                    }
+                    <ul class="ib-list">
+                        @foreach (var item in _page.Items.Where(i => Shows(_filter, i)))
+                        {
+                            var category = CategoryOf(item);
                             <li class="ib-row @(item.Read ? "" : "ib-new")" @key="item.Id">
+                                <span class="ib-icon ib-icon-@category.ToLowerInvariant().Replace(' ', '-')" aria-hidden="true">@((MarkupString)IconOf(category))</span>
                                 <div class="ib-text">
+                                    <span class="ib-cat">@category</span>
                                     <div class="ib-title">
                                         @if (!item.Read)
                                         {
@@ -138,6 +155,31 @@
             _saving = false;
         }
     }
+
+    private static readonly string[] Filters = ["All", "Unread", "Payments", "Late charges", "System"];
+    private string _filter = "All";
+
+    // shortcut: the category is read from the link a message carries; a Kind on InboxItemDto would be exact if more kinds are added.
+    private static string CategoryOf(InboxItemDto item) => item.Link switch
+    {
+        { } l when l.StartsWith("/online-payments", StringComparison.OrdinalIgnoreCase) => "Payments",
+        { } l when l.StartsWith("/operations/fines", StringComparison.OrdinalIgnoreCase) => "Late charges",
+        _ => "System",
+    };
+
+    private static bool Shows(string filter, InboxItemDto item) => filter switch
+    {
+        "All" => true,
+        "Unread" => !item.Read,
+        _ => CategoryOf(item) == filter,
+    };
+
+    private static string IconOf(string category) => category switch
+    {
+        "Payments" => "<svg viewBox=\"0 0 24 24\"><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M2 10h20\"/></svg>",
+        "Late charges" => "<svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l3 2\"/></svg>",
+        _ => "<svg viewBox=\"0 0 24 24\"><path d=\"M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9\"/><path d=\"M10.3 21a1.9 1.9 0 0 0 3.4 0\"/></svg>",
+    };
 
     // Saved before leaving, so the Sidebar's count is right when it asks again. A failed save must not stop the person reaching the page.
     private async Task OpenAsync(InboxItemDto item, string link)

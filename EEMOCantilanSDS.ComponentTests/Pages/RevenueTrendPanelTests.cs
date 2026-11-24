@@ -21,6 +21,7 @@ public sealed class RevenueTrendPanelTests : TestContext
     public RevenueTrendPanelTests()
     {
         Services.AddSingleton(_reports.Object);
+        Services.AddSingleton(Mock.Of<IReportsApiClient>());   // Attention reads the financial report; unread periods show "—"
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
@@ -109,9 +110,10 @@ public sealed class RevenueTrendPanelTests : TestContext
             Assert.DoesNotContain("2022", string.Concat(rows.Select(r => r.QuerySelector("th")!.TextContent)));
             Assert.Contains("2022", cut.Find("[role='alert']").TextContent);
             Assert.DoesNotContain("Not set", rows[1].TextContent);
-            Assert.Contains("₱100.00", rows[2].TextContent); Assert.Contains("70.0%", rows[2].TextContent);   // 2023: complete, attainment shown
-            Assert.DoesNotContain("(partial)", rows[3].TextContent);         // 2024: incomplete coverage is said, with no attainment
-            Assert.Equal("—", rows[3].QuerySelectorAll("td").Last().TextContent.Trim());
+            // Attention replaced the annual target (2026-11-24): with no financial report read, every period shows "—", never a target or zero.
+            Assert.DoesNotContain("Annual target", cut.Find("thead").TextContent);
+            Assert.Contains("Attention", cut.Find("thead").TextContent);
+            Assert.All(rows, r => Assert.Equal("—", r.QuerySelectorAll("td").Last().TextContent.Trim()));
             Assert.DoesNotContain("Year to date", cut.Markup);
         }, Timeout);
         foreach (var year in new[] { 2020, 2021, 2022, 2023, 2024 }) _reports.Verify(x => x.GetMonthlyIncomeAsync(year, null), Times.Once);

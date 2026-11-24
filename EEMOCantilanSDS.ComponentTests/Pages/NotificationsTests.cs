@@ -36,6 +36,26 @@ public sealed class NotificationsTests : TestContext
     private static Result<InboxPageDto> Page(int unread, params InboxItemDto[] items) => Result<InboxPageDto>.Success(new(items, unread));
 
     [Fact]
+    public void Filters_ShowPaymentsLateChargesAndSystemMessages_ByWhereEachLeads()
+    {
+        var system = new InboxItemDto(Guid.NewGuid(), "Backup finished", "Nightly backup.", null, new DateTime(2026, 11, 3, 1, 0, 0, DateTimeKind.Utc), true);
+        var cut = Open(Page(1, Unread, Seen, system));
+        cut.WaitForAssertion(() => Assert.Equal(3, cut.FindAll(".ib-row").Count));
+
+        string[] Titles() => cut.FindAll(".ib-row .ib-cat").Select(c => c.TextContent.Trim()).ToArray();
+        void Pick(string name) => cut.FindAll(".ib-filter").Single(b => b.TextContent.Trim().StartsWith(name)).Click();
+
+        Assert.Equal(new[] { "All 3", "Unread 1", "Payments 1", "Late charges 1", "System 1" },
+            cut.FindAll(".ib-filter").Select(b => System.Text.RegularExpressions.Regex.Replace(b.TextContent.Trim(), @"\s+", " ")).ToArray());
+        Pick("System");
+        Assert.Equal(new[] { "System" }, Titles());
+        Pick("Late charges");
+        Assert.Equal(new[] { "Late charges" }, Titles());
+        Pick("Unread");
+        Assert.Equal(new[] { "Payments" }, Titles());
+    }
+
+    [Fact]
     public void ThePage_IsForTheHeadAndAdmins()
     {
         Assert.Equal("/notifications", typeof(Notifications).GetCustomAttribute<RouteAttribute>()!.Template);
