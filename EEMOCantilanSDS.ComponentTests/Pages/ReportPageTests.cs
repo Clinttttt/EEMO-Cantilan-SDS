@@ -127,33 +127,32 @@ public class ReportPageTests : TestContext
         cut.WaitForAssertion(() =>
         {
             var tabs = cut.FindAll("nav.rpt-nav .rpt-sec-tab").Select(t => t.TextContent.Trim()).ToArray();
-            Assert.Equal(new[] { "Summary", "Monthly Income", "Collections", "Accountability", "Receivables", "Trends & Targets" }, tabs);
+            Assert.Equal(new[] { "Trends & Targets", "Monthly Income", "Collections", "Accountability", "Receivables", "Summary" }, tabs);   // Trends & Targets first (2026-11-24)
             // The oversized filter panel is gone.
             Assert.Empty(cut.FindAll(".rpt-filter-panel"));
         }, RenderTimeout);
     }
 
     [Fact]
-    public void TrendsAndTargets_DefaultsToRevenueSources_AndSwitchesToTheOfficialTrend()
+    public void TrendsAndTargets_OpensFirst_OnTheOfficialTrend_AndSwitchesToRevenueSources()
     {
-        var cut = RenderReport(SampleReport());
-        OpenSection(cut, "Trends & Targets");
+        var cut = RenderReport(SampleReport());   // no tab opened: Trends & Targets is the first screen
 
         cut.WaitForAssertion(() =>
         {
             var buttons = cut.FindAll(".rpt-view-switch button");
             Assert.Equal(["Revenue sources", "Revenue trend"], buttons.Select(b => b.TextContent.Trim()).ToArray());
-            Assert.Equal("true", buttons[0].GetAttribute("aria-pressed"));
-            Assert.Empty(cut.FindAll("section.rtp"));
+            Assert.Equal("true", buttons[1].GetAttribute("aria-pressed"));
+            Assert.Single(cut.FindAll("section.rtp"));
             Assert.DoesNotContain("Revenue Trend", cut.Markup);                       // the old facility trend block no longer exists
             Assert.Empty(cut.FindAll("#rpt-facility:not(.rpt-sec-off)"));              // the physical-facility analysis is off screen but kept for print
         }, RenderTimeout);
 
-        cut.FindAll(".rpt-view-switch button")[1].Click();
+        cut.FindAll(".rpt-view-switch button")[0].Click();
         cut.WaitForAssertion(() =>
         {
-            Assert.Single(cut.FindAll("section.rtp"));
-            Assert.Equal("true", cut.FindAll(".rpt-view-switch button")[1].GetAttribute("aria-pressed"));
+            Assert.Empty(cut.FindAll("section.rtp"));
+            Assert.Equal("true", cut.FindAll(".rpt-view-switch button")[0].GetAttribute("aria-pressed"));
         }, RenderTimeout);
     }
 
@@ -175,6 +174,7 @@ public class ReportPageTests : TestContext
     public void TheExportLabel_NamesTheDocumentItOpens_AndOnlyWhereItExists()
     {
         var cut = RenderReport(SampleReport());
+        OpenSection(cut, "Summary");   // the export lives on Summary, which is no longer the first tab
 
         cut.WaitForAssertion(() =>
         {

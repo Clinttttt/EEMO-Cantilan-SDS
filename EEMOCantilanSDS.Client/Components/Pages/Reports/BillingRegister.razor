@@ -71,18 +71,8 @@
         var columns = 12 + (otherFines ? 1 : 0) + (paidAhead ? 1 : 0);
         <OfficeReportShell Title="@($"{FacilityCatalog.NameOf(_register.Facility)} — {(_summary ? "Billing Summary" : "Billing Register")}")"
                            Period="@($"As of {_register.AsOf:MMMM d, yyyy}")">
-            <p class="br-meta">
-                @rows.Count @(rows.Count == 1 ? "account" : "accounts")
-                @if (_register.DueDate is { } due)
-                {
-                    <span> · Rent due @due.ToString("MMMM d, yyyy")</span>
-                }
-                <span> · Amounts in pesos</span>
-            </p>
-            @if (_register.DueDate is not null && LateRules(_register) is { } lateRules)
-            {
-                <p class="br-meta br-rules">@lateRules</p>
-            }
+            @* The account count, due date and late-charge rates line was removed from the sheet (Clint, 2026-11-24);
+               the rates stay on Settings → Billing Policy. *@
             @if (_summary)
             {
                 <BillingRegisterSummary Rows="rows" Facility="_register.Facility" MonthLabel="@_register.AsOf.ToString("MMMM yyyy")" />

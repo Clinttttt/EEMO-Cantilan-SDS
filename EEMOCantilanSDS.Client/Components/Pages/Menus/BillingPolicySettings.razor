@@ -51,6 +51,15 @@
                 <header class="v3-panel-header">
                     <h2 id="bp-now">Current policy</h2>
                     <span class="v3-panel-meta">@(_page.InForce is { } version ? $"Effective {version.EffectiveFrom:MMMM d, yyyy}" : "StallTrack defaults")</span>
+                    @* The policy reads as a statement; the Head opens the amendment form only to change it. *@
+                    <AuthorizeView Roles="SuperAdmin"><Authorized>
+                        @if (!_editing) {
+                            <button type="button" class="v3-btn v3-btn-sm bp-edit" @onclick="StartEdit">
+                                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" /></svg>
+                                Edit
+                            </button>
+                        }
+                    </Authorized></AuthorizeView>
                 </header>
                 @* Four headline terms, each with its detail beneath, then the standing definitions in a quiet band. *@
                 <dl class="bp-terms">
@@ -88,8 +97,10 @@
                 }
             </section>
 
+            @if (_saved) { <p class="v3-notice" role="status">The billing policy was recorded.</p> }
             <AuthorizeView Roles="SuperAdmin">
                 <Authorized>
+                    @if (_editing) {
                     <section class="v3-panel" aria-labelledby="bp-change">
                         <header class="v3-panel-header"><h2 id="bp-change">Amend policy</h2></header>
                         <form class="bp-form" @onsubmit="SaveAsync" @onsubmit:preventDefault="true">
@@ -141,13 +152,14 @@
                             </div>
 
                             @if (_error is not null) { <p class="v3-notice v3-notice-error" role="alert">@_error</p> }
-                            @if (_saved) { <p class="v3-notice" role="status">The billing policy was recorded.</p> }
                             <div class="bp-form-foot">
                                 <label class="v3-field"><span>Effective from</span><input type="date" min="@_page.Today.ToString("yyyy-MM-dd")" @bind="_effectiveFrom" /></label>
+                                <button type="button" class="v3-btn" disabled="@_saving" @onclick="CancelEdit">Cancel</button>
                                 <button type="submit" class="v3-btn v3-btn-primary" disabled="@_saving">Record amendment</button>
                             </div>
                         </form>
                     </section>
+                    }
                 </Authorized>
             </AuthorizeView>
 
@@ -245,6 +257,11 @@
         _countsFrom = rules.CountsMonthsFrom;
     }
 
+    private bool _editing;
+    private void StartEdit() { _editing = true; _saved = false; _error = null; }
+    // Cancel puts the fields back to the policy in force, so a reopened form never carries an abandoned edit.
+    private void CancelEdit() { _editing = false; _error = null; Show(_page); }
+
     private async Task SaveAsync()
     {
         _saving = true;
@@ -262,6 +279,7 @@
             {
                 Show(result.Value);
                 _saved = true;
+                _editing = false;
             }
             else
             {

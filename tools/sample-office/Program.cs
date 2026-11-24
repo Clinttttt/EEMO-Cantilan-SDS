@@ -30,8 +30,10 @@ using Npgsql;
 // anyone can use, and sends no message. Every row it adds is written to the record file, and "remove" takes exactly those out again.
 // shortcut: registers kept on their own records (Tabo attendance, slaughter, terminal trips) stay empty, as in tools/demo-tenant.
 var mode = args.FirstOrDefault();
-Require(mode == "seed" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
-    "Use: seed <office code> <new record file>   or   remove <record file> [--confirm]");
+Require(mode is "seed" or "resume" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
+    "Use: seed <office code> <new record file>   or   resume <office code> <record file>   or   remove <record file> [--confirm]");
+// resume: a seed that stopped after its rental accounts adds the rest (late charges, other collections) to the same record file.
+var resume = mode == "resume";
 var connection = Environment.GetEnvironmentVariable("STALLTRACK_SAMPLE_CONNECTION");
 Require(!string.IsNullOrWhiteSpace(connection), "Set STALLTRACK_SAMPLE_CONNECTION.");
 if (mode == "remove")
@@ -41,7 +43,7 @@ if (mode == "remove")
 }
 
 var recordPath = args[2];
-Require(!File.Exists(recordPath), "That record file already exists. Each run writes a new one, so its rows can be removed exactly.");
+Require(File.Exists(recordPath) == resume, resume ? "No such record file to resume." : "That record file already exists. Each run writes a new one, so its rows can be removed exactly.");
 var clock = new SystemClock();
 var today = clock.PhilippineToday;
 var recorder = new Recorder(recordPath);
@@ -58,7 +60,9 @@ await using (var look = new AppDbContext(options, new Pinned(Guid.Empty)))
     Require(office is not null, $"No office with the code {args[1]}.");
     (tenant, officeName) = (office!.Id, office.Name);
 }
-recorder.Begin(tenant, clock.UtcNow);
+var earlier = resume ? File.ReadLines(recordPath).Skip(1).Where(l => l.Length > 0).Select(l => JsonSerializer.Deserialize<Removal.Row>(l)!).ToList() : [];
+if (resume) Require(JsonDocument.Parse(File.ReadLines(recordPath).First()).RootElement.GetProperty("office").GetGuid() == tenant, "That record file is for another office.");
+else recorder.Begin(tenant, clock.UtcNow);
 Console.WriteLine($"Adding sample records to {officeName}. Record file: {recordPath}");
 
 var random = new Random(2026);
@@ -167,7 +171,7 @@ async Task<List<Stall>> SpacesAsync(Facility facility, MarketSection? section, s
     return spaces;
 }
 
-foreach (var f in plan)
+foreach (var f in plan.Where(_ => !resume))
 {
     if (!facilities.TryGetValue(f.Code, out var facility)) { Console.WriteLine($"  {f.Code}: not set up in this office, skipped."); continue; }
     var prefix = string.IsNullOrWhiteSpace(facility.ShortName) ? "S" : facility.ShortName[..1].ToUpperInvariant();
@@ -207,7 +211,7 @@ await db.SaveChangesAsync();
 var marketDays = 0;
 var dayRate = await db.FacilityRates.Where(r => r.FacilityCode == FacilityCode.NPM && r.RateKey == FeeRateKey.NpmDailyStall && r.EffectiveDate <= today)
     .OrderByDescending(r => r.EffectiveDate).FirstOrDefaultAsync();
-if (facilities.TryGetValue(FacilityCode.NPM, out var market) && !market.IsMonthlyRentMarket && dayRate is { Amount: > 0m })
+if (!resume && facilities.TryGetValue(FacilityCode.NPM, out var market) && !market.IsMonthlyRentMarket && dayRate is { Amount: > 0m })
 {
     var from = dayRate.EffectiveDate > firstMonth ? dayRate.EffectiveDate : firstMonth;
     foreach (var (section, letter, count) in new[] { (MarketSection.VegetableArea, "V", 20), (MarketSection.FishSection, "F", 10), (MarketSection.MeatSection, "M", 8) })
@@ -235,7 +239,7 @@ if (facilities.TryGetValue(FacilityCode.NPM, out var market) && !market.IsMonthl
         await db.SaveChangesAsync();
     }
 }
-else Console.WriteLine("  Market days skipped: no day-billed market with a day rate in this office.");
+else if (!resume) Console.WriteLine("  Market days skipped: no day-billed market with a day rate in this office.");
 
 // Electricity and water for one new space in three (an existing space's meters are the office's to set up).
 var utilityBills = 0;
@@ -284,12 +288,19 @@ if (versions.Count == 0)
 else if (BillingPolicyVersion.InForce(versions, today) is not { InterestPercent: > 0m })
     Console.WriteLine("  WARNING: this office's own billing rules charge no interest, so most sample accounts show no late charges. They were left as they are.");
 var charges = 0;
-foreach (var (stall, _, _) in occupied)
+var sampleContracts = earlier.Where(r => r.T == "Contracts").Select(r => Guid.Parse(r.V[0])).ToList();
+var chargeStalls = resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
+foreach (var stallId in chargeStalls)
 {
-    await using var work = new AppDbContext(options, pinned);
-    var reports = new FacilityReportsRepository(work);
-    var policy = new BillingPolicyWorkflow(work, new Caller(head.Id, tenant, by), pinned, clock);
-    charges += await new LatePenaltyAssessor(work, reports, new BillingRules(policy, reports, work, clock), pinned, clock).AssessStallAsync(stall.Id);
+    // The office's own late-charge job may charge the same space at the same moment (same charge id): its charge stands, nothing of ours is saved.
+    try
+    {
+        await using var work = new AppDbContext(options, pinned);
+        var reports = new FacilityReportsRepository(work);
+        var policy = new BillingPolicyWorkflow(work, new Caller(head.Id, tenant, by), pinned, clock);
+        charges += await new LatePenaltyAssessor(work, reports, new BillingRules(policy, reports, work, clock), pinned, clock).AssessStallAsync(stallId);
+    }
+    catch (Exception e) when (e is DbUpdateException or InvalidOperationException) { Console.WriteLine($"  Charges on one space left to the office's own job ({e.GetBaseException().Message.Split('\n')[0]})."); }
 }
 
 // Collections on the revenue sources the office already set up, under the policy in force on each day; a source with none is skipped.
