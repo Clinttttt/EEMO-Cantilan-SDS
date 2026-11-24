@@ -15,7 +15,7 @@ public interface IReportsApiClient
         bool allTime = false);
 
     Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month);
-    Task<Result<Dtos.Facilities.BillingRegisterDto>> GetBillingRegisterAsync(FacilityCode facility);
+    Task<Result<Dtos.Facilities.BillingRegisterDto>> GetBillingRegisterAsync(FacilityCode facility, int? year = null, int? month = null);
     Task<Result<FollowUpQueueDto>> GetScopedFollowUpQueueAsync(int year, int month, FacilityCode? facility, string? operationCode);
 
     /// <param name="allTime">

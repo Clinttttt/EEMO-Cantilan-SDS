@@ -13,12 +13,17 @@ public partial class FacilityReportsRepository
     /// <see cref="GetStallStatementAsync"/> runs for one space (run here for the whole facility), and the same utility and penalty rules,
     /// batched. Null when the facility is not this tenant's.
     /// </summary>
-    public async Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode code, CancellationToken ct)
+    public Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode code, CancellationToken ct) => GetBillingRegisterAsync(code, null, ct);
+
+    /// <param name="asOf">An earlier day to read the register at (a month's last day); never later than today.</param>
+    // shortcut: rent rows are read by billing month, so a past month counts payments recorded after that day too; a RecordedAt cutoff would
+    // make it the sheet as it stood then.
+    public async Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode code, DateOnly? asOf, CancellationToken ct)
     {
         var facilityId = await _context.Facilities.AsNoTracking().Where(f => f.Code == code).Select(f => (Guid?)f.Id).FirstOrDefaultAsync(ct);
         if (facilityId is not { } id) return null;
 
-        var today = _clock.PhilippineToday;
+        var today = asOf is { } day && day < _clock.PhilippineToday ? day : _clock.PhilippineToday;
         var behind = (await AccountsBehindAsync(code, null, today.Year, today.Month, wholeAccount: true, ct))
             .Where(b => b.Account.StallId.HasValue)
             .GroupBy(b => b.Account.StallId!.Value)

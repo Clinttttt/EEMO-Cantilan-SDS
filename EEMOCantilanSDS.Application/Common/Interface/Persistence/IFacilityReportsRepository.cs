@@ -76,8 +76,9 @@ public interface IFacilityReportsRepository
     /// <summary>One stall's present account as of today, from the same whole-account walk as above. Null when the stall is not this tenant's.</summary>
     Task<StallStatementDto?> GetStallStatementAsync(Guid stallId, CancellationToken ct);
 
-    /// <summary>Every account of one facility as of today, each row the same figures its Statement of Account states. Null when the facility is not this tenant's.</summary>
-    Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode facility, CancellationToken ct);
+    /// <summary>Every account of one facility as of today, or as of the last day of an earlier month (<paramref name="asOf"/>), each row the same
+    /// figures its Statement of Account states. Null when the facility is not this tenant's.</summary>
+    Task<BillingRegisterDto?> GetBillingRegisterAsync(FacilityCode facility, DateOnly? asOf, CancellationToken ct);
 
     /// <summary>
     /// Per-stall recognized fish kilos for NPM in the given billing month — the volume behind the
