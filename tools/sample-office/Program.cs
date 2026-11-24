@@ -403,25 +403,42 @@ var skippedSources = new HashSet<string>();
 // Backfill: a collection may not predate its rule (Collection.Post), so each source whose first rule starts after the sample's first
 // month gets one sample rule from that month, same receipt type, recorded like every sample row and removed with them.
 var backfillBefore = new Dictionary<Guid, DateOnly>();
+var backfilledMonths = new HashSet<DateOnly>();
 if (backfill)
 {
+    // Resumable: the office's own first rule is read without the sample ones, a sample rule is added only once per source,
+    // and a month that already holds collections under a sample rule (an earlier run) is not posted again.
+    const string sampleRuleBy = "StallTrack sample";
     await using var setup = new AppDbContext(options, pinned);
     var codes = feeLines.Select(l => l.Code).ToHashSet();
-    var firstRules = (await setup.RevenueClassificationPolicies
-            .Where(p => p.BusinessContext == RevenuePolicyContext.Default && p.PermittedInstrumentType != null).ToListAsync())
+    var rules = await setup.RevenueClassificationPolicies
+        .Where(p => p.BusinessContext == RevenuePolicyContext.Default && p.PermittedInstrumentType != null).ToListAsync();
+    var sampleRules = rules.Where(p => p.CreatedBy == sampleRuleBy).ToList();
+    var firstRules = rules.Where(p => p.CreatedBy != sampleRuleBy)
         .GroupBy(p => p.RevenueClassificationId).Select(g => g.MinBy(p => p.EffectiveDate)!).ToList();
     var bySource = (await setup.RevenueClassifications.ToListAsync()).Where(c => codes.Contains(c.SemanticCode)).Select(c => c.Id).ToHashSet();
+    var added = 0;
     foreach (var first in firstRules.Where(r => bySource.Contains(r.RevenueClassificationId) && r.EffectiveDate > firstMonth))
     {
         backfillBefore[first.RevenueClassificationId] = first.EffectiveDate;
+        if (sampleRules.Any(s => s.RevenueClassificationId == first.RevenueClassificationId)) continue;
         setup.Add(RevenueClassificationPolicy.Create(first.RevenueClassificationId, firstMonth, first.DisplayName, first.PermittedInstrumentType,
-            tenant, "Sample history before the office's first rule; removed with the sample records.", "StallTrack sample"));
+            tenant, "Sample history before the office's first rule; removed with the sample records.", sampleRuleBy));
+        added++;
     }
     await setup.SaveChangesAsync();
-    Console.WriteLine($"  Earlier rules added for {backfillBefore.Count} sources, from {firstMonth:MMMM yyyy}.");
+    var sampleIds = sampleRules.Select(s => s.Id).ToList();
+    var postedDays = await (from line in setup.CollectionLines
+                            join c in setup.Collections on line.CollectionId equals c.Id
+                            where sampleIds.Contains(line.RevenueClassificationPolicyId)
+                            select c.BusinessDate).Distinct().ToListAsync();
+    backfilledMonths = postedDays.Select(d => new DateOnly(d.Year, d.Month, 1)).ToHashSet();
+    Console.WriteLine($"  Earlier rules for {backfillBefore.Count} sources from {firstMonth:MMMM yyyy} ({added} added now)"
+        + (backfilledMonths.Count > 0 ? $"; {backfilledMonths.Count} months already filled by an earlier run are skipped." : "."));
 }
 for (var month = firstMonth; !npm && month <= thisMonth; month = month.AddMonths(1))
 {
+    if (backfill && backfilledMonths.Contains(month)) { Console.WriteLine($"  {month:MMMM yyyy}: already filled."); continue; }
     var length = DateTime.DaysInMonth(month.Year, month.Month);
     var days = month == thisMonth ? today.Day - 1 : length;
     if (days < 1) continue;
@@ -649,6 +666,43 @@ static class Removal
 
         // A table goes before every table it points at, so no row is deleted while another still refers to it.
         await using var modelContext = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options, new Pinned(office));
+        // A run stopped after a save committed but before its record line was written leaves a collection the file never got. On a
+        // sample rule it would block that rule's removal, so those collections join the rows to remove, with every row pointing at them.
+        if (Ids("RevenueClassificationPolicies") is { Length: > 0 } sampleRules)
+        {
+            var orphans = new List<Guid>();
+            await using (var command = new NpgsqlCommand("SELECT DISTINCT \"CollectionId\" FROM \"CollectionLines\" WHERE \"MunicipalityId\" = @o AND \"RevenueClassificationPolicyId\" = ANY(@p) AND NOT (\"Id\" = ANY(@l))", db, tx)
+                { Parameters = { new("o", office), new("p", sampleRules), new("l", Ids("CollectionLines")) } })
+            await using (var reader = await command.ExecuteReaderAsync())
+                while (await reader.ReadAsync()) orphans.Add(reader.GetGuid(0));
+            var known = rows.Select(r => r.T + ":" + string.Join("|", r.V)).ToHashSet();
+            var pending = new Queue<(IEntityType Type, Guid[] Ids)>();
+            if (orphans.Count > 0) pending.Enqueue((modelContext.Model.FindEntityType(typeof(Collection))!, orphans.ToArray()));
+            while (pending.TryDequeue(out var item))
+            {
+                var table = item.Type.GetTableName()!;
+                var store = StoreObjectIdentifier.Table(table, item.Type.GetSchema());
+                foreach (var id in item.Ids.Where(id => known.Add(table + ":" + id)))
+                    rows.Add(new Row(table, item.Type.GetSchema(), [item.Type.FindPrimaryKey()!.Properties[0].GetColumnName(store)!], [id.ToString()], ["uuid"]));
+                foreach (var fk in modelContext.Model.GetEntityTypes().SelectMany(e => e.GetForeignKeys()).Where(fk => fk.PrincipalEntityType == item.Type))
+                {
+                    var child = fk.DeclaringEntityType;
+                    var idIndex = fk.PrincipalKey.Properties.ToList().FindIndex(p => p.Name == "Id");
+                    // shortcut: only rows with one Guid key are followed; widen if a composite-keyed row ever hangs off a collection.
+                    if (child.IsOwned() || child.GetTableName() is not { } childTable || idIndex < 0
+                        || child.FindPrimaryKey() is not { Properties: [{ ClrType: var keyType } key] } || keyType != typeof(Guid)) continue;
+                    var childStore = StoreObjectIdentifier.Table(childTable, child.GetSchema());
+                    var found = new List<Guid>();
+                    await using (var command = new NpgsqlCommand($"SELECT \"{key.GetColumnName(childStore)}\" FROM {Name(child.GetSchema(), childTable)} WHERE \"{fk.Properties[idIndex].GetColumnName(childStore)}\" = ANY(@ids)", db, tx)
+                        { Parameters = { new("ids", item.Ids) } })
+                    await using (var reader = await command.ExecuteReaderAsync())
+                        while (await reader.ReadAsync()) found.Add(reader.GetGuid(0));
+                    if (found.Count > 0) pending.Enqueue((child, found.ToArray()));
+                }
+            }
+            report.Add($"Collections a stopped run left out of the record file: {orphans.Count}");
+        }
+
         var refs = modelContext.Model.GetEntityTypes().Where(e => e.GetTableName() is not null)
             .SelectMany(e => e.GetForeignKeys().Select(fk => (Child: e.GetTableName()!, Parent: fk.PrincipalEntityType.GetTableName())))
             .Where(x => x.Parent is not null && x.Child != x.Parent).Distinct().ToList();
