@@ -1,12 +1,19 @@
 .bp-page { width: 100%; max-width: none; min-height: 0; padding: 0; background: none; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .bp-page > .v3-panel { min-width: 0; }
 
-/* Headline terms: one hairline grid, the value large, its detail beneath. */
-.bp-terms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; margin: 0; background: var(--border); }
-.bp-terms > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 18px 20px 20px; background: var(--surface); }
-.bp-terms dt { font-size: .75rem; font-weight: 500; color: var(--text-tertiary); }
-.bp-terms dd { margin: 0; font-size: 1.0625rem; font-weight: 600; line-height: 1.35; color: var(--navy); overflow-wrap: anywhere; }
-.bp-terms dd.bp-term-note { font-size: .8125rem; font-weight: 400; color: var(--text-secondary); }
+/* The policy in three groups side by side, hairlines between them. Reading and editing use the same columns. */
+.bp-groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bp-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 16px 20px 20px; }
+.bp-group + .bp-group { border-left: 1px solid var(--border); }
+.bp-group h3 { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--border); font-size: .8125rem; font-weight: 600; color: var(--navy); }
+
+/* Reading: each term a label and its value on one hairline row. */
+.bp-list { margin: 0; }
+.bp-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 9px 0; }
+.bp-list > div + div { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.bp-list dt { flex-shrink: 0; font-size: .8125rem; color: var(--text-secondary); }
+.bp-list dd { margin: 0; min-width: 0; font-size: .875rem; font-weight: 600; line-height: 1.4; color: var(--navy); text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.bp-group-note { margin: 0; padding: 9px 0; font-size: .8125rem; line-height: 1.45; color: var(--text-secondary); }
 
 /* Standing definitions: a quiet band closing the panel. */
 .bp-defs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 40px; margin: 0; padding: 14px 20px; border-top: 1px solid var(--border); border-radius: 0 0 9px 9px; background: var(--surface-muted); font-size: .8125rem; color: var(--text-secondary); }
@@ -14,38 +21,30 @@
 .bp-defs dt { flex-shrink: 0; font-weight: 600; color: var(--text); }
 .bp-defs dd { margin: 0; min-width: 0; }
 
-/* The amendment form opens inside the Current policy panel: the panel grows downward, then the fields settle in. */
-.bp-defs:not(:last-child) { border-radius: 0; }
-.bp-editor { display: grid; grid-template-rows: 1fr; border-top: 1px solid var(--border); }
-.bp-editor > .bp-form { min-height: 0; overflow: hidden; }
-@media (prefers-reduced-motion: no-preference) {
-    .bp-editor { animation: bp-expand .3s var(--motion-ease); }
-    .bp-form > * { animation: bp-settle var(--motion-slow) var(--motion-ease) 60ms backwards; }
-    .bp-form > :nth-child(2) { animation-delay: 110ms; }
-    .bp-form > :nth-child(n+3) { animation-delay: 160ms; }
-}
-@keyframes bp-expand { from { grid-template-rows: 0fr; } }
-@keyframes bp-settle { from { opacity: 0; transform: translateY(-6px); } }
-
-/* Amendment form: section description left, fields right. */
+/* Editing: the reading rows again, the value now its field. A field is sized to what it holds; only the authority, free text, takes the rest of the row. */
 .bp-form { display: flex; flex-direction: column; }
-.bp-section { display: grid; grid-template-columns: minmax(180px, 280px) minmax(0, 1fr); gap: 16px 48px; padding: 24px 20px; border-bottom: 1px solid var(--border); }
-.bp-section-head h3 { margin: 0; font-size: .875rem; font-weight: 600; color: var(--navy); }
-.bp-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; align-items: end; max-width: 760px; min-width: 0; }
 .bp-form .v3-field { max-width: none; min-width: 0; }
 .bp-form .v3-field > input, .bp-form .v3-field > select { width: 100%; min-width: 0; box-sizing: border-box; }
-.bp-wide { grid-column: 1 / -1; }
+.bp-form .bp-group > label { display: flex; flex-flow: row wrap; align-items: center; justify-content: space-between; gap: 6px 16px; min-height: 52px; padding: 8px 0; }
+.bp-form .bp-group > label + label { border-top: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.bp-form .bp-group .v3-field > span:first-child { font-size: .8125rem; font-weight: 400; color: var(--text-secondary); }
+.bp-form .bp-group .v3-field > :last-child { flex: 0 0 190px; width: 190px; }
+.bp-form .bp-group .v3-field.bp-grow > :last-child { flex: 1 1 190px; width: auto; }
+@media (prefers-reduced-motion: no-preference) {
+    .bp-form .bp-group { animation: bp-settle var(--motion-slow) var(--motion-ease) backwards; }
+    .bp-form .bp-group + .bp-group { animation-delay: 50ms; }
+    .bp-form .bp-group:last-child { animation-delay: 100ms; }
+}
+@keyframes bp-settle { from { opacity: 0; transform: translateY(-4px); } }
 
 /* A number with its unit inside one control. */
 .bp-affix { display: flex; align-items: stretch; min-width: 0; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 6px; background: var(--surface); transition: border-color .15s ease, box-shadow .15s ease; }
 .bp-affix:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .bp-affix input, .bp-affix input:focus { flex: 1; width: 100%; min-width: 0; min-height: 34px; border: 0; border-radius: 0; box-shadow: none; background: transparent; }
-.bp-unit { display: flex; align-items: center; padding: 0 12px; border-left: 1px solid var(--border); background: var(--surface-muted); font-size: .8125rem; color: var(--text-tertiary); white-space: nowrap; }
-.bp-unit-pre { border-left: 0; border-right: 1px solid var(--border); }
+.bp-unit { display: flex; align-items: center; min-width: 76px; padding: 0 12px; border-left: 1px solid var(--border); background: var(--surface-muted); font-size: .8125rem; color: var(--text-tertiary); white-space: nowrap; }
 
 /* Yes/no rules as switches; still checkboxes underneath. */
-.bp-switch { display: flex; align-items: center; gap: 10px; min-height: 36px; font-size: .875rem; color: var(--text); cursor: pointer; }
-.bp-switch { position: relative; }
+.bp-switch { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; font-size: .8125rem; color: var(--text-secondary); cursor: pointer; }
 .bp-switch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
 .bp-track { position: relative; flex-shrink: 0; width: 34px; height: 20px; border-radius: 999px; background: var(--border-strong); transition: background-color .15s ease; }
 .bp-track::before { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--dark-on-fill, var(--surface)); box-shadow: var(--elevation-1); transition: transform .15s ease; }
@@ -53,20 +52,43 @@
 .bp-switch input:checked + .bp-track::before { transform: translateX(14px); }
 .bp-switch input:focus-visible + .bp-track { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-.bp-form > .v3-notice { margin: 16px 20px 0; }
-.bp-form-foot { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px 20px; border-radius: 0 0 9px 9px; background: var(--surface-muted); }
+.bp-form > .v3-notice { margin: 0 20px 16px; }
+.bp-form-foot { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 16px 20px; border-top: 1px solid var(--border); border-radius: 0 0 9px 9px; background: var(--surface-muted); }
 .bp-form-foot .v3-field { width: 220px; }
 .bp-form-foot .v3-field + .v3-btn { margin-left: auto; }
 .bp-empty { margin: 0; padding: 16px 20px; font-size: .8125rem; color: var(--text-secondary); }
 
-@media (max-width: 1100px) {
-    .bp-terms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .bp-section { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+/* History: one row per amendment, a column per group, each cell a headline over its detail. */
+.bp-history { min-width: 760px; table-layout: fixed; }
+.bp-history th:first-child { width: 150px; }
+.bp-history td { padding-top: 12px; padding-bottom: 12px; }
+.bp-cell-main, .bp-cell-sub { display: block; overflow-wrap: anywhere; }
+.bp-cell-main { font-weight: 500; color: var(--text); }
+.bp-cell-sub { margin-top: 3px; font-size: .75rem; line-height: 1.4; color: var(--text-tertiary); }
+.bp-cell-sub.bp-in-force { font-weight: 600; color: var(--green); }
+
+@media (max-width: 960px) {
+    .bp-groups { grid-template-columns: minmax(0, 1fr); }
+    .bp-group + .bp-group { border-left: 0; border-top: 1px solid var(--border); }
+    /* Stacked groups run the full width: a label column keeps each value beside its label. */
+    .bp-list > div { justify-content: flex-start; }
+    .bp-list dt { flex: 0 0 180px; }
+    .bp-list dd { text-align: left; }
+    .bp-form .bp-group > label { justify-content: flex-start; }
+    .bp-form .bp-group > label > span:first-child { flex: 0 0 180px; }
 }
 @media (max-width: 560px) {
-    .bp-terms, .bp-defs, .bp-fields { grid-template-columns: minmax(0, 1fr); }
+    .bp-defs { grid-template-columns: minmax(0, 1fr); }
+    .bp-list > div { justify-content: space-between; }
+    .bp-list dt { flex: 0 0 auto; }
+    .bp-list dd { text-align: right; }
+    /* A phone has no room beside the label: the field goes under it at full width. */
+    .bp-form .bp-group .v3-field { flex-direction: column; align-items: stretch; }
+    .bp-form .bp-group .v3-field > span:first-child, .bp-form .bp-group .v3-field > :last-child { flex: 0 0 auto; width: 100%; }
+    .bp-form .bp-group .bp-switch { justify-content: space-between; }
+    .bp-form .bp-group .bp-switch > span:first-child { flex: 0 1 auto; }
     .bp-defs > div { flex-direction: column; gap: 2px; }
-    .bp-section, .bp-form-foot { padding: 16px; }
+    .bp-group, .bp-form-foot { padding: 16px; }
     .bp-form-foot .v3-field, .bp-form-foot .v3-btn { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {

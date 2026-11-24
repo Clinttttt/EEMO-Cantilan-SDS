@@ -48,18 +48,20 @@
             </div>
         }
 
+        @* Two columns of cards holding about the same number of rows (seven beside six and the version line), each column's last card
+           stretching so both end on one line. The office's own configuration on the left, its people, data and your account on the right. *@
         <div class="set-cols">
             <div class="set-col">
-                @Group("office", "Office", OfficeRows)
-                @Group("revenue", "Revenue", RevenueRows)
+                @Group("office", "Office", OfficeIcon, OfficeRows)
+                @Group("revenue", "Revenue", RevenueIcon, RevenueRows)
+                @Group("help", "Help", HelpIcon, HelpRows)
             </div>
             <div class="set-col">
-                @Group("people", "People", PeopleRows)
-                @Group("data", "Data", DataRows)
-                @Group("help", "Help", HelpRows)
+                @Group("people", "People", PeopleIcon, PeopleRows)
+                @Group("data", "Data", DataIcon, DataRows)
 
-                <section class="v3-panel" aria-labelledby="set-group-account">
-                    <header class="v3-panel-header"><h2 id="set-group-account">Your account</h2></header>
+                <section class="v3-panel set-card" aria-labelledby="set-group-account">
+                    @CardHead("account", "Your account", AccountIcon)
                     <ul class="set-list">
                         <li>
                             <button class="set-item" type="button" @onclick="() => _show2fa = true">
@@ -91,14 +93,13 @@
                             </div>
                         </li>
                     </ul>
+                    @if (_model is not null)
+                    {
+                        <p class="set-foot">@_model.System.ApplicationName v@(_model.System.Version) · @_model.System.TimeZone</p>
+                    }
                 </section>
             </div>
         </div>
-
-        @if (_model is not null)
-        {
-            <p class="set-foot">@_model.System.ApplicationName v@(_model.System.Version) · @_model.System.TimeZone</p>
-        }
     </div>
 </div>
 
@@ -214,8 +215,21 @@
     ];
 
     // A row the Administrator cannot use is stated but not offered: a link that leads to a refusal is worse than no link.
-    private RenderFragment Group(string key, string title, IReadOnlyList<SettingRow> rows) => @<section class="v3-panel" aria-labelledby="set-group-@key">
-        <header class="v3-panel-header"><h2 id="set-group-@key">@title</h2></header>
+    // A card's header: a small mark for what the group is about, then its name.
+    private RenderFragment CardHead(string key, string title, RenderFragment icon) => @<header class="set-card-head">
+        <span class="set-card-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false">@icon</svg></span>
+        <h2 id="set-group-@key">@title</h2>
+    </header>;
+
+    private static readonly RenderFragment OfficeIcon = @<g><path d="M3 21h18" /><path d="M5 21V8l7-5 7 5v13" /><path d="M9 21v-6h6v6" /></g>;
+    private static readonly RenderFragment RevenueIcon = @<g><rect x="2.5" y="6" width="19" height="12" rx="2" /><circle cx="12" cy="12" r="2.5" /><path d="M6 12h.01M18 12h.01" /></g>;
+    private static readonly RenderFragment HelpIcon = @<g><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2.1-2.5 4" /><path d="M12 17h.01" /></g>;
+    private static readonly RenderFragment PeopleIcon = @<g><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0" /><path d="M16 4.5a3.5 3.5 0 0 1 0 7" /><path d="M18 14.5a6.5 6.5 0 0 1 3.5 5.5" /></g>;
+    private static readonly RenderFragment DataIcon = @<g><ellipse cx="12" cy="5.5" rx="7.5" ry="2.5" /><path d="M4.5 5.5v13c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5v-13" /><path d="M4.5 12c0 1.4 3.4 2.5 7.5 2.5s7.5-1.1 7.5-2.5" /></g>;
+    private static readonly RenderFragment AccountIcon = @<g><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></g>;
+
+    private RenderFragment Group(string key, string title, RenderFragment icon, IReadOnlyList<SettingRow> rows) => @<section class="v3-panel set-card" aria-labelledby="set-group-@key">
+        @CardHead(key, title, icon)
         <ul class="set-list">
             @foreach (var row in rows)
             {
