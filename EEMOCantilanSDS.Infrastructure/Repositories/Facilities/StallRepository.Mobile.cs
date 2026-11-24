@@ -232,12 +232,15 @@ public partial class StallRepository
             .GroupBy(t => t.PaymentRecordId)
             .ToDictionary(g => g.Key, g => g.First().Id);
 
+        var contracts = stalls.ToDictionary(s => s.Id, s => s.Contracts
+            .Where(c => c.OverlapsPeriod(monthStart, monthEnd))
+            .OrderByDescending(c => c.EffectivityDate)
+            .FirstOrDefault());
+        var penalties = await PenaltiesOwedAsync(contracts.Values.Where(c => c is not null).Select(c => c!.Id).ToArray(), ct);
+
         var rows = stalls.Select(s =>
         {
-            var contract = s.Contracts
-                .Where(c => c.OverlapsPeriod(monthStart, monthEnd))
-                .OrderByDescending(c => c.EffectivityDate)
-                .FirstOrDefault();
+            var contract = contracts[s.Id];
 
             var record = s.PaymentRecords.FirstOrDefault();
             var status = record?.Status ?? PaymentStatus.Unpaid;
@@ -269,7 +272,9 @@ public partial class StallRepository
                 awaitingOr,
                 onlineTxnId,
                 record?.SettlementAuthorityState == SettlementAuthority.Canonical,
-                record?.SettlementVersion ?? 0);
+                record?.SettlementVersion ?? 0,
+                contract?.Id,
+                contract is not null ? penalties.GetValueOrDefault(contract.Id) : 0m);
         }).ToList();
 
         // Facility display name from the seeded Facility record (single source of truth).
@@ -292,6 +297,21 @@ public partial class StallRepository
             rows.Sum(r => r.AmountPaid),
             rows.Sum(r => r.Balance),
             rows);
+    }
+
+    /// <summary>Each account's fines and late charges still owed, less what was collected on them: the Statement of Account's penalties due.</summary>
+    private async Task<Dictionary<Guid, decimal>> PenaltiesOwedAsync(Guid[] contractIds, CancellationToken ct)
+    {
+        if (contractIds.Length == 0) return new();
+        var fines = await _context.FineAssessments.AsNoTracking()
+            .Where(a => a.ContractId != null && contractIds.Contains(a.ContractId.Value))
+            .Select(a => new { a.Id, a.MunicipalityId, ContractId = a.ContractId!.Value, Due = a.AdjustedAmount ?? a.AssessedAmount })
+            .ToListAsync(ct);
+        if (fines.Count == 0) return new();
+        var settled = await new EEMOCantilanSDS.Application.Common.Revenue.FineAssessmentCollectionSource(_context)
+            .SettledAsync(fines[0].MunicipalityId, fines.Select(f => f.Id).ToArray(), ct);
+        return fines.GroupBy(f => f.ContractId)
+            .ToDictionary(g => g.Key, g => g.Sum(f => Math.Max(0m, f.Due - settled.GetValueOrDefault(f.Id))));
     }
 
     private static string GetMonthlyAreaLabel(Stall s)

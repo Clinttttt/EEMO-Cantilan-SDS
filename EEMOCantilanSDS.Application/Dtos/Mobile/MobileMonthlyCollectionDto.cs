@@ -38,4 +38,8 @@ public sealed record MobileMonthlyStallCollectionDto(
     Guid? OnlinePaymentTransactionId = null,
     // True when this month's rent row is under canonical settlement authority: Mobile collects it with no OR number and the server returns an SRC (IA-062).
     bool RentCanonical = false,
-    long RentSourceVersion = 0);
+    long RentSourceVersion = 0,
+    // The account shown (its contract) and the penalties still owed on it (surcharge, interest, assessed fines), read as the Statement of Account
+    // reads them. Read-only: the penalties are collected through the account's own fine source, never by the rent writer.
+    Guid? ContractId = null,
+    decimal PenaltiesDue = 0m);
