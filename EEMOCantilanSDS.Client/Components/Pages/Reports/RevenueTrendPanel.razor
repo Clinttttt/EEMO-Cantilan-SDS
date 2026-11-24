@@ -3,13 +3,15 @@
 @using EEMOCantilanSDS.Application.Dtos.Revenue
 @using EEMOCantilanSDS.Client.Components.Shared
 @using EEMOCantilanSDS.Domain.Common
+@using EEMOCantilanSDS.Domain.Enums
 @inject IOfficialReportsApiClient Api
+@inject IReportsApiClient Reports
 
 @* REVENUE TREND — the official Monthly Income, period by period, stacked by its own revenue groups.
    Every figure is read from the same official statement the Monthly Income tab prints (legacy cash before a source's cutover plus its posted
    Collections after it, once, with report adjustments kept apart), so a bar here is the statement's own number. Nothing is estimated and no
-   history is invented: a period with no money is a genuine zero and a year that cannot be read says so. Annual targets are the office-approved
-   annual amounts and are never divided into monthly targets; where only some sources have a target, the coverage is stated. *@
+   history is invented: a period with no money is a genuine zero and a year that cannot be read says so. Attention (unpaid) replaced the
+   annual target column (Clint, 2026-11-24); targets stay on the Monthly Income sheet. *@
 <section class="rtp pdf-include" aria-labelledby="@_titleId" aria-busy="@(_loading ? "true" : "false")">
     <header class="rtp-head">
         <div>
@@ -112,8 +114,7 @@
                         }
                         <th scope="col" class="v3-num" title="@(Annual ? "Share of the official income of the years shown" : "Share of the official income of the months shown")">Contribution</th>
                         @if (!Annual) { <th scope="col" class="v3-num">Year to date</th> }
-                        <th scope="col" class="v3-num">Annual target</th>
-                        @if (Annual) { <th scope="col" class="v3-num" title="Official income against the annual target; shown only when every source has a target">Attainment</th> }
+                        <th scope="col" class="v3-num" title="Unpaid for the period, as the financial report states it">Attention</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -129,8 +130,7 @@
                             }
                             <td class="v3-num">@Share(p.Official)</td>
                             @if (!Annual) { <td class="v3-num">@Money(p.CumulativeOfficial)</td> }
-                            <td class="v3-num">@TargetCell(p.Coverage)</td>
-                            @if (Annual) { <td class="v3-num">@AttainmentCell(p.Coverage)</td> }
+                            <td class="v3-num">@AttentionCell(p.Key)</td>
                         </tr>
                     }
                 </tbody>
@@ -147,12 +147,13 @@
                             }
                             <td class="v3-num">@Share(_periods.Sum(p => p.Official))</td>
                             <td class="v3-num">@Money(_periods.Sum(p => p.Official))</td>
-                            <td class="v3-num">@TargetCell(_periods[^1].Coverage)</td>                        </tr>
+                            <td class="v3-num">—</td>
+                        </tr>
                     </tfoot>
                 }
             </table>
         </div>
-        <p class="rtp-note">Annual targets are office-approved yearly amounts and are not divided into monthly targets. Official income includes report adjustments where the office recorded any.</p>
+        <p class="rtp-note">Attention is what the financial report states as unpaid for each period. Official income includes report adjustments where the office recorded any.</p>
     }
 </section>
 
@@ -200,11 +201,13 @@
         {
             var today = PhilippineTime.Today;
             var years = Annual ? Enumerable.Range(Math.Max(2000, Year - 4), Year - Math.Max(2000, Year - 4) + 1).Where(y => y <= today.Year).ToList() : [Year];
+            var attention = AttentionAsync(today);
             var results = await Task.WhenAll(years.Select(async y =>
             {
                 try { var r = await Api.GetMonthlyIncomeAsync(y, null); return (Year: y, Data: r is { IsSuccess: true } ? r.Value : null); }
                 catch (HttpRequestException) { return (Year: y, Data: (OfficialMonthlyIncomeDto?)null); }
             }));
+            _attention = await attention;
             _failedYears = results.Where(r => r.Data is null).Select(r => r.Year).ToList();
             Build(results.Where(r => r.Data is not null).Select(r => (r.Year, r.Data!)).ToList(), today);
         }
@@ -303,18 +306,32 @@
             : $"{p.Label}: official income {Money(p.Official)}. {string.Join(", ", parts)}";
     }
 
-    private static string TargetCell(TargetCoverageDto? c) => c switch
+    // Attention: the unpaid amount the financial report's trend states per period. Its trend holds six months (or five years),
+    // so a year read monthly takes a second report six months earlier. A period it did not state shows "—", never a zero.
+    private Dictionary<int, decimal> _attention = [];
+
+    private async Task<Dictionary<int, decimal>> AttentionAsync(DateOnly today)
     {
-        null or { State: TargetCoverageState.None } => "—",
-        { State: TargetCoverageState.Complete } => Money(c.AnnualTarget),
-        _ => "—"
-    };
+        var through = Year < today.Year ? 12 : Year == today.Year ? today.Month : 0;
+        int?[] anchors = Annual ? [null] : through == 0 ? [] : through > 6 ? [through, through - 6] : [through];
+        var reads = await Task.WhenAll(anchors.Select(async m =>
+        {
+            try
+            {
+                var r = await Reports.GetFinancialReportAsync(Annual ? ReportPeriod.Yearly : ReportPeriod.Monthly, Year, m, null);
+                return r is { IsSuccess: true, Value: not null } ? r.Value.Trend : [];
+            }
+            catch (HttpRequestException) { return (IReadOnlyList<EEMOCantilanSDS.Application.Dtos.Reports.ReportTrendPointDto>)[]; }
+        }));
+        var byPeriod = new Dictionary<int, decimal>();
+        foreach (var t in reads.SelectMany(r => r))
+            if (Annual) byPeriod.TryAdd(t.Year, t.Unpaid);
+            else if (t.Year == Year) byPeriod.TryAdd(t.Month, t.Unpaid);
+        return byPeriod;
+    }
 
-    private static string AttainmentCell(TargetCoverageDto? c) => c is { State: TargetCoverageState.Complete, Attainment: { } a }
-        ? a.ToString("N1", CultureInfo.InvariantCulture) + "%" : "—";
+    private string AttentionCell(int key) => _attention.TryGetValue(key, out var unpaid) && unpaid > 0m ? Money(unpaid) : "—";
 
-    private static string AttainmentNote(TargetCoverageDto? c) => c is { State: TargetCoverageState.Complete, Attainment: { } a }
-        ? $" · {a.ToString("N1", CultureInfo.InvariantCulture)}% attained" : string.Empty;
 
     private static string Money(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
 
