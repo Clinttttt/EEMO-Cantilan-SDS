@@ -8,6 +8,7 @@
 @using global::EEMOCantilanSDS.Application.Requests.Mobile
 @using global::EEMOCantilanSDS.Application.Common.Payments
 @using global::EEMOCantilanSDS.Domain.Enums
+@using EEMOCantilanSDS.Mobile.Collections
 @using EEMOCantilanSDS.Mobile.Models
 @using EEMOCantilanSDS.Mobile.Services
 @inject NavigationManager Navigation
@@ -58,11 +59,11 @@
                         <div class="npm-figure-key">Collected</div>
                     </div>
                     <div class="npm-figure">
-                        <div class="npm-figure-value">@FormatCurrency(Collection.OutstandingAmount)</div>
+                        <div class="npm-figure-value">@FormatCurrency(Collection.OutstandingAmount + Collection.Stalls.Sum(s => s.PenaltiesDue))</div>
                         <div class="npm-figure-key">Outstanding</div>
                     </div>
                     <div class="npm-figure">
-                        <div class="npm-figure-value">@Collection.PaidCount of @Collection.TotalStalls</div>
+                        <div class="npm-figure-value">@SettledCount of @Collection.TotalStalls</div>
                         <div class="npm-figure-key">Paid in full</div>
                     </div>
                 </div>
@@ -122,6 +123,10 @@
                                 {
                                     <span class="tx-meta-sep">·</span><span>Paid @FormatCurrency(stall.AmountPaid) · Remaining @FormatCurrency(stall.Balance)</span>
                                 }
+                                @if (stall.PenaltiesDue > 0m)
+                                {
+                                    <span class="tx-meta-sep">·</span><span>Penalties @FormatCurrency(stall.PenaltiesDue)</span>
+                                }
                             </div>
 
                             <div class="tx-statusrow">
@@ -136,11 +141,11 @@
                                     else
                                     {
                                         <span class="tx-badge @GetBadgeClass(stall)">
-                                            @if (stall.Status == PaymentStatus.Paid)
+                                            @if (IsSettled(stall))
                                             {
                                                 <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
                                             }
-                                            else if (stall.Status == PaymentStatus.Partial)
+                                            else if (stall.Status != PaymentStatus.Unpaid)
                                             {
                                                 <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                                             }
@@ -148,7 +153,7 @@
                                             {
                                                 <svg viewBox="0 0 24 24"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
                                             }
-                                            @stall.Status
+                                            @StatusLabel(stall)
                                         </span>
                                     }
                                     @if (stall.PaidOnline)
@@ -223,13 +228,25 @@
                 <div class="money-row strong"><dt>Remaining</dt><dd>@FormatCurrency(SelectedStall.Balance)</dd></div>
             </dl>
 
+            @if (SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
+            {
+                @PenaltyRows(SelectedStall.Balance)
+            }
+
             <button class="status-option @(SelectedStatus == PaymentStatus.Paid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
                 <div class="status-option-icon paid-icon-sm">
                     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
                 <div class="status-option-info">
                     <div class="status-option-label">Paid in Full</div>
-                    <div class="status-option-sub">Full monthly rental collected - @FormatCurrency(SelectedStall.MonthlyRate)</div>
+                    @if (SelectedStall.Status != PaymentStatus.Paid && PenaltiesOpen > 0m)
+                    {
+                        <div class="status-option-sub">Rent and penalties on one receipt - @FormatCurrency(SelectedStall.Balance + PenaltiesOpen)</div>
+                    }
+                    else
+                    {
+                        <div class="status-option-sub">Full monthly rental collected - @FormatCurrency(SelectedStall.MonthlyRate)</div>
+                    }
                 </div>
                 @if (SelectedStatus == PaymentStatus.Paid)
                 {
@@ -259,7 +276,7 @@
                         <span>₱</span>
                         <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Amount collected" @bind="PartialAmount" @bind:event="oninput" />
                     </div>
-                    <div class="form-hint">Must be greater than 0 and less than @FormatCurrency(SelectedStall.MonthlyRate).</div>
+                    <div class="form-hint">Must be greater than 0 and less than @FormatCurrency(SelectedStall.MonthlyRate).@(PenaltiesOpen > 0m ? " Penalties are collected with a full payment." : "")</div>
                 </div>
             }
 
@@ -275,7 +292,7 @@
                            placeholder="000001"
                            @bind="ORNumber"
                            @bind:event="oninput" />
-                    <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
+                    <div class="form-hint">Use the pre-numbered OR from the issued receipt.@(SelectedStatus == PaymentStatus.Paid && SelectedStall.Status != PaymentStatus.Paid && PenaltiesOpen > 0m ? " The same receipt covers the penalties." : "")</div>
                 </details>
             }
             else if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: true })
@@ -314,7 +331,7 @@
             <div class="sheet-btn-row">
                 @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
                     <button class="btn-cancel" type="button" @onclick="CloseSheet">Cancel</button>
-                <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@IsSaving">
+                <button class="btn-confirm" type="button" @onclick="ConfirmAsync" disabled="@(IsSaving || _penaltiesLoading)">
                     @(IsSaving ? "Saving..." : "Confirm")
                 </button>
             </div>
@@ -414,8 +431,13 @@
                     <span>₱</span>
                     <input class="form-input" type="number" min="0" step="0.01" max="@SelectedStall.Balance" placeholder="0" @bind="BalanceCollectNow" @bind:event="oninput" />
                 </div>
-                <div class="form-hint">Up to the remaining balance of @FormatCurrency(SelectedStall.Balance). Paying it in full marks the stall Paid.</div>
+                <div class="form-hint">Up to the remaining balance of @FormatCurrency(SelectedStall.Balance). Paying it in full marks the stall Paid.@(PenaltiesOpen > 0m ? " Clearing it also collects the penalties on the same receipt." : "")</div>
             </div>
+
+            @if (HasPenalties(SelectedStall) && ClearsBalance)
+            {
+                @PenaltyRows(SelectedStall.Balance)
+            }
 
             @if (SelectedStall is { RentCanonical: false })
             {
@@ -446,8 +468,57 @@
             <div class="sheet-btn-row">
                 @* Cancel stays live while saving. It was disabled beside Confirm, so a save that hung left no way out of the sheet at all. Backing out cannot lose money: a write already sent either lands or is queued whatever this screen does. *@
                     <button class="btn-cancel" type="button" @onclick="CloseCollectBalance">Cancel</button>
-                <button class="btn-confirm" type="button" @onclick="ConfirmCollectBalanceAsync" disabled="@IsSaving">
+                <button class="btn-confirm" type="button" @onclick="ConfirmCollectBalanceAsync" disabled="@(IsSaving || _penaltiesLoading)">
                     @(IsSaving ? "Saving..." : "Confirm Payment")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowPenalties && SelectedStall is not null)
+{
+    @* The month's rent is paid but the account still owes penalties: the same register figures, collected in full in one step. *@
+    <div class="sheet-overlay" @onclick="CloseSheet">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Collect Penalties</div>
+            <div class="sheet-sub">@MonthLabel rent is paid. These penalties are still open on the account.</div>
+
+            <div class="sheet-preview">
+                <div class="preview-num" title="@SelectedStall.StallNo">@SelectedStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@SelectedStall.PayorName</div>
+                    <div class="preview-detail">@MonthLabel · rent paid</div>
+                </div>
+            </div>
+
+            @PenaltyRows(0m)
+
+            <details class="or-number-wrap">
+                <summary>Receipt details (optional entry)</summary>
+                <div class="form-label">Official receipt no.</div>
+                <input class="form-input mono-input"
+                       type="text"
+                       inputmode="numeric"
+                       maxlength="30"
+                       placeholder="000001"
+                       aria-label="Official receipt number"
+                       @bind="ORNumber"
+                       @bind:event="oninput" />
+                <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
+            </details>
+
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error">@SheetError</div>
+            }
+
+            <SlowSaveHint Active="IsSaving" />
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseSheet">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmPenaltiesAsync" disabled="@(IsSaving || PenaltiesOpen <= 0m)">
+                    @(IsSaving ? "Saving..." : $"Collect {FormatCurrency(PenaltiesOpen)}")
                 </button>
             </div>
         </div>
@@ -902,9 +973,24 @@
                      && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed)
             .Select(o => o.StallId!.Value)
             .ToHashSet();
+        // Penalties saved on this device and not yet recorded: the server still lists them as owed until they sync.
+        QueuedPenaltyContracts = pending
+            .Where(o => o.Kind == OfflineOperationKind.ItemizedCollectionSession
+                     && o.LocalStatus is PendingLocalStatus.Pending or PendingLocalStatus.Failed
+                     && o.CollectionSession?.Intent is { SourceIdentity.Kind: SourceIdentityKind.Occupancy } intent
+                     && intent.Items.Count > 0 && intent.Items.All(i => i.Kind == CollectionSessionItemKind.FineAssessment))
+            .Select(o => o.CollectionSession!.Intent.SourceIdentity!.Id)
+            .ToHashSet();
     }
 
-    private bool IsQueuedOffline(MobileMonthlyStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId);
+    private bool IsQueuedOffline(MobileMonthlyStallCollectionDto stall) => QueuedOfflineStalls.Contains(stall.StallId)
+        || (HasPenalties(stall) && QueuedPenaltyContracts.Contains(stall.ContractId!.Value));
+
+    // Paid means the month's rent AND the account's penalties are cleared, as on the Statement of Account.
+    private static bool IsSettled(MobileMonthlyStallCollectionDto stall) => stall.Status == PaymentStatus.Paid && stall.PenaltiesDue <= 0m;
+    private int SettledCount => Collection?.Stalls.Count(IsSettled) ?? 0;
+    private static string StatusLabel(MobileMonthlyStallCollectionDto stall) =>
+        stall.Status == PaymentStatus.Paid && !IsSettled(stall) ? "Penalties due" : stall.Status.ToString();
 
     private IEnumerable<MobileMonthlyStallCollectionDto> FilteredStalls =>
         (Collection?.Stalls ?? Array.Empty<MobileMonthlyStallCollectionDto>())
@@ -916,8 +1002,8 @@
 
             var matchesFilter = ActiveFilter switch
             {
-                "Paid" => s.Status == PaymentStatus.Paid,
-                "Partial" => s.Status == PaymentStatus.Partial,
+                "Paid" => IsSettled(s),
+                "Partial" => s.Status == PaymentStatus.Partial || (s.Status == PaymentStatus.Paid && !IsSettled(s)),
                 "Unpaid" => s.Status == PaymentStatus.Unpaid,
                 _ => true
             };
@@ -933,7 +1019,7 @@
     private int PaidPercent =>
         Collection is null || Collection.TotalStalls == 0
             ? 0
-            : Math.Clamp((int)Math.Round((decimal)Collection.PaidCount / Collection.TotalStalls * 100m), 0, 100);
+            : Math.Clamp((int)Math.Round((decimal)SettledCount / Collection.TotalStalls * 100m), 0, 100);
 
     private void GoBack() => Navigation.NavigateTo("/menu", forceLoad: false);
 
@@ -941,7 +1027,11 @@
     private void OpenStall(MobileMonthlyStallCollectionDto stall)
     {
         SelectedStall = stall;
-        if (stall.Status != PaymentStatus.Unpaid)
+        if (stall.Status == PaymentStatus.Paid && HasPenalties(stall))
+        {
+            OpenPenalties(stall);
+        }
+        else if (stall.Status != PaymentStatus.Unpaid)
         {
             SheetError = null;
             ShowReceipt = true;
@@ -978,6 +1068,7 @@
         BalanceOrNumber = SelectedStall.ORNumber ?? string.Empty; // carry the existing OR forward, if any
         CollectBalanceError = null;
         ShowCollectBalance = true;
+        LoadPenalties(SelectedStall);
     }
 
     private void CloseCollectBalance()
@@ -987,7 +1078,10 @@
         BalanceOrNumber = string.Empty;
         CollectBalanceError = null;
         SelectedStall = null;
+        ResetPenalties();
     }
+
+    private bool ClearsBalance => SelectedStall is not null && BalanceCollectNow == SelectedStall.Balance;
 
     /// <summary>
     /// Collects part of an outstanding balance, and is answerable for the sheet never being left locked.
@@ -1011,6 +1105,7 @@
                     status,
                     newTotalPaid,
                     !string.IsNullOrWhiteSpace(BalanceOrNumber) ? BalanceOrNumber.Trim() : null);
+                await SavePenaltiesAsync();
 
                 CloseCollectBalance();
                 return;
@@ -1049,7 +1144,16 @@
         var newTotalPaid = SelectedStall.AmountPaid + BalanceCollectNow.Value;
         var status = newTotalPaid >= SelectedStall.MonthlyRate ? PaymentStatus.Paid : PaymentStatus.Partial;
         var orNumber = !string.IsNullOrWhiteSpace(BalanceOrNumber) ? BalanceOrNumber.Trim() : null;
-if (SelectedStall.RentCanonical)        {            IsSaving = true;            await CaptureCanonicalRentAsync(BalanceCollectNow.Value);            CloseCollectBalance();            await LoadCollectionAsync();            IsSaving = false;            return;        }
+        // Clearing the balance also clears the account's penalties on the same receipt, confirmed before anything is recorded.
+        IsSaving = true;
+        CollectBalanceError = null;
+        if (ClearsBalance && !await QuotePenaltiesAsync(SelectedStall.RentCanonical ? null : orNumber, e => CollectBalanceError = e))
+        {
+            IsSaving = false;
+            return;
+        }
+        IsSaving = false;
+if (SelectedStall.RentCanonical)        {            IsSaving = true;            if (await CaptureCanonicalRentAsync(BalanceCollectNow.Value)) await SavePenaltiesAsync();            CloseCollectBalance();            await LoadCollectionAsync();            IsSaving = false;            return;        }
 
         IsSaving = true;
         CollectBalanceError = null;
@@ -1057,6 +1161,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         if (!Sync.IsOnline)
         {
             await QueueBalanceCollectionAsync(status, newTotalPaid, orNumber);
+            await SavePenaltiesAsync();
             CloseCollectBalance();
             IsSaving = false;
             return;
@@ -1077,6 +1182,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
             if (IsTransientFailure(result.StatusCode))
             {
                 await QueueBalanceCollectionAsync(status, newTotalPaid, orNumber);
+                await SavePenaltiesAsync();
                 CloseCollectBalance();
                 IsSaving = false;
                 return;
@@ -1087,6 +1193,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
             return;
         }
 
+        await SavePenaltiesAsync();
         CloseCollectBalance();
         try
         {
@@ -1108,6 +1215,8 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         ShowSheet = true;
         _earlier = [];
         _ = LoadEarlierAsync(stall.StallId);
+        // A month already paid is opened here only to edit its record; its penalties are collected from their own sheet, never by an edit.
+        if (stall.Status != PaymentStatus.Paid) LoadPenalties(stall);
     }
 
     // The space's unpaid months before the one on screen, read live each time the sheet opens (never from a device cache). Empty when none or unreadable:
@@ -1158,6 +1267,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         {
             if (await QueueMonthlyCollectionAsync())
             {
+                await SavePenaltiesAsync();
                 CloseSheet();
                 return;
             }
@@ -1242,9 +1352,10 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
     // for; the collection is queued under its ClientOperationId and the server returns the SRC when it syncs.
     private string? RentNotice;
 
-    private async Task CaptureCanonicalRentAsync(decimal amount)
+    /// <returns>False when the rent was refused or could not be saved; true once it is recorded or safely queued.</returns>
+    private async Task<bool> CaptureCanonicalRentAsync(decimal amount)
     {
-        if (SelectedStall is not { RentCanonical: true } stall) return;
+        if (SelectedStall is not { RentCanonical: true } stall) return false;
         var operationId = Guid.NewGuid();
         try
         {
@@ -1271,13 +1382,18 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
             if (result?.LocalStatus == PendingLocalStatus.Synced)
                 RentNotice = result.ReferenceCode is { } src ? $"Collection recorded · {src}" : "Collection recorded.";
             else if (result?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+            {
                 RentNotice = result.ResultMessage ?? "The server could not accept this collection. It was not recorded.";
+                return false;
+            }
             else
                 QueuedOfflineStalls.Add(stall.StallId);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException)
         {
             RentNotice = "The collection could not be safely saved on this device. Do not rely on it; resolve device storage attention first.";
+            return false;
         }
     }
 
@@ -1292,7 +1408,19 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
             return;
         }
 
-if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)        {            var now = SelectedStatus == PaymentStatus.Paid ? SelectedStall.Balance : Math.Max(0m, (PartialAmount ?? 0m) - SelectedStall.AmountPaid);            if (now <= 0m) { SheetError = "Nothing to collect for this amount."; return; }            IsSaving = true;            await CaptureCanonicalRentAsync(now);            CloseSheet();            await LoadCollectionAsync();            IsSaving = false;            return;        }
+        // Paying the month in full also clears the account's penalties on the same receipt. They are confirmed first; if they cannot be,
+        // nothing at all is recorded.
+        IsSaving = true;
+        SheetError = null;
+        if (SelectedStatus == PaymentStatus.Paid && SelectedStall.Status != PaymentStatus.Paid
+            && !await QuotePenaltiesAsync(SelectedStall.RentCanonical ? null : ORNumber, e => SheetError = e))
+        {
+            IsSaving = false;
+            return;
+        }
+        IsSaving = false;
+
+if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)        {            var now = SelectedStatus == PaymentStatus.Paid ? SelectedStall.Balance : Math.Max(0m, (PartialAmount ?? 0m) - SelectedStall.AmountPaid);            if (now <= 0m) { SheetError = "Nothing to collect for this amount."; return; }            IsSaving = true;            if (await CaptureCanonicalRentAsync(now)) await SavePenaltiesAsync();            CloseSheet();            await LoadCollectionAsync();            IsSaving = false;            return;        }
         IsSaving = true;
         SheetError = null;
 
@@ -1307,6 +1435,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
             }
 
             await QueueMonthlyCollectionAsync();
+            await SavePenaltiesAsync();
             CloseSheet();
             IsSaving = false;
             return;
@@ -1326,6 +1455,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
             // too, so the guard inside the queue write covers both paths.
             if (IsTransientFailure(result.StatusCode) && await QueueMonthlyCollectionAsync())
             {
+                await SavePenaltiesAsync();
                 CloseSheet();
                 IsSaving = false;
                 return;
@@ -1337,6 +1467,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
         }
 
         RentNotice = SelectedStatus == PaymentStatus.Unpaid ? "Status updated successfully." : "Payment recorded successfully.";
+        await SavePenaltiesAsync();
         CloseSheet();
         try
         {
@@ -1351,36 +1482,193 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
     private void CloseSheet()
     {
         ShowSheet = false;
+        ShowPenalties = false;
         SelectedStall = null;
         _earlier = [];
         SelectedStatus = PaymentStatus.Paid;
         PartialAmount = null;
         ORNumber = string.Empty;
         SheetError = null;
+        ResetPenalties();
     }
 
-    private static string FormatCurrency(decimal value) => $"₱{value:N0}";
+    // ── Penalties on the account (surcharge, interest, assessed fines) ──
+    // Read live from the server when a sheet opens (never from a device cache) and collected IN FULL on the rent's receipt, through the account's own
+    // fine source: one checkout, every open penalty at its remaining amount, no choosing. The rent keeps its own writer; nothing here prices anything.
+    private IReadOnlyList<CollectionSessionSourceChoice>? _penalties;
+    private bool _penaltiesLoading;
+    private bool _penaltiesUnreadable;
+    private RecordCollectionSessionRequest? _penaltyCheckout; // quoted, not yet saved
+    private bool ShowPenalties;
+    private HashSet<Guid> QueuedPenaltyContracts = new();
 
-    // The unpaid (not-yet-collected) state gets the prominent "Collect" action; everything else is view-only.
-    private bool IsCollectAction(MobileMonthlyStallCollectionDto stall) =>
-        !IsQueuedOffline(stall) && stall.Status == PaymentStatus.Unpaid;
+    private static bool HasPenalties(MobileMonthlyStallCollectionDto stall) => stall.PenaltiesDue > 0m && stall.ContractId is not null;
+    private decimal PenaltiesOpen => _penalties is { } open ? AccountPenalties.Total(open) : 0m;
+
+    // The account's open penalties as register rows (Surcharge, Interest, …) and the total collected together with `rent` on one receipt.
+    // A template of this page so the page's own scoped styles apply.
+    private RenderFragment PenaltyRows(decimal rent) =>@<dl class="money-rows" aria-label="Penalties">
+        @if (_penalties is { Count: > 0 } open)
+        {
+            @foreach (var line in AccountPenalties.Lines(open))
+            {
+                <div class="money-row"><dt>@line.Name</dt><dd>@FormatCurrency(line.Amount)</dd></div>
+            }
+            <div class="money-row strong"><dt>@(rent > 0m ? "Total amount due" : "Total penalties")</dt><dd>@FormatCurrency(rent + AccountPenalties.Total(open))</dd></div>
+        }
+        else if (_penaltiesLoading)
+        {
+            <div class="money-row"><dt>Penalties</dt><dd>Loading…</dd></div>
+        }
+        else if (_penaltiesUnreadable)
+        {
+            <div class="money-row"><dt>Penalties @FormatCurrency(SelectedStall?.PenaltiesDue ?? 0m)</dt><dd>Not included · offline</dd></div>
+        }
+        else
+        {
+            <div class="money-row"><dt>Penalties</dt><dd>None open to collect</dd></div>
+        }
+    </dl>;
+
+    private void ResetPenalties()
+    {
+        _penalties = null;
+        _penaltiesLoading = _penaltiesUnreadable = false;
+        _penaltyCheckout = null;
+    }
+
+    private void OpenPenalties(MobileMonthlyStallCollectionDto stall)
+    {
+        SelectedStall = stall;
+        ORNumber = string.Empty;
+        SheetError = null;
+        ShowPenalties = true;
+        LoadPenalties(stall);
+    }
+
+    private void LoadPenalties(MobileMonthlyStallCollectionDto stall)
+    {
+        ResetPenalties();
+        if (!HasPenalties(stall)) return;
+        if (!Sync.IsOnline) { _penaltiesUnreadable = true; return; }
+        _penaltiesLoading = true;
+        _ = LoadPenaltiesAsync(stall);
+    }
+
+    private async Task LoadPenaltiesAsync(MobileMonthlyStallCollectionDto stall)
+    {
+        IReadOnlyList<CollectionSessionSourceChoice>? open = null;
+        try
+        {
+            var result = await MobileApi.GetSourceCollectionDiscoveryAsync(new(SourceIdentityKind.Occupancy, stall.ContractId!.Value));
+            if (result.IsSuccess) open = AccountPenalties.Open(result.Value);
+        }
+        catch (Exception) { /* offline or refused: the sheet says the penalties need a connection */ }
+        if (SelectedStall?.StallId != stall.StallId) return;
+        _penalties = open;
+        _penaltiesUnreadable = open is null;
+        _penaltiesLoading = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Prices every open penalty of the selected account as one checkout BEFORE any money is recorded. False, with the reason on the sheet, when they
+    /// cannot be confirmed: nothing is recorded then, so the collector never takes the whole total while only the rent is saved.
+    /// </summary>
+    private async Task<bool> QuotePenaltiesAsync(string? receiptNumber, Action<string> fail)
+    {
+        _penaltyCheckout = null;
+        if (_penalties is not { Count: > 0 } open || SelectedStall?.ContractId is not { } contractId) return true;
+        try
+        {
+            var intent = AccountPenalties.Intent(Guid.NewGuid(), Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now), contractId, open, receiptNumber);
+            var quote = await MobileApi.QuoteCollectionSessionAsync(intent);
+            if (quote.IsSuccess && quote.Value is { CanRecord: true } q)
+            {
+                _penaltyCheckout = new(intent, q.QuoteFingerprint);
+                return true;
+            }
+            fail((quote.Value?.Problems.FirstOrDefault()?.Message ?? "The penalties could not be confirmed.") + " Nothing was recorded.");
+        }
+        catch (Exception)
+        {
+            fail("Couldn't reach the office to confirm the penalties. Nothing was recorded; try again where the signal is better.");
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Saves the quoted penalties on this device (the durable boundary, as every checkout is) and records them now when online. Called only once the
+    /// rent itself was recorded or queued. A refusal is said plainly; the queued item also stays in Records until it is resolved.
+    /// </summary>
+    private async Task<PendingLocalStatus?> SavePenaltiesAsync()
+    {
+        if (_penaltyCheckout is not { } checkout) return null;
+        _penaltyCheckout = null;
+        try
+        {
+            await Sync.EnqueueCollectionSessionAsync(checkout);
+            if (Sync.IsOnline)
+                await Sync.SyncNowAsync(force: true);
+            var saved = (await Sync.GetAllAsync()).FirstOrDefault(x => x.ClientOperationId == checkout.Intent.ClientCollectionSessionId);
+            if (saved?.LocalStatus is PendingLocalStatus.Rejected or PendingLocalStatus.ReconciliationRequired)
+                RentNotice = $"The penalties were not recorded: {saved.ResultMessage ?? "the office could not accept them."} Review them in Records.";
+            else if (saved?.LocalStatus is PendingLocalStatus.Synced)
+                QueuedPenaltyContracts.Remove(checkout.Intent.SourceIdentity!.Id);
+            else
+                QueuedPenaltyContracts.Add(checkout.Intent.SourceIdentity!.Id); // reflect immediately on the card
+            return saved?.LocalStatus;
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException)
+        {
+            RentNotice = "The penalties could not be saved on this device and were not recorded. Collect them again from this account.";
+            return null;
+        }
+    }
+
+    private async Task ConfirmPenaltiesAsync()
+    {
+        if (SelectedStall is null || IsSaving) return;
+        IsSaving = true;
+        SheetError = null;
+        try
+        {
+            if (!await QuotePenaltiesAsync(ORNumber, e => SheetError = e)) return;
+            var status = await SavePenaltiesAsync();
+            if (status == PendingLocalStatus.Synced) RentNotice = "Payment recorded successfully.";
+            else if (status is PendingLocalStatus.Pending or PendingLocalStatus.Failed) RentNotice = "Saved on this device. Waiting to sync.";
+            CloseSheet();
+            await LoadCollectionAsync();
+        }
+        finally
+        {
+            IsSaving = false;
+        }
+    }
+
+    // Whole pesos as before; centavos only when an amount has them (interest often does), so no figure is shown rounded.
+    private static string FormatCurrency(decimal value) => value == decimal.Truncate(value) ? $"₱{value:N0}" : $"₱{value:N2}";
+
+    // The not-yet-collected states (unpaid rent, or paid rent with penalties still open) get the prominent "Collect" action; everything else is view-only.
+    private bool IsCollectAction(MobileMonthlyStallCollectionDto stall) => ActionLabel(stall) == "Collect";
 
     private string ActionLabel(MobileMonthlyStallCollectionDto stall)
     {
         if (IsQueuedOffline(stall)) return "View";
         if (stall.Status == PaymentStatus.Unpaid) return "Collect";
         if (stall.AwaitingOr && stall.OnlinePaymentTransactionId.HasValue) return "Encode OR";
+        if (stall.Status == PaymentStatus.Paid && HasPenalties(stall)) return "Collect";
         return "View Receipt";
     }
 
     private static string GetBadgeClass(MobileMonthlyStallCollectionDto stall) =>
-        stall.Status == PaymentStatus.Paid ? "badge-paid" :
-        stall.Status == PaymentStatus.Partial ? "badge-partial" :
+        IsSettled(stall) ? "badge-paid" :
+        stall.Status != PaymentStatus.Unpaid ? "badge-partial" :
         "badge-unpaid";
 
-    // Status-coloured left accent for the card (paid = green, partial = gold, else neutral).
+    // Status-coloured left accent for the card (paid = green, partial or penalties due = gold, else neutral).
     private static string MonthBarClass(MobileMonthlyStallCollectionDto stall) =>
-        stall.Status == PaymentStatus.Paid ? "bar-paid" :
-        stall.Status == PaymentStatus.Partial ? "bar-partial" :
+        IsSettled(stall) ? "bar-paid" :
+        stall.Status != PaymentStatus.Unpaid ? "bar-partial" :
         string.Empty;
 }
