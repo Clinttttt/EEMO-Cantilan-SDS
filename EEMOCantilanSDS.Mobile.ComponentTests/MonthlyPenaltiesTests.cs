@@ -70,6 +70,7 @@ public sealed class MonthlyPenaltiesTests : TestContext
         Services.AddSingleton(new MobileSessionService { Menu = new(Guid.NewGuid(), "Scratch collector", "test", Today,
             [new(FacilityCode.NCC, "Scratch Center", "Monthly", true, true)]) });
         Services.AddSingleton(new MobilePaymentHubService());
+        Services.AddSingleton(new EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder());
         JSInterop.Mode = JSRuntimeMode.Loose;
         if (openStall is { } stall) Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo($"/collect/ncc?stall={stall}");
         return RenderComponent<MonthlyCollection>(p => p.Add(x => x.Facility, "ncc"));
@@ -99,7 +100,8 @@ public sealed class MonthlyPenaltiesTests : TestContext
         var sheet = Sheet(cut, "Record Monthly Payment");
         Assert.Equal([("November 2026 rental", null, "₱1,200"), ("Surcharge", "October 2026", "₱300"),
             ("Interest", "October – November 2026 · 2 months", "₱30"), ("Total amount due", null, "₱1,530")], Statement(sheet));
-        Assert.Contains("Rent and penalties on one receipt - ₱1,530", sheet.TextContent);
+        Assert.Contains("₱1,530", sheet.QuerySelector(".status-option-sub")!.TextContent);
+        Assert.DoesNotContain("receipt", sheet.QuerySelector(".status-option-sub")!.TextContent);
 
         sheet.QuerySelector("input[placeholder='000001']")!.Input("123456");
         Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
@@ -152,18 +154,93 @@ public sealed class MonthlyPenaltiesTests : TestContext
         Assert.Null(_queue[0].CollectionSession!.Intent.ReceiptReference);
     }
 
-    [Fact]
-    public void Earlier_unpaid_months_show_as_rental_arrears_outside_the_receipt_total()
+    private IRenderedComponent<MonthlyCollection> OpenWithCarried(decimal penaltiesDue = 330m)
     {
-        var cut = Render(PaymentStatus.Unpaid, 330m, earlier: [new(2026, 9, 1200m, 0m, 1200m), new(2026, 10, 1200m, 0m, 1200m)]);
+        var cut = Render(PaymentStatus.Unpaid, penaltiesDue, earlier: [new(2025, 12, 1200m, 0m, 1200m), new(2026, 10, 1200m, 0m, 1200m)]);
         cut.WaitForAssertion(() => cut.Find(".tx-card"));
         cut.Find(".tx-card").Click();
-        cut.WaitForAssertion(() => Assert.Contains("Rental arrears", Sheet(cut, "Record Monthly Payment").TextContent));
+        cut.WaitForAssertion(() => Assert.Contains("Carried over", Sheet(cut, "Record Monthly Payment").TextContent));
+        return cut;
+    }
 
-        var arrears = Sheet(cut, "Record Monthly Payment").QuerySelector(".earlier-card")!;
-        Assert.Contains("September – October 2026 · 2 months · collected separately", arrears.TextContent);
-        Assert.Contains("₱2,400", arrears.TextContent);
-        cut.WaitForAssertion(() => Assert.Equal(("Total amount due", null, "₱1,530"), Statement(Sheet(cut, "Record Monthly Payment")).Last()));
+    [Fact]
+    public void Carried_over_months_are_stated_on_the_sheet_each_with_its_own_penalties_and_counted_once_in_the_total()
+    {
+        var cut = OpenWithCarried();
+        var sheet = Sheet(cut, "Record Monthly Payment");
+        Assert.Null(sheet.QuerySelector(".earlier-card"));                                              // nothing to navigate to
+        Assert.Equal(["Arrears · 2025", "Carried over", "This month"], sheet.QuerySelectorAll(".money-head").Select(h => h.TextContent.Trim()));
+        cut.WaitForAssertion(() => Assert.Equal([
+            ("December 2025 rental", null, "₱1,200"),
+            ("October 2026 rental", null, "₱1,200"), ("Surcharge", null, "₱300"), ("Interest", null, "₱20"),
+            ("November 2026 rental", null, "₱1,200"), ("Interest", null, "₱10"),
+            ("Total amount due", null, "₱3,930")], Statement(Sheet(cut, "Record Monthly Payment"))));
+        Assert.Equal("₱3,930", Sheet(cut, "Record Monthly Payment").QuerySelector(".status-option-sub")!.TextContent.Trim());
+    }
+
+    [Fact]
+    public void Paid_in_full_records_the_carried_months_oldest_first_then_this_month_then_every_penalty()
+    {
+        var cut = OpenWithCarried();
+        cut.WaitForAssertion(() => Assert.Contains("₱3,930", Sheet(cut, "Record Monthly Payment").TextContent));
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("queue", _calls));
+        Assert.Equal(["discover", "quote", "rent", "rent", "rent", "queue"], _calls);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r =>
+            r.BillingYear == 2025 && r.BillingMonth == 12 && r.Status == PaymentStatus.Paid && r.PartialAmount == null)), Times.Once);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r =>
+            r.BillingYear == 2026 && r.BillingMonth == 10 && r.Status == PaymentStatus.Paid)), Times.Once);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r =>
+            r.BillingMonth == null && r.Status == PaymentStatus.Paid)), Times.Once);                     // this month, as before
+        Assert.Equal(330m, _queue.Single().CollectionSession!.Intent.Items.Sum(i => i.ConfirmedAmount));
+    }
+
+    [Fact]
+    public void A_refused_carried_month_stops_there_and_records_neither_this_month_nor_the_penalties()
+    {
+        var cut = OpenWithCarried();
+        cut.WaitForAssertion(() => Assert.Contains("₱3,930", Sheet(cut, "Record Monthly Payment").TextContent));
+        _api.Setup(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r => r.BillingMonth == 10)))
+            .Callback(() => _calls.Add("refused")).ReturnsAsync(Result<bool>.Failure("October is locked."));
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("Recorded 1 of 2 earlier months; November 2026 and the penalties were not. October is locked.",
+            Sheet(cut, "Record Monthly Payment").TextContent));
+        Assert.Equal(["discover", "quote", "rent", "refused"], _calls);
+        Assert.Empty(_queue);
+    }
+
+    [Fact]
+    public void A_part_payment_clears_the_oldest_month_first_and_takes_no_penalties()
+    {
+        var cut = OpenWithCarried();
+        cut.WaitForAssertion(() => Assert.Contains("₱3,930", Sheet(cut, "Record Monthly Payment").TextContent));
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Contains("Partial Payment")).Click();
+        Sheet(cut, "Record Monthly Payment").QuerySelector("input[aria-label='Amount collected']")!.Input("1500");
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Equal(["discover", "rent", "rent"], _calls));
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r =>
+            r.BillingYear == 2025 && r.BillingMonth == 12 && r.Status == PaymentStatus.Paid)), Times.Once);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.Is<RecordMobileMonthlyCollectionRequest>(r =>
+            r.BillingMonth == 10 && r.Status == PaymentStatus.Partial && r.PartialAmount == 300m)), Times.Once);
+        _api.Verify(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>()), Times.Never);
+        Assert.Empty(_queue);
+    }
+
+    [Fact]
+    public void Many_carried_months_fold_into_one_line_until_tapped()
+    {
+        var cut = Render(PaymentStatus.Unpaid, 0m, earlier: [.. Enumerable.Range(6, 5).Select(m => new MobileUnpaidMonthDto(2026, m, 1200m, 0m, 1200m))]);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => Assert.Contains("June – October 2026 · 5 months", Sheet(cut, "Record Monthly Payment").QuerySelector(".money-fold")!.TextContent));
+        Assert.Contains("₱6,000", Sheet(cut, "Record Monthly Payment").QuerySelector(".money-fold")!.TextContent);
+        Assert.Equal(("Total amount due", null, "₱7,200"), Statement(Sheet(cut, "Record Monthly Payment")).Last());
+
+        Sheet(cut, "Record Monthly Payment").QuerySelector(".money-fold")!.Click();
+        Assert.Equal(6, Statement(Sheet(cut, "Record Monthly Payment")).Count(r => r.Name.EndsWith("rental")));
     }
 
     [Fact]

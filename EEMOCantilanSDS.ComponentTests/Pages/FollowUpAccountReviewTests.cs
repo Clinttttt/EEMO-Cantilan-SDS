@@ -117,7 +117,7 @@ public sealed partial class FollowUpAccountReviewTests : TestContext
         Assert.Contains("Event obligation",cut.Markup); Assert.Contains("Fiesta",cut.Markup);
         Assert.DoesNotContain("Recorded duration",cut.Markup);
         Assert.DoesNotContain("12-month",cut.Markup);
-        Assert.Single(cut.FindAll("tbody tr"));
+        Assert.Single(cut.FindAll(".review-table tbody tr"));                       // the review's own grid (the PDF copy repeats it)
     }
     [Fact]
     public void NpmUsesEligibleDateReadWithOriginalTermAndNeverGuessesExcusedDays()

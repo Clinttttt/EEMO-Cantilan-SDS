@@ -17,6 +17,7 @@
 @inject IMobileApiClient MobileApi
 @inject EEMOCantilanSDS.Mobile.Services.MobileSyncService Sync
 @inject IJSRuntime JS
+@inject EEMOCantilanSDS.Mobile.Collections.ArrearsWorkspaceHolder Held
 @implements IDisposable
 
 <div class="page-shell">
@@ -208,8 +209,14 @@
                 </div>
             </div>
 
-            @Arrears
-            @AmountDue(SelectedStall, SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
+            @if (Carried.Count > 0)
+            {
+                @Statement(SelectedStall, HasPenalties(SelectedStall))
+            }
+            else
+            {
+                @AmountDue(SelectedStall, SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
+            }
 
             <button class="status-option @(SelectedStatus == PaymentStatus.Paid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
                 <div class="status-option-icon paid-icon-sm">
@@ -217,9 +224,9 @@
                 </div>
                 <div class="status-option-info">
                     <div class="status-option-label">Paid in Full</div>
-                    @if (SelectedStall.Status != PaymentStatus.Paid && PenaltiesOpen > 0m)
+                    @if (SelectedStall.Status != PaymentStatus.Paid && (PenaltiesOpen > 0m || Carried.Count > 0))
                     {
-                        <div class="status-option-sub">Rent and penalties on one receipt - @FormatCurrency(SelectedStall.Balance + PenaltiesOpen)</div>
+                        <div class="status-option-sub">@FormatCurrency(SheetTotal(HasPenalties(SelectedStall)))</div>
                     }
                     else
                     {
@@ -254,7 +261,14 @@
                         <span>₱</span>
                         <input class="form-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0" aria-label="Amount collected" @bind="PartialAmount" @bind:event="oninput" />
                     </div>
-                    <div class="form-hint">Must be greater than 0 and less than @FormatCurrency(SelectedStall.MonthlyRate).@(PenaltiesOpen > 0m ? " Penalties are collected with a full payment." : "")</div>
+                    @if (Carried.Count > 0)
+                    {
+                        <div class="form-hint">Up to @FormatCurrency(Carried.Sum(m => m.BalanceDue) + SelectedStall.Balance) in rent, oldest month first.@(PenaltiesOpen > 0m ? " Penalties are collected with a full payment." : "")</div>
+                    }
+                    else
+                    {
+                        <div class="form-hint">Must be greater than 0 and less than @FormatCurrency(SelectedStall.MonthlyRate).@(PenaltiesOpen > 0m ? " Penalties are collected with a full payment." : "")</div>
+                    }
                 </div>
             }
 
@@ -1391,6 +1405,22 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
             return;
         }
 
+        // Months carried over are planned before anything is recorded: all of them in full, or a part payment oldest month first.
+        // shortcut: the amount typed is what is collected now; a this-month part payment already on record beside carried months is not prefilled into it.
+        IReadOnlyList<UnpaidMonthCharge> carried = [];
+        var thisMonth = 0m;
+        if (Carried.Count > 0 && SelectedStatus != PaymentStatus.Unpaid)
+        {
+            if (SelectedStatus == PaymentStatus.Paid)
+                carried = Carried.Select(m => new UnpaidMonthCharge(m.Year, m.Month, PaymentStatus.Paid, null, m.BalanceDue)).ToList();
+            else
+            {
+                var (charges, left, error) = UnpaidMonthPayment.Spread(Carried, SelectedStall.Balance, PartialAmount ?? 0m);
+                if (error is not null) { SheetError = error; return; }
+                (carried, thisMonth) = (charges, left);
+            }
+        }
+
         // Paying the month in full also clears the account's penalties on the same receipt. They are confirmed first; if they cannot be,
         // nothing at all is recorded.
         IsSaving = true;
@@ -1400,6 +1430,24 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         {
             IsSaving = false;
             return;
+        }
+
+        // The carried months go first, oldest first; this month only once every one of them is recorded.
+        if (carried.Count > 0)
+        {
+            if (!await RecordCarriedAsync(carried)) { IsSaving = false; return; }
+            if (SelectedStatus == PaymentStatus.Partial)
+            {
+                if (thisMonth <= 0m)
+                {
+                    RentNotice = "Payment recorded successfully.";
+                    CloseSheet();
+                    try { await LoadCollectionAsync(); } finally { IsSaving = false; }
+                    return;
+                }
+                if (thisMonth >= SelectedStall.Balance) SelectedStatus = PaymentStatus.Paid; // rent only: no penalties were quoted
+                else PartialAmount = SelectedStall.AmountPaid + thisMonth;
+            }
         }
         IsSaving = false;
 
@@ -1468,6 +1516,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
         ShowPenalties = false;
         SelectedStall = null;
         _earlier = [];
+        _carriedOpen = false;
         SelectedStatus = PaymentStatus.Paid;
         PartialAmount = null;
         ORNumber = string.Empty;
@@ -1527,6 +1576,107 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
             <div class="money-row strong"><dt>Total amount due</dt><dd>@FormatCurrency(total)</dd></div>
         }
     </dl>;
+
+    // ── Months carried over ──
+    // The record sheet states every open month of the space, oldest first, as the Statement of Account does: earlier years as Arrears, earlier months of
+    // this year as Carried over, then this month; each month's rent with that month's own penalties under it. Paid in Full records them all; a part
+    // payment clears the oldest month's rent first. Only a month not yet paid carries them: an edit of a paid month never collects older months.
+    private IReadOnlyList<MobileUnpaidMonthDto> Carried => SelectedStall is { Status: not PaymentStatus.Paid } ? _earlier : [];
+    private bool _carriedOpen;
+    private static string MonthName(int year, int month) => new DateTime(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+    private IReadOnlyList<CollectionSessionSourceChoice> PenaltiesFor(string month) => _penalties?.Where(c => c.Context == month).ToList() ?? [];
+    private decimal SheetTotal(bool withPenalties) =>
+        Carried.Sum(m => m.BalanceDue) + (SelectedStall?.Balance ?? 0m) + (withPenalties ? PenaltiesOpen : 0m);
+
+    private RenderFragment Statement(MobileMonthlyStallCollectionDto stall, bool withPenalties) =>@<dl class="money-rows" aria-label="Amount due">
+        @if (Carried.Count > 3 && !_carriedOpen)
+        {
+            var labels = Carried.Select(m => MonthName(m.Year, m.Month)).ToList();
+            <button class="money-fold" type="button" aria-expanded="false" @onclick="() => _carriedOpen = true">
+                <span>@(AccountPenalties.Months(labels) ?? $"{labels.Count} months")<small>Show each month</small></span>
+                <strong>@FormatCurrency(Carried.Sum(m => m.BalanceDue) + (withPenalties ? labels.Sum(l => AccountPenalties.Total(PenaltiesFor(l))) : 0m))</strong>
+            </button>
+        }
+        else
+        {
+            @foreach (var group in Carried.GroupBy(m => m.Year < SelectedYear ? $"Arrears · {m.Year}" : "Carried over"))
+            {
+                <div class="money-head">@group.Key</div>
+                @foreach (var m in group)
+                {
+                    @MonthRows(MonthName(m.Year, m.Month), m.BalanceDue, null, withPenalties)
+                }
+            }
+        }
+        <div class="money-head">This month</div>
+        @MonthRows(MonthLabel, stall.Balance, stall.AmountPaid > 0m ? $"{FormatCurrency(stall.AmountPaid)} of {FormatCurrency(stall.MonthlyRate)} paid" : null, withPenalties)
+        @if (withPenalties)
+        {
+            var listed = Carried.Select(m => MonthName(m.Year, m.Month)).Append(MonthLabel).ToHashSet();
+            @if (_penalties is { } open && open.Where(c => !listed.Contains(c.Context ?? "")).ToList() is { Count: > 0 } other)
+            {
+                @foreach (var line in AccountPenalties.Lines(other))
+                {
+                    <div class="money-row sub"><dt>@line.Name@if (line.Months is { } months) { <small>@months</small> }</dt><dd>@FormatCurrency(line.Amount)</dd></div>
+                }
+            }
+            else if (_penaltiesLoading)
+            {
+                <div class="money-row"><dt>Penalties</dt><dd>Loading…</dd></div>
+            }
+            else if (_penaltiesUnreadable)
+            {
+                <div class="money-row"><dt>Penalties<small>Not included · offline</small></dt><dd>@FormatCurrency(stall.PenaltiesDue)</dd></div>
+            }
+        }
+        <div class="money-row strong"><dt>Total amount due</dt><dd>@FormatCurrency(SheetTotal(withPenalties))</dd></div>
+    </dl>;
+
+    private RenderFragment MonthRows(string month, decimal rent, string? note, bool withPenalties) =>@<text>
+        <div class="money-row">
+            <dt>@($"{month} rental")@if (note is not null) { <small>@note</small> }</dt>
+            <dd>@(rent > 0m ? FormatCurrency(rent) : "Paid")</dd>
+        </div>
+        @if (withPenalties)
+        {
+            @foreach (var line in AccountPenalties.Lines(PenaltiesFor(month)))
+            {
+                <div class="money-row sub"><dt>@line.Name</dt><dd>@FormatCurrency(line.Amount)</dd></div>
+            }
+        }
+    </text>;
+
+    /// <summary>
+    /// Records the carried-over months' rent, oldest first, one monthly record each, before this month's. Stops at the first refusal: what was recorded
+    /// stays recorded, the sheet says how far it got, and neither this month nor the penalties are recorded. Online only; never queued.
+    /// </summary>
+    private async Task<bool> RecordCarriedAsync(IReadOnlyList<UnpaidMonthCharge> charges)
+    {
+        var stall = SelectedStall!;
+        var reference = !stall.RentCanonical && !string.IsNullOrWhiteSpace(ORNumber) ? ORNumber.Trim() : null;
+        var done = 0;
+        string Stopped(string why) => done > 0
+            ? $"Recorded {done} of {charges.Count} earlier months; {MonthLabel} and the penalties were not. {why}"
+            : $"{why} Nothing was recorded.";
+        try
+        {
+            foreach (var c in charges)
+            {
+                var result = await MobileApi.RecordMonthlyCollectionAsync(new(stall.StallId, c.Status, c.PartialAmount, reference, c.Year, c.Month));
+                if (!result.IsSuccess) { SheetError = Stopped(result.Error ?? "The payment could not be recorded."); break; }
+                done++;
+            }
+        }
+        catch (Exception)
+        {
+            SheetError = Stopped("Couldn't reach the office. Try again where the signal is better.");
+        }
+        if (done > 0) Held.Clear(); // the Arrears list is read again the next time it is opened
+        if (done == charges.Count) return true;
+        _penaltyCheckout = null;
+        LoadEarlier(stall);
+        return false;
+    }
 
     // The space's older unpaid months, as the server lists them. Tapping opens the unpaid-months screen, which collects them oldest first.
     private RenderFragment Arrears =>@<text>

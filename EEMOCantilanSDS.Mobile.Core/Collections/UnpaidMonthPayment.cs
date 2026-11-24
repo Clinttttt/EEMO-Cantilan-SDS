@@ -26,6 +26,35 @@ public static class UnpaidMonthPayment
     public static IEnumerable<MobileUnpaidMonthDto> WithLater(IEnumerable<MobileUnpaidMonthDto> chosen, IReadOnlyCollection<MobileUnpaidMonthDto> tapped) =>
         chosen.Where(m => tapped.Contains(m) || m.InOrder && tapped.Any(t => t.InOrder && Ordinal(m) > Ordinal(t)));
 
+    /// <summary>
+    /// A part payment taken on the monthly sheet while earlier months are open: the rent of the oldest month first, each month cleared before the next,
+    /// and what is left after the earlier months is this month's. A month that already has a part payment is only ever cleared, never part-paid again.
+    /// </summary>
+    public static (IReadOnlyList<UnpaidMonthCharge> Charges, decimal ThisMonth, string? Error) Spread(
+        IReadOnlyList<MobileUnpaidMonthDto> earlier, decimal thisMonthBalance, decimal amount)
+    {
+        var months = earlier.OrderBy(Ordinal).ToList();
+        var due = months.Sum(m => m.BalanceDue) + thisMonthBalance;
+        if (amount <= 0m || decimal.Round(amount, 2) != amount) return ([], 0m, "Enter the amount received, up to two decimals.");
+        if (amount > due) return ([], 0m, $"The amount cannot be more than {Peso(due)}.");
+
+        var charges = new List<UnpaidMonthCharge>();
+        var left = amount;
+        var needed = 0m;
+        foreach (var m in months)
+        {
+            needed += m.BalanceDue;
+            if (left >= m.BalanceDue) { charges.Add(new(m.Year, m.Month, PaymentStatus.Paid, null, m.BalanceDue)); left -= m.BalanceDue; continue; }
+            if (m.AmountPaid > 0m)
+                return ([], 0m, $"{new DateTime(m.Year, m.Month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture)} is part-paid already; enter at least {Peso(needed)}.");
+            charges.Add(new(m.Year, m.Month, PaymentStatus.Partial, left, left));
+            return (charges, 0m, null);
+        }
+        return (charges, left, null);
+    }
+
+    private static string Peso(decimal amount) => "₱" + amount.ToString("N2", CultureInfo.InvariantCulture);
+
     public static (IReadOnlyList<UnpaidMonthCharge> Charges, string? Error) Plan(IReadOnlyList<MobileUnpaidMonthDto> selected, string? amountText)
     {
         if (selected.Count == 0) return ([], "Choose at least one month.");

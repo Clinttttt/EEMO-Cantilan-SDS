@@ -899,6 +899,78 @@
     font-size: 17px;
 }
 
+/* A month's own penalties sit under its rent, indented. */
+.money-row.sub {
+    padding-left: 28px;
+}
+
+.money-row.sub dt,
+.money-row.sub dd {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+/* Arrears · year / Carried over / This month: the statement's group bands. */
+.money-head {
+    padding: 8px 14px 6px;
+    border-top: 1px solid var(--mobile-border);
+    background: var(--mobile-canvas);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--mobile-text-secondary);
+}
+
+.money-head:first-child {
+    border-top: 0;
+}
+
+.money-head + .money-row {
+    border-top: 1px solid var(--mobile-border);
+}
+
+/* Many carried months fold into one line until tapped. */
+.money-fold {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    width: 100%;
+    min-height: 48px;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    color: var(--mobile-text-secondary);
+    cursor: pointer;
+}
+
+.money-fold small {
+    display: block;
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--mobile-blue);
+}
+
+.money-fold strong {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--mobile-navy);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.money-fold:focus-visible {
+    outline: 2px solid var(--mobile-focus);
+    outline-offset: -2px;
+}
+
+.money-fold + .money-head {
+    border-top: 1px solid var(--mobile-border);
+}
+
 /* Older unpaid months of this space: one plain tappable row, in the statement's own style, that opens the unpaid-months screen. */
 .earlier-card {
     display: flex;
