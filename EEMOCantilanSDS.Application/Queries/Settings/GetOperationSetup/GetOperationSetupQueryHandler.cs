@@ -9,6 +9,7 @@ using EEMOCantilanSDS.Application.Dtos.Settings;
 using EEMOCantilanSDS.Application.Queries.Mobile.GetCollectorOperationCapabilities;
 using EEMOCantilanSDS.Domain.Common;
 using EEMOCantilanSDS.Domain.Constants;
+using EEMOCantilanSDS.Domain.Enums;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -73,6 +74,12 @@ public sealed class GetOperationSetupQueryHandler(
             else if (retired) gaps.Add("Its revenue source is retired");
             else if (!policy) gaps.Add("No effective policy (receipt type) yet");
 
+            if (item.OperationCode == OnboardingOperationDeclarations.Ecf)
+            {
+                items.Add(await ElectricityAsync(item, sourceExists, retired, policy, gaps, tenantId, ct));
+                continue;
+            }
+
             var collectors = assignments.GetValueOrDefault(item.OperationCode) ?? [];
             var ready = 0;
             var reasons = new List<string>();
@@ -94,6 +101,25 @@ public sealed class GetOperationSetupQueryHandler(
         }
 
         return Result<OperationSetupOverviewDto>.Success(new(settings.UsesConfiguration, items));
+    }
+
+    /// <summary>
+    /// Electricity has no operation assignment: the Collector app offers it to an active collector assigned to the NPM facility, once an ECF policy is
+    /// effective (CollectionSessionSources: the Electricity row's StandaloneAvailable). Judged by that same rule, so the Head is never told "No collector
+    /// assigned yet" for an assignment that cannot exist, nor "Ready" for a collector whose app does not offer it.
+    /// </summary>
+    private async Task<OperationSetupDto> ElectricityAsync(
+        TenantOperationSettingDto item, bool sourceExists, bool retired, bool policy, List<string> gaps, Guid tenantId, CancellationToken ct)
+    {
+        var collectors = await db.CollectorUsers.AsNoTracking()
+            .CountAsync(c => c.MunicipalityId == tenantId && c.IsActive && c.FacilityAssignments.Any(a => a.FacilityCode == FacilityCode.NPM), ct);
+
+        var state = gaps.Count > 0 ? OperationSetupState.SetupRequired
+            : collectors > 0 ? OperationSetupState.Ready
+            : OperationSetupState.Added;
+        if (state == OperationSetupState.Added) gaps.Add("No active collector is assigned to the NPM facility");
+        return new(item.OperationCode, item.DisplayName, item.GroupKey, state, sourceExists, retired, policy,
+            collectors, state == OperationSetupState.Ready ? collectors : 0, state == OperationSetupState.Ready ? [] : gaps, item.Version);
     }
 
     private static string ReasonText(string code) => code switch
