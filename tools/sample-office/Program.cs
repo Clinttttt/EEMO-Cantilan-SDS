@@ -30,10 +30,12 @@ using Npgsql;
 // anyone can use, and sends no message. Every row it adds is written to the record file, and "remove" takes exactly those out again.
 // shortcut: registers kept on their own records (Tabo attendance, slaughter, terminal trips) stay empty, as in tools/demo-tenant.
 var mode = args.FirstOrDefault();
-Require(mode is "seed" or "resume" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
-    "Use: seed <office code> <new record file>   or   resume <office code> <record file>   or   remove <record file> [--confirm]");
+Require(mode is "seed" or "resume" or "backfill" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
+    "Use: seed <office code> <new record file>   or   resume|backfill <office code> <record file>   or   remove <record file> [--confirm]");
 // resume: a seed that stopped after its rental accounts adds the rest (late charges, other collections) to the same record file.
-var resume = mode == "resume";
+// backfill: like resume, but only the days before each source's first rate rule, under that first rule (no charges, no day posted twice).
+var backfill = mode == "backfill";
+var resume = mode is "resume" or "backfill";
 var connection = Environment.GetEnvironmentVariable("STALLTRACK_SAMPLE_CONNECTION");
 Require(!string.IsNullOrWhiteSpace(connection), "Set STALLTRACK_SAMPLE_CONNECTION.");
 if (mode == "remove")
@@ -289,7 +291,7 @@ else if (BillingPolicyVersion.InForce(versions, today) is not { InterestPercent:
     Console.WriteLine("  WARNING: this office's own billing rules charge no interest, so most sample accounts show no late charges. They were left as they are.");
 var charges = 0;
 var sampleContracts = earlier.Where(r => r.T == "Contracts").Select(r => Guid.Parse(r.V[0])).ToList();
-var chargeStalls = resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
+var chargeStalls = backfill ? new List<Guid>() : resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
 foreach (var stallId in chargeStalls)
 {
     // The office's own late-charge job may charge the same space at the same moment (same charge id): its charge stands, nothing of ours is saved.
@@ -319,6 +321,26 @@ var feeLines = new (string Code, int PerMonth, int Low, int High)[]
 var postedAt = new Dated();
 var otherCollections = 0;
 var skippedSources = new HashSet<string>();
+// Backfill: a collection may not predate its rule (Collection.Post), so each source whose first rule starts after the sample's first
+// month gets one sample rule from that month, same receipt type, recorded like every sample row and removed with them.
+var backfillBefore = new Dictionary<Guid, DateOnly>();
+if (backfill)
+{
+    await using var setup = new AppDbContext(options, pinned);
+    var codes = feeLines.Select(l => l.Code).ToHashSet();
+    var firstRules = (await setup.RevenueClassificationPolicies
+            .Where(p => p.BusinessContext == RevenuePolicyContext.Default && p.PermittedInstrumentType != null).ToListAsync())
+        .GroupBy(p => p.RevenueClassificationId).Select(g => g.MinBy(p => p.EffectiveDate)!).ToList();
+    var bySource = (await setup.RevenueClassifications.ToListAsync()).Where(c => codes.Contains(c.SemanticCode)).Select(c => c.Id).ToHashSet();
+    foreach (var first in firstRules.Where(r => bySource.Contains(r.RevenueClassificationId) && r.EffectiveDate > firstMonth))
+    {
+        backfillBefore[first.RevenueClassificationId] = first.EffectiveDate;
+        setup.Add(RevenueClassificationPolicy.Create(first.RevenueClassificationId, firstMonth, first.DisplayName, first.PermittedInstrumentType,
+            tenant, "Sample history before the office's first rule; removed with the sample records.", "StallTrack sample"));
+    }
+    await setup.SaveChangesAsync();
+    Console.WriteLine($"  Earlier rules added for {backfillBefore.Count} sources, from {firstMonth:MMMM yyyy}.");
+}
 for (var month = firstMonth; month <= thisMonth; month = month.AddMonths(1))
 {
     var length = DateTime.DaysInMonth(month.Year, month.Month);
@@ -349,10 +371,12 @@ for (var month = firstMonth; month <= thisMonth; month = month.AddMonths(1))
             var collector = collectors[other.Next(collectors.Length)];
             var payer = $"{firstNames[other.Next(firstNames.Length)]} {lastNames[other.Next(lastNames.Length)]}";
             var at = day.ToDateTime(new TimeOnly(other.Next(0, 9), other.Next(60)), DateTimeKind.Utc);
-            var policy = sources.TryGetValue(line.Code, out var source)
+            var inForce = sources.TryGetValue(line.Code, out var source)
                 ? policies.Where(p => p.RevenueClassificationId == source.Id && p.EffectiveDate <= day).MaxBy(p => p.EffectiveDate)
                 : null;
-            if (policy is null) { skippedSources.Add(line.Code); continue; }
+            // Backfill takes only the days before the office's own first rule, under the sample rule added for them.
+            var policy = backfill && (source is null || day >= backfillBefore.GetValueOrDefault(source.Id)) ? null : inForce;
+            if (policy is null) { if (inForce is null) skippedSources.Add(line.Code); continue; }
             batch.Add((at, day, source!, policy, charge, terminal, amount, collector, policy.PermittedInstrumentType == RevenueInstrumentType.OfficialReceipt ? payer : null));
         }
     }
