@@ -1509,6 +1509,41 @@ public sealed class CollectionSessionEditorTests : TestContext
     }
 
     [Fact]
+    public void Monthly_stall_lists_the_months_rental_with_its_penalties_and_opens_it_in_the_monthly_operation()
+    {
+        var identity = new CollectionSourceIdentity(SourceIdentityKind.Occupancy, Guid.NewGuid());
+        var stall = Guid.NewGuid();
+        _api.Setup(x => x.SearchCollectionSourcesAsync(It.IsAny<string?>()))
+            .ReturnsAsync(Result<IReadOnlyList<CollectionSourceSearchResult>>.Success([new(identity, "Ruel Ramirez", "New Commercial Center · Stall 2", "FACILITY_NCC")]));
+        _api.Setup(x => x.GetSourceCollectionDiscoveryAsync(identity))
+            .ReturnsAsync(Result<CollectionSessionDiscovery>.Success(new(null, Today,
+                [Op(CollectionSessionItemKind.FineAssessment, RevenueClassificationCodes.PenaltiesAndFines, "Fines / Penalties", CollectionFamily.Rent,
+                    new CollectionSessionSourceChoice("FINE|" + Guid.NewGuid().ToString("N"), CollectionSessionItemKind.FineAssessment,
+                        RevenueClassificationCodes.PenaltiesAndFines, "Surcharge", "October 2026", new(FineAssessmentId: Guid.NewGuid(), FineVersion: 1),
+                        RevenueInstrumentType.OfficialReceipt, CollectionSessionAmountRule.PreparedBalance, ServerAmount: 330m, MaximumAmount: 330m))],
+                SourceIdentity: identity)));
+        _api.Setup(x => x.GetMonthlyCollectionAsync(FacilityCode.NCC, Today.Year, Today.Month))
+            .ReturnsAsync(Result<MobileMonthlyCollectionDto>.Success(new(FacilityCode.NCC, "New Commercial Center", Today.Year, Today.Month, Today, 2, 0, 0, 2, 0m, 2400m,
+            [
+                new(Guid.NewGuid(), "1", "Other Payor", "Other Payor", "", 1200m, PaymentStatus.Unpaid, 0m, 1200m, null, false, ContractId: Guid.NewGuid()),
+                new(stall, "2", "Ruel Ramirez", "Ruel Ramirez", "", 1200m, PaymentStatus.Unpaid, 0m, 1200m, null, false, ContractId: identity.Id, PenaltiesDue: 330m)
+            ])));
+
+        var view = PickSource("Ruel Ramirez");
+
+        // The month's rental with the penalties in its total, never the penalties on their own, and no picker opened on them.
+        var option = Assert.Single(view.FindAll(".collection-available-fees button"));
+        Assert.Contains(Today.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture) + " rental", option.TextContent);
+        Assert.Contains("₱1,200.00 rent + ₱330.00 penalties · ₱1,530.00 due", option.TextContent);
+        Assert.DoesNotContain("Fines", view.Markup);
+        Assert.Empty(view.FindAll("[role=dialog]"));
+
+        option.Click();
+        Assert.EndsWith($"/collect/NCC?stall={stall}", Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().Uri);
+        Assert.Empty(_queue);
+    }
+
+    [Fact]
     public void Verified_fine_prefills_assessed_balance_and_preserves_receipt_and_liability_identity()
     {
         var assessment = Guid.NewGuid();
@@ -1527,7 +1562,7 @@ public sealed class CollectionSessionEditorTests : TestContext
         var view = PickSource("Juan Cruz");
         Click(view, "+ Add item");
         view.Find("[role=dialog]").QuerySelectorAll(".collection-option")
-            .Single(x => x.TextContent.Contains("Fines / Penalties")).Click();
+            .Single(x => x.TextContent.Contains("Penalties")).Click();
         var sheet = view.Find("[role=dialog]");
         Assert.Contains("Outstanding", sheet.TextContent);
         Assert.Contains("Official Receipt", sheet.TextContent);

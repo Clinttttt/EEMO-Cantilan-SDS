@@ -1,6 +1,9 @@
+using System.Globalization;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 
 namespace EEMOCantilanSDS.Mobile.Collections;
+
+public sealed record PenaltyLine(string Name, decimal Amount, string? Months);
 
 /// <summary>
 /// The penalties still open on one rent account (surcharge, interest, assessed fines), collected in full on the same receipt as the rent.
@@ -16,9 +19,34 @@ public static class AccountPenalties
             .Where(c => c.Kind == CollectionSessionItemKind.FineAssessment && c.Identity.FineAssessmentId is not null && c.ServerAmount > 0m)
             .ToList();
 
-    /// <summary>One line per penalty name (Surcharge, Interest, …) in the order the server listed them, summed across months.</summary>
-    public static IReadOnlyList<(string Name, decimal Amount)> Lines(IEnumerable<CollectionSessionSourceChoice> open) =>
-        open.GroupBy(c => c.DisplayName).Select(g => (g.Key, g.Sum(c => c.ServerAmount ?? 0m))).ToList();
+    /// <summary>
+    /// One line per penalty name summed across months, surcharge before interest as the Statement of Account lists them, each with the months it is
+    /// for as the server labels them ("October 2026", "January – October 2026 · 10 months"). Display only; the amounts are the server's.
+    /// </summary>
+    public static IReadOnlyList<PenaltyLine> Lines(IEnumerable<CollectionSessionSourceChoice> open) =>
+        open.Select((c, i) => (Choice: c, Index: i)).GroupBy(x => x.Choice.DisplayName)
+            .OrderBy(g => Rank(g.Key)).ThenBy(g => g.Min(x => x.Index))
+            .Select(g => new PenaltyLine(g.Key, g.Sum(x => x.Choice.ServerAmount ?? 0m), Months(g.Select(x => x.Choice.Context))))
+            .ToList();
+
+    private static int Rank(string name) =>
+        name.Contains("surcharge", StringComparison.OrdinalIgnoreCase) ? 0 : name.Contains("interest", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+
+    /// <summary>The months a penalty line covers, from the server's "MMMM yyyy" period labels; null when a label is not a month.</summary>
+    public static string? Months(IEnumerable<string?> labels)
+    {
+        var months = new SortedSet<DateTime>();
+        foreach (var label in labels)
+        {
+            if (!DateTime.TryParseExact(label, "MMMM yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var month)) return null;
+            months.Add(month);
+        }
+        if (months.Count == 0) return null;
+        string Name(DateTime m) => m.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+        if (months.Count == 1) return Name(months.Min);
+        var from = months.Min.Year == months.Max.Year ? months.Min.ToString("MMMM", CultureInfo.InvariantCulture) : Name(months.Min);
+        return $"{from} – {Name(months.Max)} · {months.Count} months";
+    }
 
     public static decimal Total(IEnumerable<CollectionSessionSourceChoice> open) => open.Sum(c => c.ServerAmount ?? 0m);
 

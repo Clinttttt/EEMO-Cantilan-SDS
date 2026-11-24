@@ -48,6 +48,21 @@ button:focus-visible { outline: 2px solid var(--mobile-blue); outline-offset: 2p
 .item-amount strong { font-size: 14px; color: var(--mobile-navy); }
 .item-amount span { margin-top: 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--mobile-text-secondary); }
 
+/* A collected month as a small statement: month and total, then its rent and penalties as aligned rows */
+.month-item { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; }
+.month-item + .month-item { border-top: 1px solid var(--mobile-border); }
+.month-item ~ .sheet-receipt { margin-top: 2px; border-top: 1px solid var(--mobile-border); }   /* closes the list of months before the receipt entry */
+.month-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.month-head .item-name { font-size: 15px; }
+.month-total { flex: 0 0 auto; font-size: 15px; font-weight: 700; color: var(--mobile-navy); font-variant-numeric: tabular-nums; }
+.month-lines { margin: 0; padding: 4px 12px; border-radius: 8px; background: var(--mobile-surface-subtle); }
+.month-lines > div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 6px 0; }
+.month-lines > div + div { border-top: 1px solid var(--mobile-border); }
+.month-lines dt { margin: 0; font-size: 14px; color: var(--mobile-text-secondary); }
+.month-lines dd { margin: 0; font-size: 14px; font-weight: 500; color: var(--mobile-text); font-variant-numeric: tabular-nums; }
+.month-item .item-context { margin-top: 0; font-size: 13px; }
+.month-item .item-actions { margin-top: 0; }
+
 .review-summary { padding-top: 6px; padding-bottom: 12px; }
 .review-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--mobile-border); font-size: 14px; color: var(--mobile-text-secondary); font-variant-numeric: tabular-nums; }
 .review-row strong { font-weight: 600; color: var(--mobile-navy); }

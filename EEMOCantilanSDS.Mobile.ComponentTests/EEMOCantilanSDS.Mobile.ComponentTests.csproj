@@ -23,6 +23,8 @@
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/NpmWholePayment.razor" Link="Components/Pages/Menus/NpmWholePayment.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/Market.razor" Link="Components/Pages/Menus/Market.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/MonthlyCollection.razor" Link="Components/Pages/Menus/MonthlyCollection.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Pages/Menus/ArrearsMonths.razor" Link="Components/Pages/Menus/ArrearsMonths.razor" />
+    <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SpaceMonthsView.razor" Link="Components/Shared/SpaceMonthsView.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/ErrorState.razor" Link="Components/Shared/ErrorState.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/SlowSaveHint.razor" Link="Components/Shared/SlowSaveHint.razor" />
     <Content Include="../EEMOCantilanSDS.Mobile/Components/Shared/BottomNav.razor" Link="Components/Shared/BottomNav.razor" />

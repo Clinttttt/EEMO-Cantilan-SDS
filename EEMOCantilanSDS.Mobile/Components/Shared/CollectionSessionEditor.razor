@@ -181,11 +181,19 @@ else
             <div class="collection-row"><h2>Items</h2><button class="collection-small" type="button" disabled="@(_busy || (Correction is not null && _items.Count > 0))" @onclick="OpenPickerAsync">+ Add item</button></div>
             @if (_items.Count == 0)
             {
-                <p>@(NothingDue && MonthlyFacilityCode is not null ? "No collectible monthly rent is prepared for this stall in New Collection." : NothingDue ? "No linked collection is due for this source." : "No items added.")</p>
-                @if (_source is not null && Selectable.Count > 0)
+                <p>@(NothingDue && MonthlyFacilityCode is not null && _monthly is null ? "No collectible monthly rent is prepared for this stall in New Collection." : NothingDue && _monthly is null ? "No linked collection is due for this source." : "No items added.")</p>
+                @if (_source is not null && (Selectable.Count > 0 || _monthly is not null))
                 {
                     <div class="collection-available-fees" role="group" aria-label="Available charges">
                         <span class="collection-available-caption">Available charges</span>
+                        @if (_monthly is { } due && MonthlyFacilityCode is { } facility)
+                        {
+                            @* The month's rental with the account's penalties in its total; its own operation shows the statement and records both on one receipt. *@
+                            <button type="button" class="collection-option" disabled="@_busy" @onclick="() => OpenMonthly(facility, due)">
+                                <span class="option-text"><strong>@BusinessDate.ToString("MMMM yyyy", CultureInfo.InvariantCulture) rental</strong><small>@MonthlyDetail(due)</small></span>
+                                <span aria-hidden="true">›</span>
+                            </button>
+                        }
                         @foreach (var offered in Selectable)
                         {
                             <button type="button" class="collection-option" disabled="@_busy" @onclick="() => OpenOfferedAsync(offered.OperationCode)">
@@ -195,7 +203,7 @@ else
                         }
                     </div>
                 }
-                @if (NothingDue && MonthlyFacilityCode is { } monthly)
+                @if (NothingDue && MonthlyFacilityCode is { } monthly && _monthly is null)
                 {
                     <div class="collection-monthly-route">
                         <strong>Monthly stall rental</strong>
@@ -319,7 +327,7 @@ else
             <div class="sheet-handle"></div>
             <header class="sheet-head">
                 <h2 class="sheet-title">Select charges</h2>
-                <div class="sheet-context">@(_operation is null ? SourceName : _operation.DisplayName + (SourceName is { Length: > 0 } ? " · " + SourceName : ""))</div>
+                <div class="sheet-context">@(_operation is null ? SourceName : OperationLabel(_operation) + (SourceName is { Length: > 0 } ? " · " + SourceName : ""))</div>
             </header>
             <div class="sheet-body">
             @if (_operation is null)
@@ -637,8 +645,39 @@ else
         && _source.OperationCode is "FACILITY_TCC" or "FACILITY_NCC" or "FACILITY_BBQ" or "FACILITY_ICE"
         ? _source.OperationCode["FACILITY_".Length..] : null;
 
+    // A monthly stall's penalties are collected with its rent in the monthly operation (see _monthly), so they are not offered on their own.
     private IReadOnlyList<CollectionSessionCapability> Offered => (_discovery?.Operations ?? [])
-        .Where(x => x.Supported && x.CanAdd && Allows(x.OperationCode)).ToList();
+        .Where(x => x.Supported && x.CanAdd && Allows(x.OperationCode))
+        .Where(x => !(_monthly is not null && x.Kind == CollectionSessionItemKind.FineAssessment)).ToList();
+
+    // A stall on monthly billing whose rent New Collection does not take: the month's amount due as its facility's monthly operation reads it (rent plus
+    // the account's penalties), opened there to record both on one receipt. Null when it does not apply or cannot be read; the source then shows as before.
+    private MobileMonthlyStallCollectionDto? _monthly;
+
+    private async Task LoadMonthlyAsync()
+    {
+        _monthly = null;
+        if (Correction is not null || _source is not { } source || MonthlyFacilityCode is not { } code || !Enum.TryParse<FacilityCode>(code, out var facility)
+            || _discovery is null || _discovery.Operations.Any(x => x.Kind == CollectionSessionItemKind.MonthlyRent && x.CanAdd)) return;
+        try
+        {
+            var month = await Api.GetMonthlyCollectionAsync(facility, BusinessDate.Year, BusinessDate.Month);
+            if (_source == source && month.IsSuccess)
+                _monthly = month.Value?.Stalls.FirstOrDefault(s => s.ContractId == source.Identity.Id);
+        }
+        catch { /* offline or refused: the source's own charges stay listed */ }
+    }
+
+    private string MonthlyDetail(MobileMonthlyStallCollectionDto due) => (due.Balance, due.PenaltiesDue) switch
+    {
+        ( > 0m, > 0m) => $"{Money(due.Balance)} rent + {Money(due.PenaltiesDue)} penalties · {Money(due.Balance + due.PenaltiesDue)} due",
+        ( > 0m, _) => $"{Money(due.Balance)} due",
+        (_, > 0m) => $"Rent paid · {Money(due.PenaltiesDue)} penalties due",
+        _ => "Paid"
+    };
+
+    private void OpenMonthly(string facility, MobileMonthlyStallCollectionDto due) =>
+        Navigation.NavigateTo($"/collect/{facility}?stall={due.StallId}");
 
     private static string FamilyName(CollectionFamily? family) => family switch
     {
@@ -675,6 +714,7 @@ else
     {
         "NPM_DAILY" => "Daily stall payment",
         "NPM_WHOLE_PAYMENT" => "Whole payment",
+        RevenueClassificationCodes.PenaltiesAndFines => "Penalties",
         _ => row.DisplayName
     };
 
@@ -944,8 +984,9 @@ else
     {
         if (!found.CanSelect) return; // A future event is registered, not yet collectible.
         _linkedNpmContext = false;
-        _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false;
+        _source = found; _found = []; _suggestOpen = false; _searched = false; _quote = null; _direct = false; _monthly = null;
         await LoadAsync();
+        await LoadMonthlyAsync();
     }
 
     // A direct collection has no Source Identity; the typed name is only the payer's name on the receipt.
@@ -961,7 +1002,7 @@ else
     {
         _linkedNpmContext = false;
         _source = null; _direct = false; _snapshot = ""; _quote = null; _search = ""; _found = []; _searched = false; _browsed = false; _suggestOpen = false;
-        _discovery = null; _message = null;
+        _discovery = null; _message = null; _monthly = null;
         await Task.CompletedTask;
     }
 
@@ -1325,7 +1366,7 @@ else
         _linkedNpmContext = false;
         _sessionId = Guid.NewGuid(); _spaceReceipt = ""; _orItems.Clear(); _items.Clear(); _shown.Clear(); _drafts.Clear(); _result = null; _quote = null; _queued = _needsReview = false;
         _showRecordedSheet = _recordedSheetWasShown = false;
-        _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null;
+        _source = null; _snapshot = ""; _search = ""; _found = []; _searched = _browsed = _suggestOpen = false; _discovery = null; _monthly = null;
         _direct = OnlyOperation == CollectorOperationCodes.Terminal;
         await LoadAsync();
     }

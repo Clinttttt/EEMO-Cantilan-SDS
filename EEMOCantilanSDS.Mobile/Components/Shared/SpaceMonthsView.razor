@@ -31,6 +31,7 @@
                     <span class="smv-month">
                         <strong>@row.Month</strong>
                         @if (SharedReason is null && row.Reason is { Length: > 0 }) { <small class="smv-reason">@row.Reason</small> }
+                        @if (Detail?.Invoke(row.Key) is { Length: > 0 } detail) { <small class="smv-detail">@detail</small> }
                     </span>
                     <span class="smv-amount">@Money(row.Amount)</span>
                     @if (selected) { <span class="smv-sr">Selected</span> }
@@ -47,6 +48,8 @@
     [Parameter] public EventCallback<string> OnToggle { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<string>> OnToggleMany { get; set; }
     [Parameter] public string Label { get; set; } = "Months owed";
+    /// <summary>Optional line under a month (by selection key), e.g. what its amount is made of.</summary>
+    [Parameter] public Func<string, string?>? Detail { get; set; }
 
     private sealed record MonthRow(string Key, DateOnly Period, string Month, string? Reason, decimal Amount);
 
