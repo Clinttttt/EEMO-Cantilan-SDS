@@ -13,6 +13,9 @@
     .office-report ::deep table { font-size: 11.5px; }
     .office-report ::deep th { font-size: 10px; }
     .office-report ::deep tbody tr:hover td { background: none; }
+    /* The footer is the grand total: print it once, after the last row. A footer group repeats at the foot of every sheet,
+       which put the whole report's total under page 1's rows. */
+    .office-report ::deep tfoot { display: table-row-group; }
     .office-report ::deep tr { break-inside: avoid; }
     .office-report ::deep th, .office-report ::deep td { border-color: #9ca3af; padding: 6px 8px; }
     .office-report ::deep .v3-table-wrap { overflow: visible; }
