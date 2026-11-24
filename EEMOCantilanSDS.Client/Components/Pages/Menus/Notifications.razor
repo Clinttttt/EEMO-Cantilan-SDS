@@ -81,7 +81,6 @@
                             <li class="ib-row @(item.Read ? "" : "ib-new")" @key="item.Id">
                                 <span class="ib-icon ib-icon-@category.ToLowerInvariant().Replace(' ', '-')" aria-hidden="true">@((MarkupString)IconOf(category))</span>
                                 <div class="ib-text">
-                                    <span class="ib-cat">@category</span>
                                     <div class="ib-title">
                                         @if (!item.Read)
                                         {
@@ -90,7 +89,10 @@
                                         @item.Title
                                     </div>
                                     <p class="ib-body">@item.Body</p>
-                                    <time class="ib-time" datetime="@item.CreatedAt.ToString("O")">@PhilippineTime.ToPhilippineTime(item.CreatedAt).ToString("MMM d, yyyy h:mm tt")</time>
+                                    <p class="ib-meta">
+                                        <span class="ib-cat">@category</span>
+                                        <time class="ib-time" datetime="@item.CreatedAt.ToString("O")">@PhilippineTime.ToPhilippineTime(item.CreatedAt).ToString("MMM d, yyyy h:mm tt")</time>
+                                    </p>
                                 </div>
                                 <div class="ib-actions">
                                     @if (item.Link is { } link)

@@ -103,6 +103,11 @@ window.stalltrackPrint = {
 
     // Print the current page in landscape. Safe to call repeatedly: the injected rule is removed each time,
     // so a later portrait print (another page) is unaffected.
+    //
+    // The margin is a real PAGE margin, so every sheet of a long register keeps its whitespace; body padding only padded
+    // the top of sheet 1 and the bottom of the last, and the rows between ran into the paper edge at each break. The empty
+    // top and bottom margin boxes are what keep Chromium's own date, title, URL and page number off the sheet: once a page
+    // defines a margin box, Chromium draws its furniture there no longer (checked: Edge 158, Print to PDF with headers on).
     landscape: function () {
         const STYLE_ID = 'stalltrack-landscape-print';
         document.getElementById(STYLE_ID)?.remove();
@@ -113,9 +118,8 @@ window.stalltrackPrint = {
         style.textContent =
             // A paper size must be named alongside the orientation: `size: landscape` on its own is treated as
             // a hint and the dialog still opened Portrait, so the ten-column roster came out over two sheets.
-            '@page { size: A4 landscape; margin: 0; }' +
-            'html, body { margin: 0 !important; }' +
-            'body { padding: 10mm 12mm !important; }';
+            '@page { size: A4 landscape; margin: 10mm 12mm; @top-center { content: ""; } @bottom-center { content: ""; } }' +
+            'html, body { margin: 0 !important; padding: 0 !important; }';
         document.head.appendChild(style);
 
         try {

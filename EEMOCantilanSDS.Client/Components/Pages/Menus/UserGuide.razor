@@ -39,19 +39,23 @@
             {
                 <section class="ug-section" id="@s.Id" aria-labelledby="@($"{s.Id}-h")">
                     <h2 id="@($"{s.Id}-h")">@s.Title</h2>
-                    <p class="ug-lead">@s.Lead</p>
-                    <ol class="ug-steps">
+                    <ul class="ug-steps">
                         @foreach (var step in s.Steps)
                         {
+                            @* The page's name inside the sentence is the link, so no step repeats it as a separate label. *@
+                            var at = step.Link is null ? -1 : step.Text.IndexOf(step.Link, StringComparison.Ordinal);
                             <li>
-                                @step.Text
-                                @if (step.Href is { } href)
+                                @if (at >= 0)
                                 {
-                                    <a href="@href">@step.Link</a>
+                                    <text>@(step.Text[..at])<a href="@step.Href">@step.Link</a>@(step.Text[(at + step.Link!.Length)..])</text>
+                                }
+                                else
+                                {
+                                    @step.Text
                                 }
                             </li>
                         }
-                    </ol>
+                    </ul>
                 </section>
             }
         </div>
@@ -59,64 +63,64 @@
 </div>
 
 @code {
+    // Link is the page's name as it appears in Text; Href is that page.
     private sealed record Step(string Text, string? Link = null, string? Href = null);
-    private sealed record Section(string Id, string Title, string Lead, Step[] Steps);
+    private sealed record Section(string Id, string Title, Step[] Steps);
 
     private static readonly Section[] Sections =
     [
-        new("start", "Getting started", "Sign in, find your way around, and keep your account safe.",
+        new("start", "Getting started",
         [
             new("Sign in with the account the Head created for you."),
-            new("The menu on the left holds the daily work: Operations to collect, Monitoring to follow up, Reports to print."),
-            new("Turn on two-factor authentication under Settings → Your account.", "Open Settings", "/settings"),
-            new("Switch to Dark mode at the bottom of the menu. Printed reports always stay light."),
+            new("The menu holds the daily work: Operations to collect, Monitoring to follow up, Reports to print."),
+            new("Turn on two-factor authentication in Settings, under Your account.", "Settings", "/settings"),
+            new("Dark mode is at the bottom of the menu. Printed reports always stay light."),
         ]),
-        new("billing", "Billing rules", "The Head sets how rent is billed. Every bill, statement and report follows these rules.",
+        new("billing", "Billing rules",
         [
-            new("Open Billing Policy.", "Billing Policy", "/settings/billing-policy"),
-            new("Set the due day, the grace period, how many months may be paid ahead, and whether a whole year may be paid at once."),
+            new("In Billing Policy, the Head sets the due day, grace period, months payable ahead and whether a whole year may be paid at once.", "Billing Policy", "/settings/billing-policy"),
             new("With Oldest month first on, a payment settles the oldest unpaid month first."),
-            new("Late charges: a surcharge once for each unpaid month, then interest every month on the rent and surcharge, up to the limit set. Enter the ordinance or resolution as the authority."),
-            new("Choose the date the change takes effect. Months already billed keep the rules they were billed under."),
+            new("Late charges: a surcharge once on each unpaid month, then monthly interest on the rent and surcharge, up to the limit set. Enter the ordinance or resolution as the authority."),
+            new("A change takes effect on the date chosen. Months already billed keep their rules."),
         ]),
-        new("office", "Collecting at the office", "Record every payment against its account and the receipt you issued.",
+        new("office", "Collecting at the office",
         [
-            new("Open Operations and choose the facility or operation.", "Operations", "/operations"),
-            new("Find the space, choose the months being paid, and enter the official receipt or cash ticket number."),
-            new("Fines and penalties are paid under Fines & Penalties. Late charges are added there automatically.", "Fines & Penalties", "/operations/fines"),
-            new("Payments made online by payors appear under Online Payments. Check anything listed under Needs attention.", "Online Payments", "/online-payments"),
+            new("Open Operations, choose the facility or operation, then find the space.", "Operations", "/operations"),
+            new("Choose the months being paid and enter the official receipt or cash ticket number."),
+            new("Fines and penalties are paid under Fines & Penalties; late charges are added there automatically.", "Fines & Penalties", "/operations/fines"),
+            new("Payors' online payments appear in Online Payments. Check anything under Needs attention.", "Online Payments", "/online-payments"),
         ]),
-        new("field", "Collecting in the field", "Collectors use the StallTrack collector app on their phones.",
+        new("field", "Collecting in the field",
         [
-            new("Sign in on the collector app with the collector account set up under Collectors.", "Collectors", "/collectors"),
-            new("Today's work lists what the collector is assigned to collect."),
-            new("Choose the space or payer, add what is being paid, check the total, and enter the receipt number issued."),
+            new("Each collector signs in to the StallTrack collector app with the account set up in Collectors.", "Collectors", "/collectors"),
+            new("Today's work lists what each collector is assigned to collect."),
+            new("Choose the space or payer, add what is paid, check the total and enter the receipt number issued."),
             new("Without signal, collections wait on the phone and are sent once it is back online."),
-            new("Collections recorded in the field appear under Collection Activity.", "Collection Activity", "/collections/activity"),
+            new("Field collections appear in Collection Activity.", "Collection Activity", "/collections/activity"),
         ]),
-        new("remit", "Remittance", "Collectors turn over what they collected; the office checks it against the receipts.",
+        new("remit", "Remittance",
         [
-            new("Open Remittance & Liquidation to see each collector's remittances.", "Remittance & Liquidation", "/remittances"),
-            new("Open a remittance to see its receipts and amounts."),
+            new("Collectors turn over what they collected; the office checks it against the receipts."),
+            new("Remittance & Liquidation lists each collector's remittances. Open one to see its receipts and amounts.", "Remittance & Liquidation", "/remittances"),
         ]),
-        new("followup", "Following up accounts", "See who is behind and by how much, month by month.",
+        new("followup", "Following up accounts",
         [
             new("Monitoring lists accounts that need attention: Delinquent, Arrears and missing receipts.", "Monitoring", "/monitoring/follow-up"),
-            new("Review account shows the account summary: unpaid rent, surcharges, interest and the total due, month by month."),
+            new("Review account shows unpaid rent, surcharges, interest and the total due, month by month."),
             new("Spaces & Occupants opens any space and its Statement of Account.", "Spaces & Occupants", "/vendors"),
             new("Payors are reminded before rent is due and when it is overdue."),
         ]),
-        new("reports", "Reports", "Monthly billing, collection and financial reports, ready to print.",
+        new("reports", "Reports",
         [
-            new("Billing Register: every account of a facility and what it owes. Use Summary for the totals.", "Billing Register", "/reports/billing-register"),
-            new("Monthly Collection Report: what was collected this month, by revenue source.", "Monthly Collection Report", "/reports/month-end"),
-            new("Every other report is on the Reports page.", "Reports", "/reports"),
+            new("Billing Register: every account of a facility and what it owes. Summary shows the totals.", "Billing Register", "/reports/billing-register"),
+            new("Monthly Collection Report: the month's collections by revenue source.", "Monthly Collection Report", "/reports/month-end"),
+            new("Every other report is on the Reports page, ready to print.", "Reports", "/reports"),
             new("Audit Trail records who did what, and when.", "Audit Trail", "/audit-trail"),
         ]),
-        new("payors", "Payor portal", "Payors see their own account and can pay rent online.",
+        new("payors", "Payor portal",
         [
-            new("A payor opens their portal account with the activation code printed on their Statement of Account."),
-            new("Payors see their balances and payment history, and can pay rent online."),
+            new("Payors open their portal account with the activation code on their Statement of Account."),
+            new("They see their balances and payment history, and can pay rent online."),
         ]),
     ];
 }

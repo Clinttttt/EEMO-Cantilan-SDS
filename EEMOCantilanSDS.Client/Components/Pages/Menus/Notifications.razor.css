@@ -28,11 +28,15 @@
 .ib-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-muted); font-size: .75rem; font-variant-numeric: tabular-nums; text-align: center; color: inherit; }
 .ib-row { justify-content: flex-start; }
 .ib-text { flex: 1; }
-.ib-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 8px; background: var(--surface-muted); color: var(--navy); }
-.ib-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ib-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 32px; margin-top: 1px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-muted); color: var(--text-secondary); }
+/* The icon is a MarkupString, so it carries no scope attribute: ::deep, or it renders at the browser's default size, filled black. */
+.ib-icon ::deep svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .ib-icon-payments { color: var(--accent); }
 .ib-icon-late-charges { color: var(--dark-amber-text, var(--navy)); }
-.ib-cat { display: block; margin-bottom: 2px; font-size: .6875rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-tertiary); }
+/* What the message is about sits with its time, in the quiet meta line, not as an eyebrow over the title. */
+.ib-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; font-size: .75rem; color: var(--text-tertiary); }
+.ib-cat { font-weight: 500; color: var(--text-secondary); }
+.ib-cat::after { content: "·" / ""; margin-left: 8px; color: var(--text-tertiary); }
 @media (max-width: 760px) {
     .ib-filters { padding: 12px; }
     .ib-icon { display: none; }
