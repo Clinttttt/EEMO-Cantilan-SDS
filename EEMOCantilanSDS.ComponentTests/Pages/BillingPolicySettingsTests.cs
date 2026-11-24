@@ -49,7 +49,27 @@ public sealed class BillingPolicySettingsTests : TestContext
         Services.AddSingleton(Mock.Of<ISetupApiClient>());
         Services.AddSingleton(Mock.Of<IPaymentsApiClient>());
         Services.AddSingleton(Mock.Of<IStallsApiClient>());
-        return RenderComponent<BillingPolicySettings>();
+        var cut = RenderComponent<BillingPolicySettings>();
+        // The amendment form opens from Edit; the tests below work in the open form.
+        if (role == "SuperAdmin" && page.IsSuccess)
+        {
+            cut.WaitForState(() => cut.FindAll(".bp-edit").Count > 0);
+            cut.Find(".bp-edit").Click();
+        }
+        return cut;
+    }
+
+    [Fact]
+    public void ThePolicyReadsAsAStatement_UntilEditOpensTheForm_AndCancelClosesIt()
+    {
+        var cut = Open("SuperAdmin", Result<BillingPolicyPageDto>.Success(Defaults()));
+        Assert.NotEmpty(cut.FindAll("form.bp-form"));
+        Assert.Empty(cut.FindAll(".bp-edit"));
+
+        cut.FindAll(".bp-form-foot button").Single(b => b.TextContent.Trim() == "Cancel").Click();
+
+        Assert.Empty(cut.FindAll("form.bp-form"));
+        Assert.Single(cut.FindAll(".bp-edit"));
     }
 
     [Fact]

@@ -58,3 +58,7 @@
 @media (prefers-reduced-motion: reduce) {
     .bp-affix, .bp-track, .bp-track::before { transition: none; }
 }
+
+/* Edit sits at the right of the Current policy header and opens the amendment form. */
+.bp-edit { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; }
+.bp-edit svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }

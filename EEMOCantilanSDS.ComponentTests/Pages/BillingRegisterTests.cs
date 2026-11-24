@@ -77,8 +77,9 @@ public class BillingRegisterTests : TestContext
         Assert.Contains("4,800.00", totals);
 
         Assert.Equal($"/profile/tcc/{Rosa}", cut.Find("tbody tr a").GetAttribute("href"));   // by id, never by number
-        Assert.Contains("Rent due November 20, 2026", cut.Markup);
-        Assert.Equal("Late charges: 25% surcharge once per unpaid month · 2% interest a month, up to 36 months · Ordinance No. 7", cut.Find(".br-rules").TextContent.Trim());
+        // The count / due date / late-charge rates lines are no longer on the sheet (2026-11-24).
+        Assert.DoesNotContain("Rent due", cut.Markup);
+        Assert.Empty(cut.FindAll(".br-rules"));
         Assert.Contains("Demo Trade Center", cut.Markup);
         reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC), Times.Once);
 

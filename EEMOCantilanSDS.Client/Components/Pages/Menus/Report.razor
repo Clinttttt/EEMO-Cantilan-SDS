@@ -358,7 +358,7 @@
         }
         else if (_section == "targets" && SelectedYear != "all")
         {
-            @* Revenue sources is the default: every revenue source by its own model (no collection rate for a source paid on service).
+            @* Revenue trend is the default; Revenue sources lists every revenue source by its own model (no collection rate for a source paid on service).
                Revenue trend reads the same official statement period by period. The key re-creates the view on a switch, which replays its enter animation. *@
             <div class="rpt-view" @key="_trendView">
                 @if (_trendView == "trend")
@@ -1220,18 +1220,18 @@
     //     register. These are rendered only while open (SectionShown), which took the page from 116 kb of markup to 30 kb.
     private static readonly (string Key, string Label)[] ReportSections =
     [
-        ("overview", "Summary"),
+        ("targets", "Trends & Targets"),
         ("monthlyincome", "Monthly Income"),
         ("collections", "Collections"),
         ("accountability", "Accountability"),
         ("receivables", "Receivables"),
-        ("targets", "Trends & Targets"),
+        ("overview", "Summary"),
     ];
 
-    private string _section = "overview";
+    private string _section = "targets";   // Trends & Targets opens first (Clint, 2026-11-24)
 
-    /// <summary>Trends &amp; Targets shows the Revenue sources table by default; "trend" shows the revenue trend chart.</summary>
-    private string _trendView = "sources";
+    /// <summary>Trends &amp; Targets shows the revenue trend chart by default; "sources" shows the Revenue sources table.</summary>
+    private string _trendView = "trend";
 
     /// <summary>
     /// Whether the rate-basis note under the By facility heading is open. Closed by default: the office asked for the

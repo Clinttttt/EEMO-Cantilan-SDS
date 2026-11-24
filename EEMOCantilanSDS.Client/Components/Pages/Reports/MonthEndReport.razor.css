@@ -172,6 +172,7 @@
 .me-src-table th:nth-child(3), .me-src-table td:nth-child(3) { text-align: left; }
 .me-recon .me-src-table th:first-child, .me-recon .me-src-table td:first-child { text-align: left; }
 .me-quiet { color: var(--text-subtle); font-size: 13px; }
+.me-table td.me-quiet { font-size: inherit; }   /* basis and receipt read at the table's size, as in the account tables */
 .me-tag-warn { margin-left: 8px; color: var(--red); }
 .me-fine-print { margin-top: 10px; font-size: 12.5px; }
 .me-fine-line { display: block; margin-top: 2px; color: var(--text-subtle); font-size: 12.5px; font-weight: 400; }
