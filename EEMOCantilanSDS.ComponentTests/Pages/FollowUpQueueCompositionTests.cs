@@ -465,10 +465,10 @@ public sealed class FollowUpQueueCompositionTests : TestContext
         cut.WaitForAssertion(()=>Assert.Single(cut.FindComponents<FollowUpAccountReview>()),RenderTimeout);
         var review=cut.FindComponent<FollowUpAccountReview>();
         Assert.Single(review.FindAll(".review-footer-actions"));
-        Assert.Contains("Queue follow-up amount", review.Find(".review-queue-position").TextContent);
+        Assert.Contains("This follow-up ·", review.Find(".review-queue-position").TextContent);
         Assert.Contains("₱4,800.00", review.Find(".review-queue-position").TextContent);
         Assert.Contains("12 months to August 2026", review.Find(".review-queue-position").TextContent);
-        Assert.Contains("Total outstanding balance · all periods", review.Find(".review-summary").TextContent);
+        Assert.Contains("Unpaid rent · all periods", review.Find(".review-summary").TextContent);
         Assert.Contains("₱800.00", review.Find(".review-summary").TextContent);
         SpaceHolderWorkspaceTests.SaveVisualArtifact("account-review-payment",review.Markup);
         review.Find(".review-period-toggle").Click();

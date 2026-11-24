@@ -31,10 +31,11 @@
             {
                 @if (Context.FacilityItem is { ReasonKind: "delinquent" or "arrears" or "current", Amount: { } queueAmount })
                 {
+                    @* One reason's months, rent only: the queue lists Arrears, Delinquent and the current month as separate rows of the same account. *@
                     <div class="review-queue-position" aria-label="Selected follow-up amount">
                         <div>
-                            <span class="review-queue-label">Queue follow-up amount</span>
-                            <span class="review-queue-period">@Context.FacilityItem.Period</span>
+                            <span class="review-queue-label">This follow-up · @Context.FacilityItem.Reason</span>
+                            <span class="review-queue-period">@Context.FacilityItem.Period · rent only@(_statement is { } whole ? $" · part of the {Money(whole.TotalDue)} total due" : "")</span>
                         </div>
                         <strong>@Money(queueAmount)</strong>
                     </div>
@@ -51,13 +52,13 @@
                 <dl class="review-summary">
                     @if (CurrentTerm is { } current)
                     {
-                        <div><dt>Current term balance · from @current.Commencement.ToString("MMM d, yyyy")</dt><dd>@Money(current.Outstanding)</dd></div>
-                        <div><dt>Earlier terms balance</dt><dd>@Money(_account!.Terms!.Where(t => !t.Current).Sum(t => t.Outstanding))</dd></div>
+                        <div><dt>Current term · from @current.Commencement.ToString("MMM d, yyyy")</dt><dd>@Money(current.Outstanding)</dd></div>
+                        <div><dt>Earlier terms</dt><dd>@Money(_account!.Terms!.Where(t => !t.Current).Sum(t => t.Outstanding))</dd></div>
                     }
-                    <div><dt>Total outstanding balance · all periods, fines not included (see Other assessed charges)</dt><dd>@Money(Outstanding)</dd></div>
-                    <div><dt>Periods with a balance</dt><dd>@Owed.Count()</dd></div>
-                    <div><dt>Earliest period with balance</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
-                    <div><dt>Collected in displayed periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
+                    <div><dt>Unpaid rent · all periods</dt><dd>@Money(Outstanding)</dd></div>
+                    <div><dt>Unpaid periods</dt><dd>@Owed.Count()</dd></div>
+                    <div><dt>Oldest unpaid</dt><dd>@(Owed.FirstOrDefault()?.Label ?? "None")</dd></div>
+                    <div><dt>Collected on these periods</dt><dd>@Money(_periods.Sum(p => p.Collected))</dd></div>
                 </dl>
                 @if (_reconciliationWarning is not null)
                 { <p class="v3-notice v3-notice-error" role="alert">@_reconciliationWarning</p> }
@@ -143,6 +144,10 @@
     </ChildContent>
     <Footer>
         <div class="review-footer-actions">
+        <button class="btn-outline review-pdf" type="button" disabled="@(_loading || _error is not null)" @onclick="DownloadPdfAsync" aria-label="Download this account review as PDF" title="Download PDF">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12" /><polyline points="7 10 12 15 17 10" /><path d="M5 20h14" /></svg>
+            <span>PDF</span>
+        </button>
         <button class="btn-outline" type="button" @onclick="OnClose">Close</button>
         @if (!string.IsNullOrWhiteSpace(Context.Link)) { <a class="btn-outline" href="@Context.Link">@(Context.IsAccount ? "Open source account" : "Open source item")</a> }
         @if (ActionLabel is { } action)
@@ -155,6 +160,54 @@
     <FineAssessmentDrawer Account="assessingAccount" ManageFocus="false" OnClose="ReturnToReview" OnSaved="FineSaved" />
 }
 @if (_payingFine is { } payingFine) { <FinePaymentDrawer AssessmentId="payingFine" ManageFocus="false" OnClose="ReturnFromPayment" OnPaid="FinePaid" /> }
+@if (!_loading && _error is null)
+{
+    @* The PDF copy: never shown on screen; Download PDF prints it as its own A4 document. The same figures as the review above. *@
+    <section class="ara-paper" aria-hidden="true">
+        <header class="ara-paper-head">
+            <div class="ara-paper-kicker">STALLTRACK · @(Context.IsAccount ? "ACCOUNT REVIEW" : "ITEM REVIEW")</div>
+            <h1>@ReviewOccupant</h1>
+            <p>@SourceName · @Context.Reference</p>
+            <p>As of @PhilippineTime.Today.ToString("MMMM d, yyyy")@(Context.SnapshotDate != PhilippineTime.Today ? $" · Queue dated {Context.SnapshotDate:MMMM d, yyyy}" : "")</p>
+        </header>
+        @if (_statement is { } printed)
+        {
+            <h2>Account summary</h2>
+            <AccountSummary Statement="printed" />
+        }
+        else if (_hasLedger && Owed.Any())
+        {
+            <h2>Outstanding billing periods</h2>
+            <table class="ara-paper-table">
+                <thead><tr><th>Period</th><th>Assessed</th><th>Collected</th><th>Remaining</th></tr></thead>
+                <tbody>
+                    @foreach (var p in Owed)
+                    {
+                        <tr><td>@p.Label</td><td>@Money(p.Assessed)</td><td>@Money(p.Collected)</td><td>@Money(p.Remaining)</td></tr>
+                    }
+                </tbody>
+                <tfoot><tr><th colspan="3">Total outstanding balance · fines not included</th><td>@Money(Outstanding)</td></tr></tfoot>
+            </table>
+        }
+        <h2>Account information</h2>
+        <dl class="ara-paper-facts">
+            <div><dt>Registered occupant</dt><dd>@ReviewOccupant</dd></div>
+            <div><dt>Source</dt><dd>@SourceName</dd></div>
+            @if (_account is not null)
+            {
+                <div><dt>Account status</dt><dd>@RentalAccountStatus.Label(_account)</dd></div>
+                <div><dt>Effective from</dt><dd>@_account.ActiveFrom.ToString("MMMM d, yyyy")</dd></div>
+                @if (_account.ContractReference is { Length: > 0 } reference) { <div><dt>Contract reference</dt><dd>@reference</dd></div> }
+            }
+            @if (Context.FacilityItem is { } followUp)
+            {
+                <div><dt>Follow-up reason</dt><dd>@followUp.Reason</dd></div>
+                <div><dt>Coverage</dt><dd>@followUp.Period</dd></div>
+            }
+        </dl>
+        <footer class="ara-paper-foot">Information copy prepared @PhilippineTime.Today.ToString("MMMM d, yyyy"). Not an official receipt.</footer>
+    </section>
+}
 </div>
 
 @code {
@@ -203,6 +256,10 @@
     private DateOnly? ExpiredNotRenewed => _account is { Terms: null } a && RentalAccountStatus.IsTermEnded(a) ? RentalAccountStatus.TermLastDay(a) : null;
     private int MonthsAfter(DateOnly ended) => Owed.Count(p => p.Date > ended);
     private static string Money(decimal value) => $"₱{value:N2}";
+
+    // Opens the browser's print dialog on the PDF copy alone; the file is named after the account.
+    private async Task DownloadPdfAsync() =>
+        await JS.InvokeVoidAsync("stalltrackPrint.detachedDocument", ".account-review .ara-paper", $"Account review - {ReviewOccupant} - {Context.Reference}");
     private static string YearScopeLabel(int year) => year == PhilippineTime.Today.Year ? "Current year" : year < PhilippineTime.Today.Year ? "Past year" : "Future year";
     private static string Status(Period p) => p.Remaining == 0 ? "Paid" : p.Collected > 0 ? "Partial" : "Unpaid";
     protected override async Task OnInitializedAsync() { _head=Authentication is not null && (await Authentication).User.IsInRole("SuperAdmin"); await Load(); }

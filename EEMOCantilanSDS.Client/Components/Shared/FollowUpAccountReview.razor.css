@@ -47,3 +47,32 @@ summary:focus-visible { outline: 2px solid var(--civic-panel); outline-offset: -
     .review-table > tbody > tr > td[data-label]::before { content: attr(data-label); display: block; font-size: .6875rem; color: var(--text-secondary); margin-bottom: 4px; }
     .review-period-detail { max-width: none; }
 }
+
+/* Download PDF sits apart from the drawer's actions, on the left. */
+.review-pdf { display: inline-flex; align-items: center; gap: 6px; margin-right: auto; }
+.review-pdf svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The PDF copy: never on screen. On paper it is printed alone by stalltrackPrint.detachedDocument, light whatever the screen theme. */
+.ara-paper { display: none; }
+
+@media print {
+    .ara-paper { color: #142338; background: #fff; font: 10pt/1.45 Arial, sans-serif; }
+    .ara-paper-head { padding-bottom: 4mm; border-bottom: 1.5pt solid #204a7f; }
+    .ara-paper-kicker { font-size: 8.5pt; font-weight: 700; letter-spacing: .06em; color: #204a7f; }
+    .ara-paper h1 { margin: 3mm 0 1mm; font-size: 18pt; line-height: 1.2; color: #142338; }
+    .ara-paper-head p { margin: .6mm 0 0; font-size: 9pt; color: #56677b; }
+    .ara-paper h2 { margin: 7mm 0 3mm; font-size: 11pt; color: #142338; break-after: avoid; }
+    .ara-paper ::deep .acct-months-wrap { overflow: visible; }
+    .ara-paper ::deep thead { display: table-header-group; }
+    .ara-paper ::deep tr { break-inside: avoid; }
+    .ara-paper-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+    .ara-paper-table th, .ara-paper-table td { padding: 2mm; border-bottom: 1px solid #dae2eb; text-align: right; }
+    .ara-paper-table th:first-child, .ara-paper-table td:first-child { text-align: left; }
+    .ara-paper-table thead th { font-size: 8pt; letter-spacing: .04em; text-transform: uppercase; color: #56677b; }
+    .ara-paper-table tfoot th, .ara-paper-table tfoot td { font-weight: 700; border-top: 1px solid #142338; }
+    .ara-paper-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3mm 10mm; margin: 0; }
+    .ara-paper-facts div { break-inside: avoid; }
+    .ara-paper-facts dt { font-size: 8pt; color: #56677b; }
+    .ara-paper-facts dd { margin: 0; font-size: 10pt; overflow-wrap: anywhere; }
+    .ara-paper-foot { margin-top: 8mm; padding-top: 3mm; border-top: 1px solid #dae2eb; font-size: 8.5pt; color: #56677b; }
+}

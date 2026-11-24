@@ -25,9 +25,9 @@ public sealed partial class FollowUpAccountReviewTests
         var cut = RenderComponent<FollowUpAccountReview>(p => p.Add(x => x.Context, ContextFor(account)));
 
         var summary = cut.Find(".review-summary").TextContent;
-        Assert.Contains("Current term balance", summary);
+        Assert.Contains("Current term ·", summary);
         Assert.Contains("₱1,500.00", summary);                                                       // current term
-        Assert.Contains("Earlier terms balance", summary);
+        Assert.Contains("Earlier terms", summary);
         Assert.Contains("₱2,000.00", summary);                                                       // earlier term
         Assert.Contains("₱3,500.00", summary);                                                       // lifetime, reconciled
         var groups = cut.FindAll("section[aria-label='Outstanding billing periods'] > details").Where(d => d.TextContent.Contains("with balance")).ToList();

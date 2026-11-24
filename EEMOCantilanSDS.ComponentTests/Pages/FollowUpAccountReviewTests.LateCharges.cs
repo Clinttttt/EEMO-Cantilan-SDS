@@ -35,11 +35,36 @@ public sealed partial class FollowUpAccountReviewTests
         var contract = Guid.NewGuid();
         var cut = ReviewLateSpace(contract, contract);
 
-        cut.WaitForAssertion(() => Assert.Single(cut.FindComponents<AccountSummary>()));
-        var rows = cut.FindAll(".acct-row").Select(r => r.TextContent).ToList();
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".review-account-summary .acct")));
+        var rows = cut.FindAll(".review-account-summary .acct-row").Select(r => r.TextContent).ToList();
         Assert.Contains(rows, r => r.Contains("Surcharges (25%)") && r.Contains("₱500.00"));
         Assert.Contains(rows, r => r.Contains("Accrued interest (2% a month)") && r.Contains("₱75.00"));
         Assert.Contains(rows, r => r.Contains("Total amount due") && r.Contains("₱3,575.00"));
+
+        // The queue row is one reason's months, rent only; it says so, and what whole it is part of.
+        var row = cut.Find(".review-queue-position").TextContent;
+        Assert.Contains("This follow-up · Delinquent", row);
+        Assert.Contains("September 2026 · rent only · part of the ₱3,575.00 total due", row);
+        Assert.Contains("₱2,000.00", row);
+    }
+
+    [Fact]
+    public void DownloadPdf_PrintsTheAccountsOwnCopy_NamedForTheAccount()
+    {
+        var contract = Guid.NewGuid();
+        var cut = ReviewLateSpace(contract, contract);
+        cut.WaitForAssertion(() => Assert.NotNull(cut.Find(".ara-paper .acct")));
+
+        var paper = cut.Find(".ara-paper");
+        Assert.Contains("Maria Santos", paper.QuerySelector("h1")!.TextContent);
+        Assert.Contains(paper.QuerySelectorAll(".acct-row"), r => r.TextContent.Contains("Total amount due") && r.TextContent.Contains("₱3,575.00"));
+        Assert.Equal(2, paper.QuerySelectorAll(".acct-months tbody tr").Length);                     // each late month on its own line
+        Assert.Contains("Not an official receipt", paper.TextContent);
+
+        cut.Find("button.review-pdf").Click();
+        var print = Assert.Single(JSInterop.Invocations, i => i.Identifier == "stalltrackPrint.detachedDocument");
+        Assert.Equal(".account-review .ara-paper", print.Arguments[0]);
+        Assert.StartsWith("Account review - Maria Santos", (string)print.Arguments[1]!);
     }
 
     [Fact]

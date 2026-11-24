@@ -101,6 +101,50 @@ window.stalltrackPrint = {
         }
     },
 
+    /**
+     * Print a document kept inside a drawer or dialog (hidden on screen) as its own A4 portrait document, over as many pages as it
+     * needs, and name the saved PDF. A copy is placed directly in <body> for the print and removed after: printed from inside a fixed
+     * overlay, the browser keeps only its first page. The page margin repeats on every sheet; its empty margin boxes keep the
+     * browser's date, title and URL off the paper (as in landscape below). The copy is plain markup outside Blazor's tree.
+     */
+    detachedDocument: function (selector, title) {
+        const STYLE_ID = 'stalltrack-detached-document-print';
+        const el = document.querySelector(selector);
+        if (!el) {
+            window.print();
+            return;
+        }
+
+        document.getElementById(STYLE_ID)?.remove();
+        document.querySelectorAll('body > .print-detached').forEach(n => n.remove());
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.media = 'print';
+        style.textContent =
+            '@page { size: A4 portrait; margin: 12mm 14mm; @top-center { content: ""; } @bottom-center { content: ""; } }' +
+            'html, body { margin: 0 !important; padding: 0 !important; }';
+        document.head.appendChild(style);
+
+        const copy = el.cloneNode(true);
+        copy.classList.add('print-detached');
+        copy.style.display = 'none'; // print.css shows it on paper only
+        document.body.appendChild(copy);
+        const before = document.title;
+        if (title) document.title = title;
+
+        try {
+            window.print();
+        } finally {
+            const cleanup = () => {
+                document.getElementById(STYLE_ID)?.remove();
+                copy.remove();
+                document.title = before;
+            };
+            window.addEventListener('afterprint', cleanup, { once: true });
+            window.setTimeout(cleanup, 60000);
+        }
+    },
+
     // Print the current page in landscape. Safe to call repeatedly: the injected rule is removed each time,
     // so a later portrait print (another page) is unaffected.
     //

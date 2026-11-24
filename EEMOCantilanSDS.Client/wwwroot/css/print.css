@@ -41,6 +41,17 @@
     .rpt-content:not(.print-document-content) { padding: 12mm !important; }
 }
 
+/* A drawer's own document printed on its own (stalltrackPrint.detachedDocument): only the copy reaches the paper, over as many
+   sheets as it needs. Its look is the owning component's scoped print rules. */
+@media print {
+    body:has(> .print-detached) > :not(.print-detached) {
+        display: none !important;
+    }
+    body > .print-detached {
+        display: block !important;
+    }
+}
+
 /* Collection Activity PDF information-copy print. Activated only by Print / Save as PDF. */
 @media print {
     body:has(.txr-print-active) * {
