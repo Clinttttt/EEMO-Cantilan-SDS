@@ -48,6 +48,29 @@ public class UnpaidMonthPaymentTests
     }
 
     [Fact]
+    public void A_part_payment_on_the_monthly_sheet_clears_the_oldest_month_first_and_leaves_the_rest_for_this_month()
+    {
+        MobileUnpaidMonthDto[] earlier = [Month(10), Month(9)];                                     // 2,400 each, listed out of order
+
+        var (some, thisMonth, error) = UnpaidMonthPayment.Spread(earlier, 2400m, 3000m);
+        Assert.Null(error);
+        Assert.Equal([(9, PaymentStatus.Paid, (decimal?)null, 2400m), (10, PaymentStatus.Partial, 600m, 600m)],
+            some.Select(c => (c.Month, c.Status, c.PartialAmount, c.Amount)));
+        Assert.Equal(0m, thisMonth);                                                                // nothing reaches this month while October is open
+
+        var (all, rest, _) = UnpaidMonthPayment.Spread(earlier, 2400m, 5800m);
+        Assert.Equal([PaymentStatus.Paid, PaymentStatus.Paid], all.Select(c => c.Status));
+        Assert.Equal(1000m, rest);
+
+        Assert.Contains("cannot be more than ₱7,200.00", UnpaidMonthPayment.Spread(earlier, 2400m, 7200.01m).Error);
+        Assert.Contains("up to two decimals", UnpaidMonthPayment.Spread(earlier, 2400m, 0m).Error);
+        // A month with a part payment already is only cleared, never part-paid again.
+        var (none, _, partPaid) = UnpaidMonthPayment.Spread([Month(9, paid: 400m), Month(10)], 2400m, 1000m);
+        Assert.Empty(none);
+        Assert.Contains("September 2026 is part-paid already; enter at least ₱2,000.00", partPaid);
+    }
+
+    [Fact]
     public void Nothing_chosen_plans_nothing()
     {
         var (charges, error) = UnpaidMonthPayment.Plan([], "100");
