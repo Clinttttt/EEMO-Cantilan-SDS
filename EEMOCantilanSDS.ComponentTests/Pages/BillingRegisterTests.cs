@@ -34,7 +34,7 @@ public class BillingRegisterTests : TestContext
                 : Result<IReadOnlyList<FacilitySidebarSummaryDto>>.Failure("down"));
 
         var reports = new Mock<IReportsApiClient>();
-        reports.Setup(r => r.GetBillingRegisterAsync(FacilityCode.TCC)).ReturnsAsync(Result<BillingRegisterDto>.Success(Register()));
+        reports.Setup(r => r.GetBillingRegisterAsync(FacilityCode.TCC, It.IsAny<int?>(), It.IsAny<int?>())).ReturnsAsync(Result<BillingRegisterDto>.Success(Register()));
 
         Services.AddSingleton(reports.Object);
         Services.AddSingleton(facilities.Object);
@@ -81,7 +81,7 @@ public class BillingRegisterTests : TestContext
         Assert.DoesNotContain("Rent due", cut.Markup);
         Assert.Empty(cut.FindAll(".br-rules"));
         Assert.Contains("Demo Trade Center", cut.Markup);
-        reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC), Times.Once);
+        reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC, null, null), Times.Once);
 
         cut.FindAll("button").First(b => b.TextContent.Contains("Print")).Click();
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "stalltrackPrint.landscape");
@@ -112,10 +112,29 @@ public class BillingRegisterTests : TestContext
         Assert.Equal($"/profile/tcc/{Rosa}", largest[0].GetAttribute("href"));
 
         Assert.EndsWith("view=summary", Services.GetRequiredService<Bunit.TestDoubles.FakeNavigationManager>().Uri);
-        reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC), Times.Once);
+        reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC, null, null), Times.Once);
 
         cut.FindAll("button").First(b => b.TextContent.Contains("Print")).Click();
         Assert.Contains(JSInterop.Invocations, i => i.Identifier == "stalltrackPrint.reportDocument");
+    }
+
+    [Fact]
+    public void ThePreviousMonth_IsAskedOfTheServer_AndNextStopsAtThisMonth()
+    {
+        var reports = Setup();
+        var cut = RenderComponent<BillingRegisterPage>();
+        cut.WaitForAssertion(() => Assert.Equal(2, cut.FindAll("tbody tr").Count), RenderTimeout);
+        var today = PhilippineTime.Today;
+        var before = new DateOnly(today.Year, today.Month, 1).AddMonths(-1);
+        Assert.True(cut.Find("[aria-label='Next month']").HasAttribute("disabled"));   // no month after this one
+        Assert.Empty(cut.FindAll(".br-past-note"));
+
+        cut.Find("[aria-label='Previous month']").Click();
+
+        cut.WaitForAssertion(() => reports.Verify(r => r.GetBillingRegisterAsync(FacilityCode.TCC, before.Year, before.Month), Times.Once), RenderTimeout);
+        Assert.Contains(before.ToString("MMMM yyyy"), cut.Find(".br-period").TextContent);
+        Assert.False(cut.Find("[aria-label='Next month']").HasAttribute("disabled"));
+        Assert.EndsWith($"month={before:yyyy-MM}", Services.GetRequiredService<FakeNavigationManager>().Uri);
     }
 
     [Fact]
@@ -126,6 +145,6 @@ public class BillingRegisterTests : TestContext
 
         cut.WaitForAssertion(() => Assert.Contains("facilities could not be read", cut.Find("[role=alert]").TextContent), RenderTimeout);
         Assert.Empty(cut.FindAll("table"));
-        reports.Verify(r => r.GetBillingRegisterAsync(It.IsAny<FacilityCode>()), Times.Never);
+        reports.Verify(r => r.GetBillingRegisterAsync(It.IsAny<FacilityCode>(), It.IsAny<int?>(), It.IsAny<int?>()), Times.Never);
     }
 }

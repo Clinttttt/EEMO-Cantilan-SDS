@@ -50,8 +50,8 @@ public class ReportsApiClient(HttpClient http) : HandleResponse(http), IReportsA
     public async Task<Result<FollowUpQueueDto>> GetFollowUpQueueAsync(int year, int month) =>
         await GetAsync<FollowUpQueueDto>($"api/Reports/follow-up?year={year}&month={month}");
 
-    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Facilities.BillingRegisterDto>> GetBillingRegisterAsync(FacilityCode facility) =>
-        await GetAsync<EEMOCantilanSDS.Application.Dtos.Facilities.BillingRegisterDto>($"api/Reports/billing-register?facility={facility}");
+    public async Task<Result<EEMOCantilanSDS.Application.Dtos.Facilities.BillingRegisterDto>> GetBillingRegisterAsync(FacilityCode facility, int? year = null, int? month = null) =>
+        await GetAsync<EEMOCantilanSDS.Application.Dtos.Facilities.BillingRegisterDto>($"api/Reports/billing-register?facility={facility}" + (year is { } y && month is { } m ? $"&year={y}&month={m}" : ""));
 
     public async Task<Result<FollowUpQueueDto>> GetFollowUpHistoryAsync(int year, int month, bool wholeYear = false, bool allTime = false) =>
         await GetAsync<FollowUpQueueDto>($"api/Reports/follow-up/history?year={year}&month={month}&wholeYear={wholeYear.ToString().ToLowerInvariant()}&allTime={allTime.ToString().ToLowerInvariant()}");

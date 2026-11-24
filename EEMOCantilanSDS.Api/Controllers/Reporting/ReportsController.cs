@@ -30,10 +30,10 @@ public class ReportsController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
-    /// <summary>Every account of one facility as of today, each row the figures of its Statement of Account.</summary>
+    /// <summary>Every account of one facility as of today, or as of the end of an earlier month (year and month), each row the figures of its Statement of Account.</summary>
     [HttpGet("billing-register")]
-    public async Task<ActionResult<Application.Dtos.Facilities.BillingRegisterDto>> GetBillingRegister([FromQuery] FacilityCode facility) =>
-        HandleResponse(await Sender.Send(new Application.Queries.Reports.GetBillingRegister.GetBillingRegisterQuery(facility)));
+    public async Task<ActionResult<Application.Dtos.Facilities.BillingRegisterDto>> GetBillingRegister([FromQuery] FacilityCode facility, [FromQuery] int? year = null, [FromQuery] int? month = null) =>
+        HandleResponse(await Sender.Send(new Application.Queries.Reports.GetBillingRegister.GetBillingRegisterQuery(facility, year, month)));
 
     /// <summary>
     /// The admin Follow-up Queue — an action list of accounts/records/facilities needing attention,

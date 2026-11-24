@@ -33,6 +33,50 @@
             {
                 <FhSelect Caption="Facility" Value="@(_facility?.ToString() ?? "")" Options="@FacilityOptions" ValueChanged="SelectFacility" />
             }
+            @* The month the register is read at, as the Monthly Collection Report steps it: ‹ month › with a month grid. *@
+            <div class="br-period-nav">
+                <button class="br-nav-btn" type="button" @onclick="() => StepMonth(-1)" aria-label="Previous month">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+                </button>
+                <div class="br-period-picker">
+                    <button class="br-period-btn" type="button" @onclick="TogglePicker" aria-haspopup="true" aria-expanded="@(_pickerOpen ? "true" : "false")">
+                        <span class="br-period">@(new DateOnly(_year, _month, 1).ToString("MMMM yyyy"))</span>
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="6 9 12 15 18 9" /></svg>
+                    </button>
+                    @if (_pickerOpen)
+                    {
+                        <div class="br-picker-backdrop" @onclick="() => _pickerOpen = false"></div>
+                        <div class="br-picker">
+                            <div class="br-picker-head">
+                                <button class="br-picker-yr-btn" type="button" @onclick="() => _pickerYear--" aria-label="Previous year">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 18 9 12 15 6" /></svg>
+                                </button>
+                                <span class="br-picker-year">@_pickerYear</span>
+                                <button class="br-picker-yr-btn" type="button" @onclick="() => _pickerYear++" disabled="@(_pickerYear >= Today.Year)" aria-label="Next year">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                                </button>
+                            </div>
+                            <div class="br-picker-grid">
+                                @for (var m = 1; m <= 12; m++)
+                                {
+                                    var month = m;
+                                    var future = new DateOnly(_pickerYear, month, 1) > new DateOnly(Today.Year, Today.Month, 1);
+                                    <button type="button" class="br-picker-month @(_pickerYear == _year && month == _month ? "selected" : "")"
+                                            disabled="@future" @onclick="() => GoToMonth(_pickerYear, month)">
+                                        @(new DateOnly(2000, month, 1).ToString("MMM"))
+                                    </button>
+                                }
+                            </div>
+                            <div class="br-picker-foot">
+                                <button class="br-picker-today" type="button" @onclick="() => GoToMonth(Today.Year, Today.Month)">Go to current month</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+                <button class="br-nav-btn" type="button" @onclick="() => StepMonth(1)" disabled="@IsCurrentMonth" aria-label="Next month">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 18 15 12 9 6" /></svg>
+                </button>
+            </div>
             <div class="v3-btn-group br-view" role="group" aria-label="View">
                 <button type="button" class="v3-btn" aria-pressed="@(!_summary ? "true" : "false")" @onclick="() => SetView(false)">Register</button>
                 <button type="button" class="v3-btn" aria-pressed="@(_summary ? "true" : "false")" @onclick="() => SetView(true)">Summary</button>
@@ -73,6 +117,10 @@
                            Period="@($"As of {_register.AsOf:MMMM d, yyyy}")">
             @* The account count, due date and late-charge rates line was removed from the sheet (Clint, 2026-11-24);
                the rates stay on Settings → Billing Policy. *@
+            @if (!IsCurrentMonth)
+            {
+                <p class="br-past-note">Rent paid after @_register.AsOf.ToString("MMMM d") for these months is included.</p>
+            }
             @if (_summary)
             {
                 <BillingRegisterSummary Rows="rows" Facility="_register.Facility" MonthLabel="@_register.AsOf.ToString("MMMM yyyy")" />
@@ -187,15 +235,34 @@
 </div>
 
 @code {
-    // The late-charge rules the Surcharge and Interest columns were charged by, stated on the sheet itself.
-    private static string? LateRules(BillingRegisterDto r)
+    [Parameter, SupplyParameterFromQuery(Name = "month")]
+    public string? MonthFromQuery { get; set; }   // yyyy-MM; absent = this month
+
+    // The month read: this month unless the address names an earlier one. A past month is read as at its last day.
+    private static DateOnly Today => PhilippineTime.Today;
+    private int _year = Today.Year, _month = Today.Month, _pickerYear;
+    private bool _pickerOpen;
+    private bool IsCurrentMonth => _year == Today.Year && _month == Today.Month;
+
+    private void TogglePicker()
     {
-        var parts = new List<string>();
-        if (r.SurchargePercent > 0m) parts.Add($"{r.SurchargePercent:0.##}% surcharge once per unpaid month");
-        if (r.InterestPercent > 0m) parts.Add($"{r.InterestPercent:0.##}% interest a month" + (r.InterestMaxMonths is { } most ? $", up to {most} months" : ""));
-        if (parts.Count == 0) return null;
-        if (!string.IsNullOrWhiteSpace(r.Authority)) parts.Add(r.Authority);
-        return "Late charges: " + string.Join(" · ", parts);
+        _pickerOpen = !_pickerOpen;
+        if (_pickerOpen) _pickerYear = _year;
+    }
+
+    private Task StepMonth(int by)
+    {
+        var to = new DateOnly(_year, _month, 1).AddMonths(by);
+        return GoToMonth(to.Year, to.Month);
+    }
+
+    private async Task GoToMonth(int year, int month)
+    {
+        _pickerOpen = false;
+        if (new DateOnly(year, month, 1) > new DateOnly(Today.Year, Today.Month, 1) || year == _year && month == _month) return;
+        (_year, _month) = (year, month);
+        Nav.NavigateTo(Url, replace: true);
+        await LoadAsync();
     }
 
     [Parameter, SupplyParameterFromQuery(Name = "facility")]
@@ -222,8 +289,10 @@
     protected override async Task OnInitializedAsync()
     {
         _summary = string.Equals(ViewFromQuery, "summary", StringComparison.OrdinalIgnoreCase);
+        if (DateOnly.TryParseExact(MonthFromQuery + "-01", "yyyy-MM-dd", out var asked) && asked < new DateOnly(Today.Year, Today.Month, 1))
+            (_year, _month) = (asked.Year, asked.Month);
         await FacilityCatalog.EnsureLoadedAsync();
-        _facility = Enum.TryParse<FacilityCode>(FacilityFromQuery, true, out var asked) && Known(asked) ? asked : First;
+        _facility = Enum.TryParse<FacilityCode>(FacilityFromQuery, true, out var askedFacility) && Known(askedFacility) ? askedFacility : First;
         if (!Known(_facility))
         {
             _error = "This office's facilities could not be read.";
@@ -231,7 +300,7 @@
             return;
         }
 
-        if (CachedRegister is { } cached && cached.Facility == _facility)
+        if (CachedRegister is { } cached && cached.Facility == _facility && cached.AsOf.Year == _year && cached.AsOf.Month == _month)
         {
             _register = cached;
             _loading = false;
@@ -249,7 +318,9 @@
         await InvokeAsync(StateHasChanged);
         await Task.Yield();
 
-        var result = await ReportsApi.GetBillingRegisterAsync(_facility!.Value);
+        var result = IsCurrentMonth
+            ? await ReportsApi.GetBillingRegisterAsync(_facility!.Value)
+            : await ReportsApi.GetBillingRegisterAsync(_facility!.Value, _year, _month);
         if (result.IsSuccess && result.Value is not null)
             CachedRegister = _register = result.Value;
         else
@@ -273,7 +344,8 @@
         Nav.NavigateTo(Url, replace: true);
     }
 
-    private string Url => $"/reports/billing-register?facility={_facility}" + (_summary ? "&view=summary" : "");
+    private string Url => $"/reports/billing-register?facility={_facility}" + (_summary ? "&view=summary" : "")
+        + (IsCurrentMonth ? "" : $"&month={_year:0000}-{_month:00}");
 
     private async Task Retry()
     {
