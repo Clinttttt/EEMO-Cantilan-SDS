@@ -504,7 +504,7 @@
                        maxlength="30"
                        placeholder="000001"
                        aria-label="Official receipt number"
-                       @bind="ORNumber"
+                       @bind="PenaltyReceipt"
                        @bind:event="oninput" />
                 <div class="form-hint">Use the pre-numbered OR from the issued receipt.</div>
             </details>
@@ -1500,6 +1500,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
     private bool _penaltiesUnreadable;
     private RecordCollectionSessionRequest? _penaltyCheckout; // quoted, not yet saved
     private bool ShowPenalties;
+    private string PenaltyReceipt = string.Empty; // the Collect Penalties sheet's own receipt entry; the rent sheets keep ORNumber
     private HashSet<Guid> QueuedPenaltyContracts = new();
 
     private static bool HasPenalties(MobileMonthlyStallCollectionDto stall) => stall.PenaltiesDue > 0m && stall.ContractId is not null;
@@ -1540,7 +1541,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
     private void OpenPenalties(MobileMonthlyStallCollectionDto stall)
     {
         SelectedStall = stall;
-        ORNumber = string.Empty;
+        PenaltyReceipt = string.Empty;
         SheetError = null;
         ShowPenalties = true;
         LoadPenalties(stall);
@@ -1633,7 +1634,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
         SheetError = null;
         try
         {
-            if (!await QuotePenaltiesAsync(ORNumber, e => SheetError = e)) return;
+            if (!await QuotePenaltiesAsync(PenaltyReceipt, e => SheetError = e)) return;
             var status = await SavePenaltiesAsync();
             if (status == PendingLocalStatus.Synced) RentNotice = "Payment recorded successfully.";
             else if (status is PendingLocalStatus.Pending or PendingLocalStatus.Failed) RentNotice = "Saved on this device. Waiting to sync.";
