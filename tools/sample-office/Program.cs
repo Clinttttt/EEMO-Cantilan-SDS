@@ -30,12 +30,13 @@ using Npgsql;
 // anyone can use, and sends no message. Every row it adds is written to the record file, and "remove" takes exactly those out again.
 // shortcut: registers kept on their own records (Tabo attendance, slaughter, terminal trips) stay empty, as in tools/demo-tenant.
 var mode = args.FirstOrDefault();
-Require(mode is "seed" or "resume" or "backfill" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
-    "Use: seed <office code> <new record file>   or   resume|backfill <office code> <record file>   or   remove <record file> [--confirm]");
+Require(mode is "seed" or "resume" or "backfill" or "npm" && args.Length == 3 || mode == "remove" && args.Length is 2 or 3,
+    "Use: seed <office code> <new record file>   or   resume|backfill|npm <office code> <record file>   or   remove <record file> [--confirm]");
 // resume: a seed that stopped after its rental accounts adds the rest (late charges, other collections) to the same record file.
 // backfill: like resume, but only the days before each source's first rate rule, under that first rule (no charges, no day posted twice).
 var backfill = mode == "backfill";
-var resume = mode is "resume" or "backfill";
+var npm = mode == "npm";   // npm: sample rent on the office's own monthly-market accounts (see below)
+var resume = mode is "resume" or "backfill" or "npm";
 var connection = Environment.GetEnvironmentVariable("STALLTRACK_SAMPLE_CONNECTION");
 Require(!string.IsNullOrWhiteSpace(connection), "Set STALLTRACK_SAMPLE_CONNECTION.");
 if (mode == "remove")
@@ -274,6 +275,46 @@ foreach (var (bill, paidOn) in utilityPaid.OrderBy(p => p.PaidOn))
 }
 await db.SaveChangesAsync();
 
+// npm: the office's own monthly-npmMarket accounts get sample rent, by the same habits, only on months with no rent row yet. Every row is
+// recorded and "remove" deletes exactly those; the office's own rows and contracts are never changed.
+var npmStalls = new List<Guid>();
+if (npm)
+{
+    if (!facilities.TryGetValue(FacilityCode.NPM, out var npmMarket) || npmMarket.Archetype != BillingArchetype.MonthlyRental)
+        Console.WriteLine("  No monthly-billed market in this office; nothing to add.");
+    else
+    {
+        var marketStalls = await db.Stalls.Include(s => s.Contracts).Where(s => s.FacilityId == npmMarket.Id && s.Status == StallStatus.Active).ToListAsync();
+        var ids = marketStalls.Select(s => s.Id).ToList();
+        var hasRow = (await db.PaymentRecords.Where(p => ids.Contains(p.StallId)).Select(p => new { p.StallId, p.BillingYear, p.BillingMonth }).ToListAsync())
+            .Select(p => (p.StallId, p.BillingYear, p.BillingMonth)).ToHashSet();
+        var marketPaid = new List<(Guid Stall, decimal Rate, DateOnly Month, DateTime Received, decimal? Partial)>();
+        foreach (var stall in marketStalls)
+        {
+            if (stall.Occupancies(today).LastOrDefault(o => o.IsCurrent) is not { } held) continue;
+            npmStalls.Add(stall.Id);
+            var from = new DateOnly(held.Start.Year, held.Start.Month, 1);
+            if (from < firstMonth) from = firstMonth;
+            var habit = random.NextDouble();
+            var stoppedAt = habit >= .9 ? thisMonth.AddMonths(-random.Next(1, 6)) : (DateOnly?)null;
+            for (var month = from; month <= thisMonth; month = month.AddMonths(1))
+            {
+                if (stoppedAt is { } stop && month >= stop) break;
+                if (hasRow.Contains((stall.Id, month.Year, month.Month))) continue;
+                if (month == thisMonth && random.NextDouble() > .65) continue;
+                var rate = stall.MonthlyRentFor(month.Year, month.Month, today);
+                if (rate <= 0m) continue;
+                var partial = habit >= .65 && month < thisMonth && random.NextDouble() < .2 ? decimal.Round(rate / 2, 2) : (decimal?)null;
+                marketPaid.Add((stall.Id, rate, month, OnDay(month, habit >= .65 ? random.Next(16, 28) : random.Next(1, 15)), partial));
+            }
+        }
+        foreach (var p in marketPaid.OrderBy(p => p.Received))
+            db.Add(Paid(p.Stall, p.Rate, p.Month, p.Received > clock.UtcNow ? clock.UtcNow.Date.AddHours(1) : p.Received, p.Partial));
+        await db.SaveChangesAsync();
+        Console.WriteLine($"  {npmMarket.Name}: {marketPaid.Count} rent months on {npmStalls.Count} of the office's own accounts.");
+    }
+}
+
 // Late charges need billing rules. The office's own when it has set them; otherwise the ruled ones (25% surcharge once per late month, 2%
 // interest a month on rent and surcharge up to 36 months, RA 7160 Sec. 168) from the first sample month, so every late month carries both.
 // "remove" takes these rules out again. Backdated on purpose: the domain refuses a past start for a real policy, so "today" is passed as that day.
@@ -291,7 +332,7 @@ else if (BillingPolicyVersion.InForce(versions, today) is not { InterestPercent:
     Console.WriteLine("  WARNING: this office's own billing rules charge no interest, so most sample accounts show no late charges. They were left as they are.");
 var charges = 0;
 var sampleContracts = earlier.Where(r => r.T == "Contracts").Select(r => Guid.Parse(r.V[0])).ToList();
-var chargeStalls = backfill ? new List<Guid>() : resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
+var chargeStalls = npm ? npmStalls : backfill ? new List<Guid>() : resume ? await db.Contracts.Where(c => sampleContracts.Contains(c.Id)).Select(c => c.StallId).Distinct().ToListAsync() : occupied.Select(o => o.Stall.Id).ToList();
 foreach (var stallId in chargeStalls)
 {
     // The office's own late-charge job may charge the same space at the same moment (same charge id): its charge stands, nothing of ours is saved.
@@ -341,7 +382,7 @@ if (backfill)
     await setup.SaveChangesAsync();
     Console.WriteLine($"  Earlier rules added for {backfillBefore.Count} sources, from {firstMonth:MMMM yyyy}.");
 }
-for (var month = firstMonth; month <= thisMonth; month = month.AddMonths(1))
+for (var month = firstMonth; !npm && month <= thisMonth; month = month.AddMonths(1))
 {
     var length = DateTime.DaysInMonth(month.Year, month.Month);
     var days = month == thisMonth ? today.Day - 1 : length;
@@ -401,7 +442,7 @@ var mismatches = 0;
 await using (var read = new AppDbContext(options, pinned))
 {
     var reports = new FacilityReportsRepository(read);
-    foreach (var f in plan.Select(p => p.Code).Where(facilities.ContainsKey))
+    foreach (var f in plan.Select(p => p.Code).Append(FacilityCode.NPM).Where(c => facilities.ContainsKey(c) && (c != FacilityCode.NPM || npmStalls.Count > 0)))
     {
         var register = await reports.GetBillingRegisterAsync(f, CancellationToken.None);
         foreach (var row in register?.Rows ?? [])
