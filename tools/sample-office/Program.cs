@@ -280,8 +280,46 @@ await db.SaveChangesAsync();
 var npmStalls = new List<Guid>();
 if (npm)
 {
-    if (!facilities.TryGetValue(FacilityCode.NPM, out var npmMarket) || npmMarket.Archetype != BillingArchetype.MonthlyRental)
-        Console.WriteLine("  No monthly-billed market in this office; nothing to add.");
+    if (!facilities.TryGetValue(FacilityCode.NPM, out var npmMarket))
+        Console.WriteLine("  No market in this office; nothing to add.");
+    else if (!npmMarket.IsMonthlyRentMarket)
+    {
+        // A day-billed market: market days on the office's own held spaces, at each space's own day fee (the reports' rule,
+        // NpmDailyFee), only on days with no row yet; the same habits as the sample market days.
+        var snapshot = await new EEMOCantilanSDS.Infrastructure.Fees.FeeRateResolver(db).GetSnapshotAsync();
+        var marketStalls = await db.Stalls.Include(s => s.Contracts).Where(s => s.FacilityId == npmMarket.Id && s.Status == StallStatus.Active).ToListAsync();
+        var ids = marketStalls.Select(s => s.Id).ToList();
+        var hasDay = (await db.DailyCollections.Where(d => ids.Contains(d.StallId)).Select(d => new { d.StallId, d.CollectionDate }).ToListAsync())
+            .Select(d => (d.StallId, d.CollectionDate)).ToHashSet();
+        var unpriced = 0;
+        foreach (var stall in marketStalls)
+        {
+            if (stall.Occupancies(today).LastOrDefault(o => o.IsCurrent) is not { } held) continue;
+            var turnsUp = random.NextDouble() < .75 ? .92 : .6;
+            var added = false;
+            for (var day = held.Start > firstMonth ? held.Start : firstMonth; day < today; day = day.AddDays(1))
+            {
+                if (hasDay.Contains((stall.Id, day))) continue;
+                if (EEMOCantilanSDS.Application.Common.Fees.NpmDailyFee.ForStallOrNull(stall, snapshot, day) is not { } fee || fee <= 0m) { unpriced++; continue; }
+                var row = DailyCollection.Create(stall.Id, day, by, fee);
+                if (random.NextDouble() <= turnsUp)
+                {
+                    var collector = Collector();
+                    row.MarkPaid(string.Empty, collector.Id, updatedBy: By(collector));
+                    marketDays++;
+                }
+                else if (random.NextDouble() < .9) row.MarkAbsent(by);
+                else continue;
+                row.UpdatedAt = day.ToDateTime(new TimeOnly(1, 0), DateTimeKind.Utc);
+                db.Add(row);
+                added = true;
+            }
+            if (added) npmStalls.Add(stall.Id);
+        }
+        await db.SaveChangesAsync();
+        Console.WriteLine($"  {npmMarket.Name}: {marketDays} paid market days on {npmStalls.Count} of the office's own spaces."
+            + (unpriced > 0 ? $" {unpriced} days skipped: no day fee stated for them." : ""));
+    }
     else
     {
         var marketStalls = await db.Stalls.Include(s => s.Contracts).Where(s => s.FacilityId == npmMarket.Id && s.Status == StallStatus.Active).ToListAsync();
