@@ -29,7 +29,8 @@ namespace EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate;
 /// office would be marking days with a weight nobody declared. Kilos may be left out, which means none were sold, and
 /// that is what an office with no per-kilo rate charges for anyway. One entry is the day-at-a-time path, unchanged.
 /// </param>
-public record InitiateOnlinePaymentCommand(Guid StallId, int Year, int Month, PayorPayableKind Kind = PayorPayableKind.Monthly, int? Day = null, decimal? FishKilos = null, int? Days = null, IReadOnlyList<FishDayDeclarationInput>? FishDays = null) : IRequest<Result<InitiateOnlinePaymentResultDto>>;
+/// <param name="Months">Monthly rent paid ahead: how many months from (Year, Month), as the office offers them (1, 2, 3 or 12). Absent is the one month.</param>
+public record InitiateOnlinePaymentCommand(Guid StallId, int Year, int Month, PayorPayableKind Kind = PayorPayableKind.Monthly, int? Day = null, decimal? FishKilos = null, int? Days = null, IReadOnlyList<FishDayDeclarationInput>? FishDays = null, int? Months = null) : IRequest<Result<InitiateOnlinePaymentResultDto>>;
 
 /// <summary>One fish day the payor is paying for, and the kilos they declared for it. Kilos absent means none were sold.</summary>
 public record FishDayDeclarationInput(int Day, decimal? Kilos);

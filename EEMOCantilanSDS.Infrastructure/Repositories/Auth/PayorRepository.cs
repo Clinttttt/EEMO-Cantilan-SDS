@@ -179,7 +179,7 @@ public class PayorRepository(
             var isDaily = stall.Facility!.Code == FacilityCode.NPM && !stall.Facility.IsMonthlyRentMarket;   // a market rented by the month shows its monthly rent
             var dailyRate = 0m;
             var daysOwed = 0;
-            var balance = stallItems.Sum(i => i.BalanceDue);
+            var balance = stallItems.Sum(i => i.AmountDue);
 
             if (isDaily)
             {
@@ -283,12 +283,6 @@ public class PayorRepository(
         var monthEnd = new DateOnly(curYear, curMonth, DateTime.DaysInMonth(curYear, curMonth));
 
         var rules = BillingPolicyVersion.InForce(await context.BillingPolicyVersions.AsNoTracking().ToListAsync(ct), today)?.Rules ?? BillingPolicy.StallTrackDefaults;
-        var recordedAhead = (await context.PaymentRecords
-                .Where(p => stallIds.Contains(p.StallId) && (p.BillingYear > curYear || (p.BillingYear == curYear && p.BillingMonth > curMonth)))
-                .Select(p => new { p.StallId, p.BillingYear, p.BillingMonth })
-                .ToListAsync(ct))
-            .Select(p => (p.StallId, p.BillingYear, p.BillingMonth))
-            .ToHashSet();
 
         var items = new List<PayorPayableItemDto>();
         foreach (var stall in stalls)
@@ -333,10 +327,6 @@ public class PayorRepository(
                 items.Add(new PayorPayableItemDto(
                     stall.Id, stall.StallNo, facility, bill.Year, bill.Month, $"{bill.Year:0000}-{bill.Month:00}", bill.Unpaid, PayorPayableKind.NpmUtility));
             }
-
-            if (statement is { PenaltiesDue: > 0m })
-                items.Add(new PayorPayableItemDto(
-                    stall.Id, stall.StallNo, facility, curYear, curMonth, $"{curYear:0000}-{curMonth:00}", statement.PenaltiesDue, PayorPayableKind.Penalty));
 
             // 2) Synthesized current-month obligation for monthly-rental facilities.
             var dueThisMonth = isMonthly
@@ -391,20 +381,21 @@ public class PayorRepository(
                 }
             }
 
-            // 4) The months ahead the office lets this account pay, once nothing older stands in the way.
-            if (isMonthly && stall.Status == StallStatus.Active
-                && (!rules.OldestMonthFirst || !items.Any(i => i.StallId == stall.Id && i.Kind == PayorPayableKind.Monthly && rules.PaidInOrder(i.Year, i.Month, today))))
+            // 4) A late month's surcharge and interest go with its rent, the one checkout that pays both. What has no rent row left to go with
+            // (its rent was paid without them) and every other fine stay a balance payable at the office or to a collector.
+            var folded = 0m;
+            for (var k = 0; k < items.Count; k++)
             {
-                foreach (var ahead in rules.MonthsPayableAhead(today))
-                {
-                    if (stall.OccupancyAnsweringForMonth(ahead.Year, ahead.Month, today)?.Contract.BillsCalendarMonth(ahead.Year, ahead.Month) != true)
-                        break;
-                    if (recordedAhead.Contains((stall.Id, ahead.Year, ahead.Month)))
-                        continue;
-                    items.Add(new PayorPayableItemDto(stall.Id, stall.StallNo, facility, ahead.Year, ahead.Month, $"{ahead.Year:0000}-{ahead.Month:00}",
-                        stall.MonthlyRentFor(ahead.Year, ahead.Month, today)));
-                }
+                if (items[k] is not { Kind: PayorPayableKind.Monthly } item || item.StallId != stall.Id) continue;
+                if (statement?.LateCharges?.FirstOrDefault(l => l.Year == item.Year && l.Month == item.Month) is not { } late) continue;
+                items[k] = item with { Surcharge = late.Surcharge, Interest = late.Interest };
+                folded += late.Surcharge + late.Interest;
             }
+            if (statement is { PenaltiesDue: > 0m } && statement.PenaltiesDue - folded > 0m)
+                items.Add(new PayorPayableItemDto(
+                    stall.Id, stall.StallNo, facility, curYear, curMonth, $"{curYear:0000}-{curMonth:00}", statement.PenaltiesDue - folded, PayorPayableKind.Penalty));
+
+            // Months ahead are not owed, so they are not items: the payor's Pay ahead section asks for them (GetPayorPayAheadQuery).
         }
 
         // The wording a payor reads comes from the stall's own tenant facility record; the slot code stays the identity.

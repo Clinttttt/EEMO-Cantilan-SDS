@@ -18,15 +18,33 @@ public sealed class OnlinePaymentSettlementService(
     IUnitOfWork unitOfWork,
     IEemoCacheInvalidator cacheInvalidator,
     ITenantContext tenantContext, NpmRentMonthWorkflow? monthly = null,
-    OnlineRentCanonicalPoster? canonicalRent = null) : IOnlinePaymentSettlementService
+    OnlineRentCanonicalPoster? canonicalRent = null, OnlineLateCharges? lateCharges = null) : IOnlinePaymentSettlementService
 {
+    // The month's surcharge and interest as they stand now. They must still equal what the checkout charged, or nothing is applied.
+    private async Task<(OnlineLateChargeLines? Charges, string? Conflict)> LateChargesStillOwedAsync(
+        OnlinePaymentTransaction transaction, PaymentRecord record, CancellationToken ct)
+    {
+        if (transaction.LateCharges is not { } charged) return (null, null);
+        var stall = lateCharges is null ? null : await stallRepository.GetByIdAsync(record.StallId, ct);
+        if (stall is null) return (null, "The month's surcharge and interest could not be read. Nothing was applied.");
+        var charges = await lateCharges!.LinesAsync(transaction.MunicipalityId, stall, record.BillingYear, record.BillingMonth,
+            DateOnly.FromDateTime(PhilippineTime.ToPhilippineTime(transaction.PaidAt ?? DateTime.UtcNow)), ct);
+        if (charges.Refusal is { } refusal) return (null, "The month's surcharge and interest cannot be settled: " + refusal + " Nothing was applied.");
+        return charges.Total == charged
+            ? (charges, null)
+            : (null, $"The month's surcharge and interest now come to {charges.Total:0.00}, not the {charged:0.00} the checkout charged. Nothing was applied.");
+    }
+
     // Paid state + Collection + posting operation + rent projection commit in ONE SaveChanges inside the poster. A lost race
     // resolves to the winner's outcome; a rejected post keeps the capture as a reconciliation exception (nothing cleared).
     private async Task<Result<bool>> SettleCanonicalRentAsync(
         OnlinePaymentTransaction transaction, PaymentGatewayEvent evt, PaymentRecord record, CancellationToken ct)
     {
         transaction.MarkPaid(evt.PaymentId, evt.Method, evt.PaidAt ?? DateTime.UtcNow, evt.RawPayload);
-        var outcome = await canonicalRent!.PostAsync(transaction, record, ct);
+        var (charges, conflict) = await LateChargesStillOwedAsync(transaction, record, ct);
+        if (conflict is not null)
+            return await HoldCaptureForReconciliationAsync(transaction, conflict, ct);
+        var outcome = await canonicalRent!.PostAsync(transaction, record, ct, charges?.Lines);
         if (outcome.RejectionReason is { } reason)
             return await HoldCaptureForReconciliationAsync(transaction, reason, ct);
 
@@ -119,11 +137,17 @@ public sealed class OnlinePaymentSettlementService(
         if (record is null)
             return await HoldCaptureForReconciliationAsync(transaction, "The payment has no monthly record to settle. Nothing was applied.", cancellationToken);
 
+        if (transaction.Months is > 1)
+            return await SettleMonthsAheadAsync(transaction, record, cancellationToken);
+
         // Between initiation and now the row may have moved. A capture that no longer fits it goes to the office with the row untouched.
-        if (WhyTheCaptureDoesNotFit(record, transaction.Amount) is { } conflict)
+        var rent = transaction.Amount - (transaction.LateCharges ?? 0m);
+        if (WhyTheCaptureDoesNotFit(record, rent) is { } conflict)
             return await HoldCaptureForReconciliationAsync(transaction, conflict, cancellationToken);
 
         var note = $"Paid online via {evt.Method ?? transaction.Provider} · ref {transaction.Reference}";
+        if (transaction.LateCharges is not null)
+            return await SettleRentWithLateChargesAsync(transaction, record, rent, note, cancellationToken);
         // Bill-changed-mid-checkout guard: the captured amount was frozen when the payor opened checkout.
         // If the balance has since grown (e.g. staff added a utility charge), the captured amount no
         // longer covers it — record it as PARTIAL for what was actually received rather than clearing
@@ -164,6 +188,91 @@ public sealed class OnlinePaymentSettlementService(
         catch { /* notification is non-critical; the payment is already recorded */ }
 
         return Result<bool>.Success(true);
+    }
+
+    // A late month: its rent and the surcharge and interest on it, in one save, or nothing. The rent must be the whole balance, as at the office.
+    private async Task<Result<bool>> SettleRentWithLateChargesAsync(
+        OnlinePaymentTransaction transaction, PaymentRecord record, decimal rent, string note, CancellationToken ct)
+    {
+        if (rent != record.BalanceDue)
+            return await HoldCaptureForReconciliationAsync(transaction,
+                $"The month's rent now owes {record.BalanceDue:0.00}, not the {rent:0.00} the checkout charged. Nothing was applied.", ct);
+        var (charges, conflict) = await LateChargesStillOwedAsync(transaction, record, ct);
+        if (conflict is not null)
+            return await HoldCaptureForReconciliationAsync(transaction, conflict, ct);
+
+        record.MarkPaidOnline(note);
+        await paymentRepository.UpdateAsync(record, ct);
+        // The coordinator's one SaveChanges carries the rent row and the transaction's Paid state with the penalty Collection.
+        await lateCharges!.PostAsync(transaction, charges!, ct);
+        await AfterMonthlySettlementAsync(transaction, record, ct);
+        return Result<bool>.Success(true);
+    }
+
+    // Months paid ahead in one checkout: every month as it was offered, or nothing. Each is still unpaid and still owes what was charged.
+    private async Task<Result<bool>> SettleMonthsAheadAsync(OnlinePaymentTransaction transaction, PaymentRecord first, CancellationToken ct)
+    {
+        var stall = await stallRepository.GetByIdAsync(first.StallId, ct);
+        if (stall is null)
+            return await HoldCaptureForReconciliationAsync(transaction, "The linked stall was not found. Nothing was applied.", ct);
+
+        var start = new DateOnly(first.BillingYear, first.BillingMonth, 1);
+        var months = new List<(PaymentRecord Record, bool IsNew)>();
+        for (var i = 0; i < transaction.Months; i++)
+        {
+            var month = start.AddMonths(i);
+            var record = i == 0 ? first : null;
+            var isNew = false;
+            if (record is null && await paymentRepository.GetPaymentRecordAsync(stall.Id, month.Year, month.Month, ct) is { } existing)
+                record = await paymentRepository.GetByIdAsync(existing.Id, ct);
+            if (record is null)
+            {
+                record = PaymentRecord.Create(stall.Id, month.Year, month.Month, stall.MonthlyRentFor(month.Year, month.Month, PhilippineTime.Today), "Online");
+                isNew = true;
+            }
+            if (record.SettlementAuthorityState != SettlementAuthority.Legacy || record.Status == PaymentStatus.Paid || record.BalanceDue <= 0m)
+                return await HoldCaptureForReconciliationAsync(transaction,
+                    $"{month.ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture)} was settled or changed after checkout. Nothing was applied.", ct);
+            months.Add((record, isNew));
+        }
+
+        var owed = months.Sum(m => m.Record.BalanceDue);
+        if (owed != transaction.Amount)
+            return await HoldCaptureForReconciliationAsync(transaction,
+                $"The {months.Count} months now owe {owed:0.00}, not the {transaction.Amount:0.00} captured. Nothing was applied.", ct);
+
+        var note = $"Paid ahead online via {transaction.Method ?? transaction.Provider} · ref {transaction.Reference}";
+        foreach (var (record, isNew) in months)
+        {
+            record.MarkPaidOnline(note);
+            if (isNew) await paymentRepository.AddAsync(record, ct);
+            else await paymentRepository.UpdateAsync(record, ct);
+        }
+        await unitOfWork.SaveChangesAsync(ct);
+        foreach (var (record, _) in months.Skip(1))
+        {
+            try { await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(tenantContext.TenantCode, null, record.BillingYear, record.BillingMonth, ct); }
+            catch { /* cache refresh is non-critical after settlement */ }
+        }
+        await AfterMonthlySettlementAsync(transaction, first, ct);
+        return Result<bool>.Success(true);
+    }
+
+    // After the money is committed: refresh views and tell staff. Neither may turn a settled payment into a failure.
+    private async Task AfterMonthlySettlementAsync(OnlinePaymentTransaction transaction, PaymentRecord record, CancellationToken ct)
+    {
+        try
+        {
+            await cacheInvalidator.InvalidatePaymentAffectedViewsAsync(tenantContext.TenantCode, null, record.BillingYear, record.BillingMonth, ct);
+        }
+        catch { /* cache refresh is non-critical after settlement */ }
+        try
+        {
+            await notifier.NotifyPaymentReceivedAsync(
+                new OnlinePaymentNotification(transaction.Reference, transaction.Amount, record.PeriodKey, transaction.Method,
+                    transaction.PaidAt ?? DateTime.UtcNow, record.StallId, record.BillingYear, record.BillingMonth, tenantContext.TenantCode), ct);
+        }
+        catch { /* notification is non-critical; the payment is already recorded */ }
     }
 
     /// <summary>

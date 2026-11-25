@@ -13,6 +13,7 @@ public interface IPayorApiClient
     Task<Result<IReadOnlyList<PayorStallBalanceDto>>> GetBalancesAsync();
     Task<Result<IReadOnlyList<PaymentHistoryDto>>> GetHistoryAsync(Guid stallId);
     Task<Result<IReadOnlyList<PayorPayableItemDto>>> GetPayableItemsAsync();
+    Task<Result<IReadOnlyList<PayorPayAheadDto>>> GetPayAheadAsync();
     Task<Result<InitiateOnlinePaymentResultDto>> InitiatePaymentAsync(InitiateOnlinePaymentCommand command);
 
     /// <summary>Reconciliation fallback after returning from hosted checkout: verifies + settles the

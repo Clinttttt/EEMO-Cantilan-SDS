@@ -40,6 +40,10 @@ public class PayorPortalController(ISender sender) : ApiBaseController(sender)
         return HandleResponse(result);
     }
 
+    [HttpGet("pay-ahead")]
+    public async Task<ActionResult<IReadOnlyList<PayorPayAheadDto>>> GetPayAheadAsync() =>
+        HandleResponse(await Sender.Send(new Application.Queries.Payors.GetPayorPayAhead.GetPayorPayAheadQuery()));
+
     [HttpGet("stalls/{stallId:guid}/history")]
     public async Task<ActionResult<IReadOnlyList<PaymentHistoryDto>>> GetHistoryAsync(Guid stallId)
     {
