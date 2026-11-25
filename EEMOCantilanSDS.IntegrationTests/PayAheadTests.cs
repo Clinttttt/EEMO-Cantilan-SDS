@@ -172,8 +172,9 @@ public partial class PayAheadTests(PostgresFixture db)
         Assert.Empty(await RowsAsync(seeded.Tenant, seeded.Stall));
     }
 
+    // Nothing is paid ahead while the statement shows anything owed (project owner, 2026-11-25), a month from before the rules begin included.
     [SkippableFact]
-    public async Task AnOlderMonthFromBeforeTheRulesBegin_HoldsNothingBack()
+    public async Task AnOlderMonthFromBeforeTheRulesBegin_StillHoldsItBack_WhileTheStatementOwesIt()
     {
         var seeded = await SeedAsync("AHD-G", ThisMonth.AddMonths(-2));
         await AddAsync(seeded.Tenant, CountingFrom(seeded.Tenant, ThisMonth));
@@ -181,21 +182,23 @@ public partial class PayAheadTests(PostgresFixture db)
         await using var read = db.CreateContext(seeded.Tenant);
         var options = await OptionsAsync(read, seeded.Tenant, seeded.Stall);
 
-        Assert.Null(options.HeldBy);
-        Assert.Equal((ThisMonth.Year, ThisMonth.Month), (options.Months[0].Year, options.Months[0].Month));
-        Assert.True((await RecordAsync(seeded.Tenant, seeded.Stall, ThisMonth, 1, Rate)).IsSuccess);
+        Assert.Empty(options.Months);
+        Assert.StartsWith("Collect the ₱2,000 owed first, from " + ThisMonth.AddMonths(-2).ToString("MMMM yyyy", System.Globalization.CultureInfo.InvariantCulture), options.HeldBy);
+        Assert.Equal(ResultStatus.Conflict, (await RecordAsync(seeded.Tenant, seeded.Stall, ThisMonth, 1, Rate)).Status);
+        Assert.Empty(await RowsAsync(seeded.Tenant, seeded.Stall));
     }
 
     private static BillingPolicyVersion CountingFrom(Guid tenant, DateOnly month) =>
         BillingPolicyVersion.Create(tenant, Today, Today, BillingPolicy.StallTrackDefaults with { CountsMonthsFrom = month }, null, Guid.NewGuid(), DateTime.UtcNow);
 
     [SkippableFact]
-    public async Task AnOfficeThatTakesAnyMonth_IsNotHeldBack_ByAnOlderOne()
+    public async Task EvenAnOfficeThatTakesAnyMonth_IsHeldBack_ByAnOlderOneStillOwed()
     {
         var seeded = await SeedAsync("AHD-E", ThisMonth.AddMonths(-2));
         await AddAsync(seeded.Tenant, BillingPolicyVersion.Create(seeded.Tenant, Today, Today, BillingPolicy.StallTrackDefaults with { OldestMonthFirst = false }, null, Guid.NewGuid(), DateTime.UtcNow));
 
-        Assert.True((await RecordAsync(seeded.Tenant, seeded.Stall, ThisMonth, 1, Rate)).IsSuccess);
+        Assert.Equal(ResultStatus.Conflict, (await RecordAsync(seeded.Tenant, seeded.Stall, ThisMonth, 1, Rate)).Status);
+        Assert.Empty(await RowsAsync(seeded.Tenant, seeded.Stall));
     }
 
     [SkippableFact]
