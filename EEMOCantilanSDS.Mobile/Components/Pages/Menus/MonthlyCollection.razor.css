@@ -1030,3 +1030,38 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+/* Pay ahead: the month counts the office allows, then the months and their total. */
+.status-option:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ahead .money-rows { margin: 12px 0; }
+
+.ahead-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.ahead-count {
+    min-height: 44px;
+    padding: 0 14px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+    color: var(--mobile-navy);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.ahead-count.active {
+    border-color: var(--mobile-blue);
+    background: var(--mobile-blue-subtle);
+    color: var(--mobile-blue-deep, var(--mobile-navy));
+}
+
+.ahead-count:focus-visible {
+    outline: 2px solid var(--mobile-blue);
+    outline-offset: 2px;
+}

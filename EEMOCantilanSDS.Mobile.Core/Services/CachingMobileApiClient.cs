@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 ﻿using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
 using EEMOCantilanSDS.Application.Command.Sync.SyncOfflineCollections;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
@@ -189,6 +191,12 @@ public sealed class CachingMobileApiClient(
 
     public Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request) =>
         InvalidatingAsync(() => inner.RecordMonthlyCollectionAsync(request));
+
+    // Never cached: the months a space can pay ahead change with every payment.
+    public Task<Result<PayAheadOptionsDto>> GetPayAheadAsync(Guid stallId) => inner.GetPayAheadAsync(stallId);
+
+    public Task<Result<bool>> RecordPayAheadAsync(RecordMobilePayAheadCommand request) =>
+        InvalidatingAsync(() => inner.RecordPayAheadAsync(request));
 
     public Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request) =>
         InvalidatingAsync(() => inner.RecordSlaughterAsync(request));

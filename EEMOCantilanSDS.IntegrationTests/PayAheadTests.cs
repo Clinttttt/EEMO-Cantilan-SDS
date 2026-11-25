@@ -21,7 +21,7 @@ namespace EEMOCantilanSDS.IntegrationTests;
 
 /// <summary>Rent taken ahead at the office, a year included (IA-071): identifiable months on one receipt, recorded whole or not at all, and never twice on a retry.</summary>
 [Collection(PostgresCollection.Name)]
-public class PayAheadTests(PostgresFixture db)
+public partial class PayAheadTests(PostgresFixture db)
 {
     private const decimal Rate = 1_000m;
     private static readonly DateOnly Today = PhilippineTime.Today;

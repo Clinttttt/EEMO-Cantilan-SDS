@@ -5,6 +5,8 @@ using EEMOCantilanSDS.Application.Command.Collectors.UpdateProfile;
 using EEMOCantilanSDS.Application.Command.Notifications.RegisterDeviceToken;
 using EEMOCantilanSDS.Application.Command.Notifications.RemoveDeviceToken;
 using EEMOCantilanSDS.Application.Command.Payments.RecordPayment;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.RecordSlaughter;
 using EEMOCantilanSDS.Application.Command.Slaughterhouse.UpdateSlaughter;
 using EEMOCantilanSDS.Application.Command.TaboanMarket.AddVendor;
@@ -310,6 +312,15 @@ public class MobileController(ISender sender, WcfCollectionWorkflow wcfWorkflow,
     [HttpGet("monthly/unpaid-months")]
     public async Task<ActionResult<IReadOnlyList<MobileUnpaidMonthDto>>> GetUnpaidMonthsAsync([FromQuery] Guid stallId, [FromQuery] Guid? contractId = null) =>
         HandleResponse(await Sender.Send(new GetMobileUnpaidMonthsQuery(stallId, contractId)));
+
+    // Rent taken ahead (IA-071): the office's own months, counts and limit, for a space in a facility the collector is assigned to. Online only.
+    [HttpGet("monthly/pay-ahead")]
+    public async Task<ActionResult<PayAheadOptionsDto>> GetPayAheadAsync([FromQuery] Guid stallId) =>
+        HandleResponse(await Sender.Send(new GetMobilePayAheadQuery(stallId)));
+
+    [HttpPost("monthly/pay-ahead")]
+    public async Task<ActionResult<bool>> RecordPayAheadAsync([FromBody] RecordMobilePayAheadCommand command) =>
+        HandleResponse(await Sender.Send(command));
 
     [HttpPost("monthly/collections/record")]
     public async Task<ActionResult<bool>> RecordMonthlyCollectionAsync([FromBody] RecordMobileMonthlyCollectionRequest request)
