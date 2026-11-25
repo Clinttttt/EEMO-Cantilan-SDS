@@ -313,6 +313,10 @@ public class ApplicationEfBoundaryTests
         "HistoricalAccessWorkflow.cs",
         // ST-17: the online monthly-rent poster is the same atomic canonical posting as the Mobile rent path, entered from the gateway settlement.
         "OnlineRentCanonicalPoster.cs",
+        // 2026-11-25: a late month paid online settles its surcharge and interest as fine allocations, through the same coordinator as the poster above.
+        "OnlineLateCharges.cs",
+        // 2026-11-25: the payor's pay-ahead options read the space's paid-ahead months beside BillingRules, as the Mobile pay-ahead query does.
+        "GetPayorPayAheadQuery.cs",
         "FeeScheduleCollectionWorkflow.TaboBatch.cs",
         // Office (Head/Admin) Slaughterhouse recording by approved charges: a partial of the same canonical writer, same calculation and posting, different actor.
         "FeeScheduleCollectionWorkflow.Office.cs",
