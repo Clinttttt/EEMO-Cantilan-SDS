@@ -305,3 +305,27 @@
 .pp-ortoast-text { font-size: 12px; font-weight: 600; color: var(--green); margin-top: 1px; }
 .pp-ortoast-sub { font-size: 10.5px; color: var(--text-subtle); margin-top: 2px; line-height: 1.4; }
 .pp-ortoast-x { flex-shrink: 0; background: none; border: none; font-size: 18px; line-height: 1; color: var(--text-muted); cursor: pointer; padding: 0 2px; }
+
+/* A period's own lines: its rent, then the surcharge and interest charged on it. */
+.pp-lines { margin: 8px 0 0; display: grid; gap: 2px; min-width: 170px; }
+.pp-lines > div { display: flex; justify-content: space-between; gap: 16px; font-size: 12px; }
+.pp-lines dt { color: var(--text-muted); font-weight: 500; }
+.pp-lines dd { margin: 0; color: var(--navy); font-variant-numeric: tabular-nums; }
+.pp-lines .pp-lines-total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 6px; font-weight: 700; }
+.pp-lines .pp-lines-total dt { color: var(--navy); font-weight: 700; }
+/* Why a period has no Pay button: said in words, never by a missing control alone. */
+.pp-bal-note { font-size: 11px; color: var(--text-muted); max-width: 140px; text-align: right; line-height: 1.35; }
+
+/* Pay ahead: the months already paid (green), how many to pay now, and what that comes to. */
+.pp-ahead { padding: 13px 15px; }
+.pp-ahead-paid { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-ahead-paid li { font-size: 11.5px; font-weight: 700; color: var(--green); background: var(--green-bg); border-radius: 999px; padding: 4px 10px; }
+.pp-ahead-note { margin: 10px 0 0; font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+.pp-ahead-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 8px; margin-top: 12px; }
+.pp-ahead-count { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 56px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); color: var(--navy); cursor: pointer; font: inherit; }
+.pp-ahead-count strong { font-size: 18px; font-weight: 700; line-height: 1.1; }
+.pp-ahead-count span { font-size: 12px; color: var(--text-muted); }
+.pp-ahead-count.active { border-color: var(--navy); box-shadow: inset 0 0 0 1px var(--navy); }
+.pp-ahead .pp-lines { min-width: 0; margin-top: 12px; }
+.pp-ahead-pay { width: 100%; margin-top: 12px; }
+.pp-ahead-count:focus-visible, .pp-bal-pay:focus-visible, .pp-ahead-pay:focus-visible { outline: 2px solid var(--navy-3); outline-offset: 2px; }

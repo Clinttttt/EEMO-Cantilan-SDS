@@ -23,7 +23,7 @@ public class InitiateOnlinePaymentCommandHandler(
     IOnlinePaymentUrlBuilder urlBuilder,
     ICurrentUserService currentUser,
     IUnitOfWork unitOfWork, IClock clock, OnlineRentCanonicalPoster? canonicalRent = null, BillingRules? billingRules = null,
-    IMunicipalityRepository? municipalities = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
+    IMunicipalityRepository? municipalities = null, OnlineLateCharges? lateCharges = null) : IRequestHandler<InitiateOnlinePaymentCommand, Result<InitiateOnlinePaymentResultDto>>
 {
     /// <summary>Stable reason code (the validation-error key) for a checkout outside the approved online scope.</summary>
     public const string OutOfScopeCode = "ONLINE_PAYMENT_OUT_OF_SCOPE";
@@ -64,12 +64,39 @@ public class InitiateOnlinePaymentCommandHandler(
                 [OutOfScopeCode] = ["Only the month's stall rent can be paid online, as the full balance. Pay this charge at the office or to your collector."]
             });
 
-        // A contract term can run for years, so being inside it does not make a month payable yet. The office's billing rules say which month can be paid now.
-        var refusal = billingRules is null || request.Year < 2000 || request.Month is < 1 or > 12
-            ? MobileBillingMonth.Resolve(request.Year, request.Month, clock.PhilippineToday).Error
-            : await billingRules.RefusalAsync(request.StallId, request.Year, request.Month, cancellationToken);
-        if (refusal is not null)
-            return Result<InitiateOnlinePaymentResultDto>.Failure(refusal, ResultStatus.Conflict);
+        var today = clock.PhilippineToday;
+        var validPeriod = request.Year >= 2000 && request.Month is >= 1 and <= 12;
+        if (request.Months is < 1 or > 12)
+            return Result<InitiateOnlinePaymentResultDto>.Failure("Choose 1 to 12 months.", ResultStatus.Invalid);
+
+        // Paying ahead (a month after this one, or several months): only as the office offers it, the same options a collector and the office
+        // have, and never while anything is owed (project owner, 2026-11-25).
+        IReadOnlyList<PayAheadMonthDto>? ahead = null;
+        if (validPeriod && billingRules is not null
+            && (request.Months is > 1 || new DateOnly(request.Year, request.Month, 1) > new DateOnly(today.Year, today.Month, 1)))
+        {
+            var options = await billingRules.PayAheadAsync(stall, cancellationToken);
+            if (options.HeldBy is not null)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "Pay what you owe first. Rent can't be paid ahead while anything is owed.", ResultStatus.Conflict);
+            var months = request.Months ?? 1;
+            if (options.Months.Count == 0 || options.Months[0].Year != request.Year || options.Months[0].Month != request.Month
+                || !options.Counts.Contains(months))
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "These months can't be paid ahead now. Refresh your balance and choose again.", ResultStatus.Conflict);
+            ahead = options.Months.Take(months).ToList();
+        }
+        else
+        {
+            if (request.Months is > 1)
+                return Result<InitiateOnlinePaymentResultDto>.Failure("Paying ahead is not available right now.", ResultStatus.Conflict);
+            // A contract term can run for years, so being inside it does not make a month payable yet. The office's billing rules say which month can be paid now.
+            var refusal = billingRules is null || !validPeriod
+                ? MobileBillingMonth.Resolve(request.Year, request.Month, today).Error
+                : await billingRules.RefusalAsync(request.StallId, request.Year, request.Month, cancellationToken);
+            if (refusal is not null)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(refusal, ResultStatus.Conflict);
+        }
 
         // The requested period must fall within one of the stall's contract terms. Without this a payor
         // linked to a stall could pay for months the stall isn't contracted for (before move-in, after
@@ -106,7 +133,16 @@ public class InitiateOnlinePaymentCommandHandler(
         // A Canonical row is charged its canonical rent outstanding (the figure settlement will post and require); a
         // transitioning row is paused; a Legacy row keeps its legacy balance.
         decimal amount;
-        if (record.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
+        decimal? late = null;
+        if (ahead is not null)
+        {
+            // The months were offered as Legacy rows still owing these figures; settlement checks each again before marking any.
+            if (record.SettlementAuthorityState != SettlementAuthority.Legacy || ahead[0].Amount != record.BalanceDue)
+                return Result<InitiateOnlinePaymentResultDto>.Failure(
+                    "These months can't be paid ahead now. Refresh your balance and choose again.", ResultStatus.Conflict);
+            amount = ahead.Sum(m => m.Amount);
+        }
+        else if (record.SettlementAuthorityState == SettlementAuthority.Canonical && canonicalRent is not null)
         {
             var quote = await canonicalRent.QuoteAsync(record, cancellationToken);
             if (!quote.Payable)
@@ -127,6 +163,15 @@ public class InitiateOnlinePaymentCommandHandler(
             amount = record.BalanceDue;
         }
 
+        // A late month is paid with its surcharge and interest, as a collector takes it (project owner, 2026-11-25): the figures its statement states.
+        if (ahead is null && lateCharges is not null
+            && await lateCharges.OwedAsync(stall.MunicipalityId, stall, request.Year, request.Month, cancellationToken) is > 0m and var owedLate)
+        {
+            late = owedLate;
+            amount += owedLate;
+        }
+        var monthsPaid = ahead is { Count: > 1 } ? ahead.Count : (int?)null;
+
         // If the payor already has an unfinished checkout for this period (e.g. they backed out), send them back to the
         // SAME session rather than opening a duplicate — that is the double-payment guard. Only while it still asks for
         // the same money, though: a session opened days ago was priced then, and a market stall owes another day's fee
@@ -136,7 +181,7 @@ public class InitiateOnlinePaymentCommandHandler(
             var resumable = await onlinePaymentRepository.GetResumableTransactionForRecordAsync(record.Id, cancellationToken);
             if (resumable is { IsResumable: true })
             {
-                if (resumable.Amount == amount)
+                if (resumable.Amount == amount && resumable.Months == monthsPaid && resumable.LateCharges == late)
                     return Result<InitiateOnlinePaymentResultDto>.Success(
                         new InitiateOnlinePaymentResultDto(resumable.CheckoutUrl!, resumable.Reference));
 
@@ -166,15 +211,16 @@ public class InitiateOnlinePaymentCommandHandler(
         while (await onlinePaymentRepository.ReferenceExistsAsync(reference, cancellationToken));
 
         var transaction = OnlinePaymentTransaction.Create(
-            reference, payorId.Value, record.Id, amount, paymentGateway.Provider);
+            reference, payorId.Value, record.Id, amount, paymentGateway.Provider, months: monthsPaid, lateCharges: late);
 
+        var period = ahead is { Count: > 1 } ? $"{record.PeriodKey} to {ahead[^1].Year:0000}-{ahead[^1].Month:00}" : record.PeriodKey;
         var payee = string.IsNullOrWhiteSpace(office?.OfficeAcronym) ? office?.OfficeName?.Trim() : office.OfficeAcronym.Trim();
 
         var checkout = await paymentGateway.CreateCheckoutSessionAsync(
             new CreateCheckoutSessionRequest(
                 amount,
                 reference,
-                string.IsNullOrEmpty(payee) ? $"Online payment · {record.PeriodKey}" : $"{payee} online payment · {record.PeriodKey}",
+                string.IsNullOrEmpty(payee) ? $"Online payment · {period}" : $"{payee} online payment · {period}",
                 urlBuilder.BuildSuccessUrl(reference),
                 urlBuilder.BuildCancelUrl(reference)),
             cancellationToken);

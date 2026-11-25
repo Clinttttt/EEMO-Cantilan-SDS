@@ -47,6 +47,10 @@ namespace EEMOCantilanSDS.Infrastructure.Persistence.Configuration
                 .IsRequired()
                 .HasColumnType("numeric(18,2)");
 
+            builder.Property(x => x.Months);                          // MonthlyRecord paid ahead only (nullable)
+            builder.Property(x => x.LateCharges)
+                .HasColumnType("numeric(18,2)");                     // MonthlyRecord with surcharge/interest only (nullable)
+
             builder.Property(x => x.Status)
                 .IsRequired()
                 .HasConversion<int>();

@@ -79,6 +79,16 @@ public class IssueOnlinePaymentOrNumberCommandHandler(
             record.SetOrNumber(request.ORNumber, actor);
             await paymentRepository.UpdateAsync(record, cancellationToken);
         }
+        // Months paid ahead in this one checkout take the same receipt, as the office's own pay-ahead does.
+        for (var i = 1; i < (transaction.Months ?? 1); i++)
+        {
+            var month = new DateOnly(record.BillingYear, record.BillingMonth, 1).AddMonths(i);
+            if (await paymentRepository.GetPaymentRecordAsync(record.StallId, month.Year, month.Month, cancellationToken) is not { } next
+                || await paymentRepository.GetByIdAsync(next.Id, cancellationToken) is not { SettlementAuthorityState: SettlementAuthority.Legacy } ahead)
+                continue;
+            ahead.SetOrNumber(request.ORNumber, actor);
+            await paymentRepository.UpdateAsync(ahead, cancellationToken);
+        }
         transaction.CompleteWithOr(request.ORNumber, actor);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

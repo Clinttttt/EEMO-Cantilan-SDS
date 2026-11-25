@@ -18,6 +18,9 @@ public class PayorApiClient(HttpClient http) : HandleResponse(http), IPayorApiCl
     public async Task<Result<IReadOnlyList<PayorPayableItemDto>>> GetPayableItemsAsync() =>
         await GetAsync<IReadOnlyList<PayorPayableItemDto>>("api/payor/payable-items");
 
+    public async Task<Result<IReadOnlyList<PayorPayAheadDto>>> GetPayAheadAsync() =>
+        await GetAsync<IReadOnlyList<PayorPayAheadDto>>("api/payor/pay-ahead");
+
     public async Task<Result<InitiateOnlinePaymentResultDto>> InitiatePaymentAsync(InitiateOnlinePaymentCommand command) =>
         await PostAsync<InitiateOnlinePaymentCommand, InitiateOnlinePaymentResultDto>("api/onlinepayments/initiate", command);
 

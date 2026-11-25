@@ -51,4 +51,12 @@ public sealed record PayorPayableItemDto(
 
     /// <summary>The older period to pay first, when the office takes the oldest unpaid month first. Null when this one can be paid now.</summary>
     public string? PayFirst { get; init; }
+
+    /// <summary>Monthly rent only: the month's surcharge and interest still owed, paid online in the same checkout as its rent (2026-11-25).</summary>
+    public decimal Surcharge { get; init; }
+
+    public decimal Interest { get; init; }
+
+    /// <summary>What this period's checkout charges: the balance with its surcharge and interest.</summary>
+    public decimal AmountDue => BalanceDue + Surcharge + Interest;
 }

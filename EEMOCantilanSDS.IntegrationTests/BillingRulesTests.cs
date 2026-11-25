@@ -334,7 +334,7 @@ public class BillingRulesTests(PostgresFixture db)
     }
 
     [SkippableFact]
-    public async Task MonthsAhead_AreOfferedOnceNothingIsOwed_AndAreNeverABalance()
+    public async Task MonthsAhead_AreNeverABalance_NorAPeriodToPay()
     {
         var seeded = await SeedAsync("BIL-J");
         var payor = await LinkPayorAsync(seeded.Tenant, seeded.Stall, "09170000012");
@@ -345,9 +345,8 @@ public class BillingRulesTests(PostgresFixture db)
         var items = await portal.GetPayableItemsAsync(payor);
         var balance = Assert.Single(await portal.GetBalancesAsync(payor));
 
-        Assert.Equal(BillingPolicy.StallTrackDefaults.MaxAdvanceMonths, items.Count);
-        Assert.All(items, i => Assert.True(i.Advance));
-        Assert.Equal((ThisMonth.AddMonths(1).Year, ThisMonth.AddMonths(1).Month), (items.Single(i => i.PayableOnline).Year, items.Single(i => i.PayableOnline).Month));
+        // The portal's Pay ahead section offers them, from the office's own pay-ahead options (PayAheadTests).
+        Assert.Empty(items);
         Assert.Equal(0m, balance.OutstandingBalance);
     }
 

@@ -34,6 +34,7 @@ namespace EEMOCantilanSDS.Application
                 Common.Payments.OnlinePaymentSettlementService>();
 
             services.AddScoped<Common.Payments.OnlineRentCanonicalPoster>();
+            services.AddScoped<Common.Payments.OnlineLateCharges>();
             services.AddScoped<Common.Payments.OnlinePaymentReconciler>();
             services.AddScoped<Common.Payments.NpmMonthSettlementService>();
             services.AddScoped<Common.Payments.INpmMonthSettlementService, Common.Payments.NpmMonthSettlementBridge>();

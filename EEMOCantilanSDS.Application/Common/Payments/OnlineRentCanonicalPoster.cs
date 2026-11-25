@@ -68,7 +68,8 @@ public sealed class OnlineRentCanonicalPoster(IAppDbContext db, IClock? clock = 
         }
     }
 
-    public async Task<OnlineRentPostOutcome> PostAsync(OnlinePaymentTransaction tx, PaymentRecord record, CancellationToken ct)
+    public async Task<OnlineRentPostOutcome> PostAsync(OnlinePaymentTransaction tx, PaymentRecord record, CancellationToken ct,
+        IReadOnlyList<CollectionLineDraft>? lateLines = null)
     {
         var tenantId = tx.MunicipalityId;
         var operationId = OperationIdFor(tx.Id);
@@ -83,10 +84,11 @@ public sealed class OnlineRentCanonicalPoster(IAppDbContext db, IClock? clock = 
             var facts = await new MonthlyRentCollectionSourceAdapter(db).LoadAsync(tenantId, record.StallId,
                 record.BillingYear, record.BillingMonth, businessDate, tracked: true, materializeMissingSource: false,
                 actor: "Online", ct: ct);
-            if (Validate(facts, record, tx.Amount) is { } reason)
+            // A late month's checkout also carries its surcharge and interest; the rest is the rent the row must still owe.
+            var amount = tx.Amount - (tx.LateCharges ?? 0m);
+            if (Validate(facts, record, amount) is { } reason)
                 return OnlineRentPostOutcome.Rejected(reason);
 
-            var amount = tx.Amount;
             var normalized = JsonSerializer.Serialize(new
             {
                 SchemaVersion = 1,
@@ -112,7 +114,7 @@ public sealed class OnlineRentCanonicalPoster(IAppDbContext db, IClock? clock = 
 
             await new CanonicalCollectionPostingCoordinator(db, clock).PostAsync(
                 tenantId, operationId, IntentVersion, normalized, Origin, actorId, "Online payor", "Payor",
-                businessDate, "Online", [line], null, collectorId: null, payorId: facts.Quote.PayorId,
+                businessDate, "Online", [line, .. lateLines ?? []], null, collectorId: null, payorId: facts.Quote.PayorId,
                 payerName: facts.Quote.PayerNameSnapshot, sourceProjections: [projection], ct: ct);
             return new(true, false, null);
         }

@@ -42,6 +42,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
         public string? FishDayDeclarations { get; private set; }
 
         public decimal Amount { get; private set; }
+
+        // MonthlyRecord only: how many months, from the record's own and in order, this checkout pays (paying ahead). Null is the one month.
+        public int? Months { get; private set; }
+
+        // MonthlyRecord only: the record month's surcharge and interest inside Amount, settled as those fines. The rest is the month's rent.
+        public decimal? LateCharges { get; private set; }
+
         public OnlinePaymentStatus Status { get; private set; } = OnlinePaymentStatus.Initiated;
         public string Provider { get; private set; } = string.Empty;      // "PayMongo"
         public string? GatewayReference { get; private set; }             // checkout session id (dedupe key)
@@ -74,8 +81,13 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
             Guid paymentRecordId,
             decimal amount,
             string provider,
-            string createdBy = "Online")
+            string createdBy = "Online",
+            int? months = null,
+            decimal? lateCharges = null)
         {
+            if (months is < 1 or > 12) throw new ArgumentOutOfRangeException(nameof(months));
+            if (lateCharges is { } late && (late <= 0m || late >= amount)) throw new ArgumentOutOfRangeException(nameof(lateCharges));
+            if (months is > 1 && lateCharges is not null) throw new ArgumentException("Months paid ahead carry no late charges.", nameof(lateCharges));
             return new OnlinePaymentTransaction
             {
                 Id = Guid.NewGuid(),
@@ -84,6 +96,8 @@ namespace EEMOCantilanSDS.Domain.Entities.Payments
                 TargetKind = OnlinePaymentTargetKind.MonthlyRecord,
                 PaymentRecordId = paymentRecordId,
                 Amount = amount,
+                Months = months is > 1 ? months : null,
+                LateCharges = lateCharges,
                 Provider = provider,
                 Status = OnlinePaymentStatus.Initiated,
                 CreatedAt = DateTime.UtcNow,

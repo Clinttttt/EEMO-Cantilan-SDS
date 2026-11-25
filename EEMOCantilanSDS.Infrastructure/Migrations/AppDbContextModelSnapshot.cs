@@ -1346,9 +1346,15 @@ namespace EEMOCantilanSDS.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<decimal?>("LateCharges")
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("Method")
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
+
+                    b.Property<int?>("Months")
+                        .HasColumnType("integer");
 
                     b.Property<Guid>("MunicipalityId")
                         .HasColumnType("uuid");

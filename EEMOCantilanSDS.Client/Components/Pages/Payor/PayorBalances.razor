@@ -4,6 +4,7 @@
 @using EEMOCantilanSDS.Application.Command.OnlinePayments.Initiate
 @using EEMOCantilanSDS.Application.Dtos.Payors
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Globalization
 @inject IPayorApiClient PayorApi
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
@@ -21,44 +22,78 @@ else
     <section class="pp-hero pp-hero-compact">
         <div class="pp-hero-label">Total Due</div>
         <div class="pp-hero-amount">@PayorFormat.Currency(TotalDue)</div>
-        <div class="pp-hero-meta">@Items.Count unpaid period@(Items.Count == 1 ? "" : "s")</div>
+        <div class="pp-hero-meta">@Owed.Count unpaid period@(Owed.Count == 1 ? "" : "s")</div>
     </section>
 
-    <div class="pp-section-label">Per Period</div>
-    @if (Items.Count == 0)
+    @if (Owed.Count == 0)
     {
+        <div class="pp-section-label">Balance</div>
         <div class="pp-empty">You're all paid up. Thank you!</div>
     }
     else
     {
-        @foreach (var item in Items)
+        @if (Overdue.Count > 0)
         {
-            <div class="pp-card pp-bal">
-                <div class="pp-bal-left">
-                    <div class="pp-bal-top">
-                        <span class="pp-bal-period">@item.Period</span>
-                        <span class="pp-badge badge-unpaid">Unpaid</span>
-                    </div>
-                    @* A space the office does not number contributes no stall part; the facility and the payor's own
-                       account identify it, as the office's own list does. *@
-                    <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(item.Facility), SpaceNumber.Describe(item.StallNo))@(KindLabel(item.Kind))@(DaysLabel(item))</div>
-                </div>
-                <div class="pp-bal-right">
-                    @if (item.Kind == PayorPayableKind.NpmFish)
+            <div class="pp-section-label">Overdue</div>
+            @foreach (var item in Overdue) { @Period(item) }
+        }
+        @if (ThisMonth.Count > 0)
+        {
+            <div class="pp-section-label">This month@(ThisMonthDue is { } due ? $" · due {due.ToString("MMM d", CultureInfo.InvariantCulture)}" : "")</div>
+            @foreach (var item in ThisMonth) { @Period(item) }
+        }
+        @if (Other.Count > 0)
+        {
+            <div class="pp-section-label">Other charges</div>
+            @foreach (var item in Other) { @Period(item) }
+        }
+    }
+
+    @foreach (var space in PayAhead)
+    {
+        var counts = AheadCounts(space);
+        @if (counts.Count == 0 && space.Options.HeldBy is null && space.PaidAhead.Count == 0) { continue; }
+        <div class="pp-section-label">Pay ahead</div>
+        <section class="pp-card pp-ahead" aria-label="Pay ahead">
+            <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(space.Facility), SpaceNumber.Describe(space.StallNo))</div>
+            @if (space.PaidAhead.Count > 0)
+            {
+                <ul class="pp-ahead-paid" aria-label="Months paid ahead">
+                    @foreach (var paid in space.PaidAhead)
                     {
-                        <span class="pp-bal-amount">@PayorFormat.Currency(item.BaseFee ?? 0m)<small> + @PayorFormat.Currency(item.FishRatePerKilo ?? 0m)/kg</small></span>
-                        <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => OpenFish(item)">Declare</button>
+                        <li><span aria-hidden="true">✓</span> @MonthName(paid.Year, paid.Month) <span class="v3-sr-only">paid ahead</span></li>
                     }
-                    else
+                </ul>
+            }
+            @if (space.Options.HeldBy is not null)
+            {
+                <p class="pp-ahead-note">Pay what you owe first. Rent can't be paid ahead while anything is owed.</p>
+            }
+            else if (counts.Count > 0)
+            {
+                var chosen = Chosen(space, counts);
+                var months = space.Options.Months.Take(chosen).ToList();
+                <div class="pp-ahead-counts" role="radiogroup" aria-label="How many months">
+                    @foreach (var count in counts)
                     {
-                        <span class="pp-bal-amount">@PayorFormat.Currency(item.BalanceDue)</span>
-                        <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => Pay(item)">
-                            @(PayingId == ItemKey(item) ? "…" : "Pay")
+                        <button type="button" role="radio" aria-checked="@(count == chosen ? "true" : "false")" class="pp-ahead-count @(count == chosen ? "active" : "")"
+                                disabled="@Busy" @onclick="() => AheadChoice[space.StallId] = count">
+                            <strong>@count</strong><span>month@(count == 1 ? "" : "s")</span>
                         </button>
                     }
                 </div>
-            </div>
-        }
+                <dl class="pp-lines">
+                    @foreach (var month in months)
+                    {
+                        <div><dt>@MonthName(month.Year, month.Month) rental</dt><dd>@PayorFormat.Currency(month.Amount)</dd></div>
+                    }
+                    <div class="pp-lines-total"><dt>Total</dt><dd>@PayorFormat.Currency(months.Sum(m => m.Amount))</dd></div>
+                </dl>
+                <button class="pp-btn-pay pp-ahead-pay" type="button" disabled="@Busy" @onclick="() => PayAheadAsync(space, chosen)">
+                    @(PayingId == $"ahead:{space.StallId}" ? "…" : $"Pay {PayorFormat.Currency(months.Sum(m => m.Amount))}")
+                </button>
+            }
+        </section>
     }
 
     @if (!string.IsNullOrEmpty(Error))
@@ -135,8 +170,120 @@ else
     private string? PayingId;
     private string? Error;
     private IReadOnlyList<PayorPayableItemDto> Items = Array.Empty<PayorPayableItemDto>();
+    private IReadOnlyList<PayorPayAheadDto> PayAhead = Array.Empty<PayorPayAheadDto>();
+    private readonly Dictionary<Guid, int> AheadChoice = new();
 
-    private decimal TotalDue => Items.Sum(i => i.BalanceDue);
+    // A month ahead is never owed: it is offered under Pay ahead, so it is in neither the total nor the periods.
+    private List<PayorPayableItemDto> Owed => Items.Where(i => !i.Advance).ToList();
+    private List<PayorPayableItemDto> Overdue => Owed.Where(i => i.PreviousBalance && i.Kind != PayorPayableKind.Penalty).ToList();
+    private List<PayorPayableItemDto> ThisMonth => Owed.Where(i => !i.PreviousBalance && i.Kind != PayorPayableKind.Penalty).ToList();
+    private List<PayorPayableItemDto> Other => Owed.Where(i => i.Kind == PayorPayableKind.Penalty).ToList();
+    private DateOnly? ThisMonthDue => ThisMonth.FirstOrDefault(i => i.DueDate is not null)?.DueDate;
+
+    private decimal TotalDue => Owed.Sum(i => i.AmountDue);
+
+    private static string MonthName(int year, int month) => new DateOnly(year, month, 1).ToString("MMMM yyyy", CultureInfo.InvariantCulture);
+
+    private static string PeriodName(PayorPayableItemDto item) =>
+        item.Kind == PayorPayableKind.Penalty ? "Fines and penalties" : MonthName(item.Year, item.Month);
+
+    private static string PeriodName(string period) =>
+        DateOnly.TryParseExact(period + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? MonthName(d.Year, d.Month) : period;
+
+    // One period: its rent, the surcharge and interest on it, and what the payor can do about it now.
+    private RenderFragment Period(PayorPayableItemDto item) => __builder =>
+    {
+        <div class="pp-card pp-bal">
+            <div class="pp-bal-left">
+                <div class="pp-bal-top">
+                    <span class="pp-bal-period">@PeriodName(item)</span>
+                    @if (item.PreviousBalance && item.Kind != PayorPayableKind.Penalty)
+                    {
+                        <span class="pp-badge badge-unpaid">Overdue</span>
+                    }
+                </div>
+                @* A space the office does not number contributes no stall part; the facility and the payor's own
+                   account identify it, as the office's own list does. *@
+                <div class="pp-bal-sub">@SpaceNumber.Line(PayorFormat.FacilityName(item.Facility), SpaceNumber.Describe(item.StallNo))@(KindLabel(item.Kind))@(DaysLabel(item))</div>
+                @if (item.Surcharge > 0m || item.Interest > 0m)
+                {
+                    <dl class="pp-lines">
+                        <div><dt>Rent</dt><dd>@PayorFormat.Currency(item.BalanceDue)</dd></div>
+                        @if (item.Surcharge > 0m)
+                        {
+                            <div><dt>Surcharge</dt><dd>@PayorFormat.Currency(item.Surcharge)</dd></div>
+                        }
+                        @if (item.Interest > 0m)
+                        {
+                            <div><dt>Interest</dt><dd>@PayorFormat.Currency(item.Interest)</dd></div>
+                        }
+                    </dl>
+                }
+            </div>
+            <div class="pp-bal-right">
+                @if (item.Kind == PayorPayableKind.NpmFish)
+                {
+                    <span class="pp-bal-amount">@PayorFormat.Currency(item.BaseFee ?? 0m)<small> + @PayorFormat.Currency(item.FishRatePerKilo ?? 0m)/kg</small></span>
+                }
+                else
+                {
+                    <span class="pp-bal-amount">@PayorFormat.Currency(item.AmountDue)</span>
+                }
+                @if (item.PaymentUnderReview)
+                {
+                    <span class="pp-bal-note">Being reviewed by the office</span>
+                }
+                else if (item.PayFirst is { } first)
+                {
+                    <span class="pp-bal-note">Pay @PeriodName(first) first</span>
+                }
+                else if (!item.PayableOnline)
+                {
+                    <span class="pp-bal-note">Pay at the office or to your collector</span>
+                }
+                else if (item.Kind == PayorPayableKind.NpmFish)
+                {
+                    <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => OpenFish(item)">Declare</button>
+                }
+                else
+                {
+                    <button class="pp-bal-pay" type="button" disabled="@Busy" @onclick="() => Pay(item)"
+                            aria-label="@($"Pay {PeriodName(item)}, {PayorFormat.Currency(item.AmountDue)}")">
+                        @(PayingId == ItemKey(item) ? "…" : "Pay")
+                    </button>
+                }
+            </div>
+        </div>
+    };
+
+    // The office's own choices (1, 2, 3 or 12). Paying this month alone is its own period above, so a run starting this month begins at 2.
+    private List<int> AheadCounts(PayorPayAheadDto space)
+    {
+        var months = space.Options.Months;
+        if (months.Count == 0) return [];
+        var startsThisMonth = Owed.Any(i => i.StallId == space.StallId && i.Kind == PayorPayableKind.Monthly && i.Year == months[0].Year && i.Month == months[0].Month);
+        return space.Options.Counts.Where(c => c <= months.Count && !(startsThisMonth && c == 1)).ToList();
+    }
+
+    private int Chosen(PayorPayAheadDto space, List<int> counts) =>
+        AheadChoice.TryGetValue(space.StallId, out var count) && counts.Contains(count) ? count : counts[0];
+
+    private async Task PayAheadAsync(PayorPayAheadDto space, int months)
+    {
+        Error = null;
+        Busy = true;
+        PayingId = $"ahead:{space.StallId}";
+        var first = space.Options.Months[0];
+        var result = await PayorApi.InitiatePaymentAsync(new InitiateOnlinePaymentCommand(space.StallId, first.Year, first.Month, PayorPayableKind.Monthly, Months: months));
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.CheckoutUrl))
+        {
+            Nav.NavigateTo(result.Value.CheckoutUrl, forceLoad: true);
+            return;
+        }
+        Busy = false;
+        PayingId = null;
+        Error = result.Error ?? "Unable to start the payment. Please try again.";
+    }
 
     private static string ItemKey(PayorPayableItemDto i) => $"{i.StallId}:{i.Year}:{i.Month}:{i.Kind}";
 
@@ -218,6 +365,9 @@ else
         var result = await PayorApi.GetPayableItemsAsync();
         if (result.IsSuccess && result.Value is not null)
             Items = result.Value;
+        var ahead = await PayorApi.GetPayAheadAsync();
+        if (ahead is { IsSuccess: true, Value: not null })
+            PayAhead = ahead.Value;
     }
 
     private async Task Pay(PayorPayableItemDto item)
