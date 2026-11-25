@@ -1212,8 +1212,9 @@
             @foreach (var n in AheadCounts)
             {
                 var count = n;
-                <button type="button" role="radio" aria-checked="@(count == _aheadCount ? "true" : "false")" class="ahead-count @(count == _aheadCount ? "active" : "")"
-                        @onclick="() => { _aheadCount = count; SheetError = null; }">@(count == 1 ? "1 month" : $"{count} months")</button>
+                var label = count == 1 ? "1 month" : $"{count} months";
+                <button type="button" role="radio" aria-checked="@(count == _aheadCount ? "true" : "false")" aria-label="@label" class="ahead-count @(count == _aheadCount ? "active" : "")"
+                        @onclick="() => { _aheadCount = count; SheetError = null; }"><strong>@count</strong><span>@(count == 1 ? "month" : "months")</span></button>
             }
         </div>
         <dl class="money-rows" aria-label="Months paid ahead">

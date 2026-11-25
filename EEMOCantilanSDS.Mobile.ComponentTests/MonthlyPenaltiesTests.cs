@@ -298,8 +298,8 @@ public sealed class MonthlyPenaltiesTests : TestContext
         AheadOption(Sheet(cut, "Record Monthly Payment")).Click();
         var sheet = Sheet(cut, "Record Monthly Payment");
         // One month on its own is Paid in Full, so the choices start at two; the year is the annual permission.
-        Assert.Equal(["2 months", "3 months", "4 months", "12 months"], sheet.QuerySelectorAll(".ahead-count").Select(b => b.TextContent.Trim()));
-        sheet.QuerySelectorAll(".ahead-count").Single(b => b.TextContent.Trim() == "3 months").Click();
+        Assert.Equal(["2 months", "3 months", "4 months", "12 months"], sheet.QuerySelectorAll(".ahead-count").Select(b => b.GetAttribute("aria-label")));
+        sheet.QuerySelectorAll(".ahead-count").Single(b => b.GetAttribute("aria-label") == "3 months").Click();
         Assert.Equal(["November 2026 rental ₱1,200", "December 2026 rental ₱1,200", "January 2027 rental ₱1,200", "Total ₱3,600"], AheadRows(Sheet(cut, "Record Monthly Payment")));
         // The ahead block carries its own receipt number; the optional receipt entry is not shown beside it.
         Assert.Single(Sheet(cut, "Record Monthly Payment").QuerySelectorAll("input[placeholder='000001']"));
@@ -355,7 +355,7 @@ public sealed class MonthlyPenaltiesTests : TestContext
         cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pay ahead · from December 2026"));
 
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pay ahead · from December 2026").Click();
-        Assert.Equal(["1 month", "2 months", "3 months"], Sheet(cut, "Pay Ahead").QuerySelectorAll(".ahead-count").Select(b => b.TextContent.Trim()));
+        Assert.Equal(["1 month", "2 months", "3 months"], Sheet(cut, "Pay Ahead").QuerySelectorAll(".ahead-count").Select(b => b.GetAttribute("aria-label")));
         Assert.Equal(["December 2026 rental ₱1,200", "Total ₱1,200"], AheadRows(Sheet(cut, "Pay Ahead")));
 
         // The receipt number is required before anything goes to the office.

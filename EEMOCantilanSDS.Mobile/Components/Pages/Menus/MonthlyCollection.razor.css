@@ -1036,23 +1036,40 @@
 
 .ahead .money-rows { margin: 12px 0; }
 
+/* Equal, centred choices that share the row: four fit on a phone, and a longer list (a 12-month limit) wraps in even columns. */
 .ahead-counts {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
     gap: 8px;
 }
 
 .ahead-count {
-    min-height: 44px;
-    padding: 0 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 8px 4px;
     border: 1px solid var(--mobile-border);
     border-radius: 10px;
     background: var(--mobile-surface);
     color: var(--mobile-navy);
     font: inherit;
-    font-size: 14px;
-    font-weight: 600;
+    text-align: center;
+}
+
+.ahead-count strong {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.1;
     font-variant-numeric: tabular-nums;
+}
+
+.ahead-count span {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
 }
 
 .ahead-count.active {
@@ -1060,6 +1077,8 @@
     background: var(--mobile-blue-subtle);
     color: var(--mobile-blue-deep, var(--mobile-navy));
 }
+
+.ahead-count.active span { color: var(--mobile-blue-deep, var(--mobile-navy)); }
 
 .ahead-count:focus-visible {
     outline: 2px solid var(--mobile-blue);
