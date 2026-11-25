@@ -57,6 +57,7 @@ public class ProfileEarlierTermsTests : TestContext
 
     private Result<StallStatementDto> statementForFixture = Result<StallStatementDto>.Failure("not needed here");
     private StallLedgerSummaryDto? ledgerForFixture;
+    private IReadOnlyList<PaymentHistoryDto> historyForFixture = [];
 
     private IRenderedComponent<Profile> RenderProfile(string currentOccupant, params ClosedStallAccountDto[] priorTerms)
     {
@@ -79,7 +80,7 @@ public class ProfileEarlierTermsTests : TestContext
 
         var payments = new Mock<IPaymentsApiClient>();
         payments.Setup(p => p.GetPaymentHistoryAsync(It.IsAny<Guid>()))
-            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success(Array.Empty<PaymentHistoryDto>()));
+            .ReturnsAsync(Result<IReadOnlyList<PaymentHistoryDto>>.Success(historyForFixture));
         payments.Setup(p => p.GetPaymentRecordAsync(It.IsAny<Guid>(), It.IsAny<int>(), It.IsAny<int>()))
             .ReturnsAsync(Result<PaymentRecordDto>.NotFound());
         payments.Setup(p => p.GetStallLedgerSummaryAsync(It.IsAny<Guid>()))
@@ -399,5 +400,39 @@ public class ProfileEarlierTermsTests : TestContext
         Assert.Contains("1,200", markup);
         Assert.Contains("12,000", markup);
         Assert.Contains("3,000", markup);
+    }
+
+    // ── Months paid ahead (IA-071) on the 12-month grid ──
+    private static PaymentHistoryDto PaidMonth(DateOnly month) =>
+        new($"{month.Year:0000}-{month.Month:00}", PaymentStatus.Paid, 900m, 900m, 0m, "OR-77", null);
+
+    private static AngleSharp.Dom.IElement Cell(IRenderedComponent<Profile> cut, DateOnly month) =>
+        cut.FindAll(".prof-hist-month").Single(c => c.QuerySelector(".prof-hist-month-name")!.TextContent == new DateTime(month.Year, month.Month, 1).ToString("MMM"));
+
+    [Fact]
+    public void AMonthPaidAhead_IsGreenAndSaysSo_AndTheGridReachesTheYearItWasPaidInto()
+    {
+        var thisMonth = new DateOnly(EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year, EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Month, 1);
+        var next = thisMonth.AddMonths(1);
+        var january = new DateOnly(thisMonth.Year + 1, 1, 1);
+        historyForFixture = new[] { PaidMonth(next), PaidMonth(january) }.DistinctBy(h => h.Period).ToList();
+        statementForFixture = Result<StallStatementDto>.Success(Statement() with { PaidAheadMonths = 2, PaidAhead = 1_800m, PaidAheadThrough = january });
+
+        var cut = RenderProfile("Maria Santos");
+        cut.WaitForAssertion(() => Assert.NotEmpty(cut.FindAll(".prof-hist-month")), RenderTimeout);
+
+        if (next.Year == thisMonth.Year)
+        {
+            Assert.Contains("hist-paid", Cell(cut, next).ClassName);
+            Assert.Contains("hist-ahead", Cell(cut, next).ClassName);
+            Assert.Equal("Paid ahead", Cell(cut, next).GetAttribute("title"));
+        }
+
+        // The year the rent was paid into can be opened; its month paid ahead is green, and the next one is still blank.
+        cut.Find(".ph-year-arrow[title='Next year']").Click();
+        cut.WaitForAssertion(() => Assert.Contains("hist-ahead", Cell(cut, january).ClassName), RenderTimeout);
+        Assert.Contains("Paid ahead", Cell(cut, january).TextContent);
+        Assert.Contains("hist-future", Cell(cut, january.AddMonths(1)).ClassName);
+        Assert.True(cut.Find(".ph-year-arrow[title='Next year']").HasAttribute("disabled"));
     }
 }

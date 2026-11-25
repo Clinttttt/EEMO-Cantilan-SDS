@@ -24,7 +24,7 @@ Reading used by StallTrack (owner to correct if the wording means otherwise):
 
 | Point | System behaviour | Change needed |
 |---|---|---|
-| Advance payment accepted | The office can take rent ahead up to the Head's limit; the portal one month at a time; collectors cannot (IA-071) | None. IA-071's advance payment now has office support |
+| Advance payment accepted | The office can take rent ahead up to the Head's limit; collectors the same, for their assigned facilities and online only (IA-071, amended 2026-11-25); the portal one month at a time | None. IA-071's advance payment now has office support |
 | Unpaid rent carries over to January | Unpaid months stay owed in their own billing month and show as previous balance; from 1 January, unpaid rent of an earlier year is **Arrears** (`ReceivableClassification`, IA-069) | None |
 | No added fee named | No penalty is created until a Head enters a rate with its governing reference (IA-072). Cantilan has none, so Cantilan charges none | None. Keep Cantilan without a late-fee rate |
 | Overcharges | Office and collectors refuse excess; an online capture that differs is held for the Head (2.1, 2.6 in the tracking document) | None. Stays a StallTrack Rule |

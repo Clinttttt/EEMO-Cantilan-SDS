@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Command.Payors.GenerateStallActivationCode;
 using EEMOCantilanSDS.Application.Common.Revenue;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
@@ -131,6 +133,9 @@ public interface IMobileApiClient
     Task<Result<WcfCollectionOutcomeDto>> PostWcfCollectionAsync(WcfCollectionPostRequest request);
     Task<Result<MobileMonthlyCollectionDto>> GetMonthlyCollectionAsync(FacilityCode facility, int year, int month);
     Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request);
+    /// <summary>The months a space can pay ahead now, from the office's own rules (IA-071).</summary>
+    Task<Result<PayAheadOptionsDto>> GetPayAheadAsync(Guid stallId) => Task.FromResult(Result<PayAheadOptionsDto>.Failure("Paying ahead is unavailable."));
+    Task<Result<bool>> RecordPayAheadAsync(RecordMobilePayAheadCommand request) => Task.FromResult(Result<bool>.Failure("Paying ahead is unavailable."));
     Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day);
     Task<Result<bool>> RecordSlaughterAsync(RecordMobileSlaughterRequest request);
     Task<Result<bool>> UpdateSlaughterAsync(UpdateMobileSlaughterRequest request);

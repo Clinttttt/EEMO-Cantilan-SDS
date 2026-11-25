@@ -1030,3 +1030,57 @@
     stroke-linecap: round;
     stroke-linejoin: round;
 }
+
+/* Pay ahead: the month counts the office allows, then the months and their total. */
+.status-option:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.ahead .money-rows { margin: 12px 0; }
+
+/* Equal, centred choices that share the row: four fit on a phone, and a longer list (a 12-month limit) wraps in even columns. */
+.ahead-counts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap: 8px;
+}
+
+.ahead-count {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-height: 56px;
+    padding: 8px 4px;
+    border: 1px solid var(--mobile-border);
+    border-radius: 10px;
+    background: var(--mobile-surface);
+    color: var(--mobile-navy);
+    font: inherit;
+    text-align: center;
+}
+
+.ahead-count strong {
+    font-size: 18px;
+    font-weight: 700;
+    line-height: 1.1;
+    font-variant-numeric: tabular-nums;
+}
+
+.ahead-count span {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--mobile-text-secondary);
+}
+
+.ahead-count.active {
+    border-color: var(--mobile-blue);
+    background: var(--mobile-blue-subtle);
+    color: var(--mobile-blue-deep, var(--mobile-navy));
+}
+
+.ahead-count.active span { color: var(--mobile-blue-deep, var(--mobile-navy)); }
+
+.ahead-count:focus-visible {
+    outline: 2px solid var(--mobile-blue);
+    outline-offset: 2px;
+}

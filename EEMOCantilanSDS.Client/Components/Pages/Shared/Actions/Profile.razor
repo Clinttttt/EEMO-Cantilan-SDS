@@ -533,7 +533,7 @@
                                             </div>
                                         }
                                     </div>
-                                    <button class="ph-year-arrow" @onclick="NextMonthlyYear" disabled="@(_monthlyYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)" title="Next year">
+                                    <button class="ph-year-arrow" @onclick="NextMonthlyYear" disabled="@(_monthlyYear >= LastMonthlyYear)" title="Next year">
                                         <svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></svg>
                                     </button>
                                 </div>
@@ -585,14 +585,21 @@
                                 {
                                     var month = new DateTime(_monthlyYear, m, 1);
                                     var key = month.ToString("yyyy-MM");
-                                    var isFuture = _monthlyYear > mToday.Year || (_monthlyYear == mToday.Year && m > mToday.Month);
                                     var hasRecord = _monthlyStatus.TryGetValue(key, out var recordedStatus);
+                                    // A month not yet begun that was paid ahead shows its payment; any other month to come stays blank.
+                                    var paidAhead = hasRecord && recordedStatus is "Paid" or "Partial"
+                                        && (_monthlyYear > mToday.Year || (_monthlyYear == mToday.Year && m > mToday.Month));
+                                    var isFuture = !paidAhead && (_monthlyYear > mToday.Year || (_monthlyYear == mToday.Year && m > mToday.Month));
                                     var isBeforeContract = !hasRecord && contractStart.HasValue && month < contractStart.Value;
                                     var status = isFuture ? "Future" : isBeforeContract ? "N/A" : hasRecord ? recordedStatus : "Unpaid";
                                     var isCurrent = _monthlyYear == mToday.Year && m == mToday.Month;
-                                    <div class="prof-hist-month @(isFuture ? "hist-future" : isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(isCurrent ? "hist-current" : "")">
+                                    <div class="prof-hist-month @(isFuture ? "hist-future" : isBeforeContract ? "hist-na" : status == "Paid" ? "hist-paid" : status == "Partial" ? "hist-partial" : status == "Absent" ? "hist-absent" : "hist-unpaid") @(paidAhead ? "hist-ahead" : "") @(isCurrent ? "hist-current" : "")" title="@(paidAhead ? "Paid ahead" : null)">
                                         <div class="prof-hist-month-name">@month.ToString("MMM")</div>
                                         <div class="prof-hist-month-year">@month.ToString("yy")</div>
+                                        @if (paidAhead)
+                                        {
+                                            <span class="v3-sr-only">Paid ahead</span>
+                                        }
                                         @if (isFuture)
                                         {
                                             <div class="prof-hist-icon">—</div>
@@ -1624,9 +1631,12 @@
         await LoadMonthlyYear(_monthlyYear);
     }
 
+    // The grid reaches the year rent was paid ahead into, so January's paid-ahead month can be seen.
+    private int LastMonthlyYear => Math.Max(EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year, Stall?.Statement?.PaidAheadThrough?.Year ?? 0);
+
     private async Task NextMonthlyYear()
     {
-        if (_monthlyYear >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year) return;
+        if (_monthlyYear >= LastMonthlyYear) return;
         _monthlyYearMenuOpen = false;
         _monthlyYear++;
         await LoadMonthlyYear(_monthlyYear);
@@ -1653,7 +1663,8 @@
     // loaded (which preserves Absent/Excused detail); past years fetch each month's record in parallel.
     private async Task LoadMonthlyYear(int year)
     {
-        if (year == EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)
+        // The rolling history has no upper bound, so it already holds the months paid ahead into a later year.
+        if (year >= EEMOCantilanSDS.Domain.Common.PhilippineTime.Today.Year)
         {
             _monthlyStatus = new Dictionary<string, string>(Stall.PaymentHistory);
             return;

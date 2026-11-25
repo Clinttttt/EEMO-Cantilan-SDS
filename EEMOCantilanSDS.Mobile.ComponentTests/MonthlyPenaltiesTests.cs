@@ -1,4 +1,6 @@
 using Bunit;
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Requests.Mobile;
@@ -265,5 +267,107 @@ public sealed class MonthlyPenaltiesTests : TestContext
         _api.Verify(x => x.GetSourceCollectionDiscoveryAsync(It.IsAny<CollectionSourceIdentity?>()), Times.Never);
         _api.Verify(x => x.QuoteCollectionSessionAsync(It.IsAny<CollectionSessionIntent>()), Times.Never);
         Assert.Empty(_queue);
+    }
+
+    // ── Pay ahead (IA-071): the office's own months, counts and total, recorded whole by the office or not at all ──
+    private void Ahead(int fromMonth, IReadOnlyList<int> counts, string? heldBy = null, Result<bool>? outcome = null)
+    {
+        var first = new DateOnly(2026, fromMonth, 1);
+        IReadOnlyList<PayAheadMonthDto> months = heldBy is not null ? [] : Enumerable.Range(0, counts.Max())
+            .Select(i => new PayAheadMonthDto(first.AddMonths(i).Year, first.AddMonths(i).Month, 1200m)).ToList();
+        _api.Setup(x => x.GetPayAheadAsync(_stall)).ReturnsAsync(Result<PayAheadOptionsDto>.Success(new(months, heldBy is not null ? [] : counts, heldBy)));
+        _api.Setup(x => x.RecordPayAheadAsync(It.IsAny<RecordMobilePayAheadCommand>())).Callback(() => _calls.Add("ahead"))
+            .ReturnsAsync(outcome ?? Result<bool>.Success(true));
+    }
+
+    private static AngleSharp.Dom.IElement AheadOption(AngleSharp.Dom.IElement sheet) =>
+        sheet.QuerySelectorAll("button.status-option").Single(b => b.QuerySelector(".status-option-label")?.TextContent.Trim() == "Pay ahead");
+
+    private static List<string> AheadRows(AngleSharp.Dom.IElement sheet) =>
+        sheet.QuerySelectorAll("dl[aria-label='Months paid ahead'] .money-row").Select(r => r.QuerySelector("dt")!.TextContent.Trim() + " " + r.QuerySelector("dd")!.TextContent.Trim()).ToList();
+
+    [Fact]
+    public void An_unpaid_month_is_paid_ahead_with_the_months_after_it_and_never_queued()
+    {
+        Ahead(11, [1, 2, 3, 4, 12]);
+        var cut = Render(PaymentStatus.Unpaid, 0m);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => AheadOption(Sheet(cut, "Record Monthly Payment")));
+
+        AheadOption(Sheet(cut, "Record Monthly Payment")).Click();
+        var sheet = Sheet(cut, "Record Monthly Payment");
+        // One month on its own is Paid in Full, so the choices start at two; the year is the annual permission.
+        Assert.Equal(["2 months", "3 months", "4 months", "12 months"], sheet.QuerySelectorAll(".ahead-count").Select(b => b.GetAttribute("aria-label")));
+        sheet.QuerySelectorAll(".ahead-count").Single(b => b.GetAttribute("aria-label") == "3 months").Click();
+        Assert.Equal(["November 2026 rental ₱1,200", "December 2026 rental ₱1,200", "January 2027 rental ₱1,200", "Total ₱3,600"], AheadRows(Sheet(cut, "Record Monthly Payment")));
+        // The ahead block carries its own receipt number; the optional receipt entry is not shown beside it.
+        Assert.Single(Sheet(cut, "Record Monthly Payment").QuerySelectorAll("input[placeholder='000001']"));
+
+        Sheet(cut, "Record Monthly Payment").QuerySelector("input[placeholder='000001']")!.Input("777");
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("ahead", _calls));
+        _api.Verify(x => x.RecordPayAheadAsync(new RecordMobilePayAheadCommand(_stall, 2026, 11, 3, 3600m, "777")), Times.Once);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.IsAny<RecordMobileMonthlyCollectionRequest>()), Times.Never);
+        Assert.Empty(_queue);
+    }
+
+    [Fact]
+    public void An_older_open_month_holds_pay_ahead_back_with_the_offices_reason()
+    {
+        Ahead(11, [1], heldBy: "Pay October 2026 first.");
+        var cut = Render(PaymentStatus.Unpaid, 0m);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => AheadOption(Sheet(cut, "Record Monthly Payment")));
+
+        var option = AheadOption(Sheet(cut, "Record Monthly Payment"));
+        Assert.True(option.HasAttribute("disabled"));
+        Assert.Contains("Pay October 2026 first.", option.TextContent);
+    }
+
+    [Fact]
+    public void A_refused_pay_ahead_records_nothing_and_says_so()
+    {
+        Ahead(11, [1, 2], outcome: Result<bool>.Failure("This receipt number is already used."));
+        var cut = Render(PaymentStatus.Unpaid, 0m);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => AheadOption(Sheet(cut, "Record Monthly Payment")));
+        AheadOption(Sheet(cut, "Record Monthly Payment")).Click();
+        Sheet(cut, "Record Monthly Payment").QuerySelector("input[placeholder='000001']")!.Input("777");
+
+        Sheet(cut, "Record Monthly Payment").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("already used. Nothing was recorded.", Sheet(cut, "Record Monthly Payment").TextContent));
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.IsAny<RecordMobileMonthlyCollectionRequest>()), Times.Never);
+        Assert.Empty(_queue);
+    }
+
+    [Fact]
+    public void A_paid_month_pays_the_months_after_it_from_its_receipt()
+    {
+        Ahead(12, [1, 2, 3]);
+        var cut = Render(PaymentStatus.Paid, 0m);
+        cut.WaitForAssertion(() => cut.Find(".tx-card"));
+        cut.Find(".tx-card").Click();
+        cut.WaitForAssertion(() => cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pay ahead · from December 2026"));
+
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pay ahead · from December 2026").Click();
+        Assert.Equal(["1 month", "2 months", "3 months"], Sheet(cut, "Pay Ahead").QuerySelectorAll(".ahead-count").Select(b => b.GetAttribute("aria-label")));
+        Assert.Equal(["December 2026 rental ₱1,200", "Total ₱1,200"], AheadRows(Sheet(cut, "Pay Ahead")));
+
+        // The receipt number is required before anything goes to the office.
+        Sheet(cut, "Pay Ahead").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+        cut.WaitForAssertion(() => Assert.Contains("Enter the official receipt number.", Sheet(cut, "Pay Ahead").TextContent));
+        _api.Verify(x => x.RecordPayAheadAsync(It.IsAny<RecordMobilePayAheadCommand>()), Times.Never);
+
+        Sheet(cut, "Pay Ahead").QuerySelector("input[placeholder='000001']")!.Input("778");
+        Sheet(cut, "Pay Ahead").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Confirm").Click();
+
+        cut.WaitForAssertion(() => Assert.Contains("ahead", _calls));
+        _api.Verify(x => x.RecordPayAheadAsync(new RecordMobilePayAheadCommand(_stall, 2026, 12, 1, 1200m, "778")), Times.Once);
+        _api.Verify(x => x.RecordMonthlyCollectionAsync(It.IsAny<RecordMobileMonthlyCollectionRequest>()), Times.Never);
     }
 }

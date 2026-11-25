@@ -1,4 +1,5 @@
 @page "/collect/{Facility}"
+@using EEMOCantilanSDS.Application.Dtos.Payments
 @using System.Globalization
 @using Microsoft.JSInterop
 @using global::EEMOCantilanSDS.Application.Common.Interface.ApiClients
@@ -218,7 +219,7 @@
                 @AmountDue(SelectedStall, SelectedStall.Status != PaymentStatus.Paid && HasPenalties(SelectedStall))
             }
 
-            <button class="status-option @(SelectedStatus == PaymentStatus.Paid ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
+            <button class="status-option @(SelectedStatus == PaymentStatus.Paid && !PayingAhead ? "status-option-active paid" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Paid)">
                 <div class="status-option-icon paid-icon-sm">
                     <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
@@ -233,11 +234,32 @@
                         <div class="status-option-sub">Full monthly rental collected - @FormatCurrency(SelectedStall.MonthlyRate)</div>
                     }
                 </div>
-                @if (SelectedStatus == PaymentStatus.Paid)
+                @if (SelectedStatus == PaymentStatus.Paid && !PayingAhead)
                 {
                     <div class="status-option-check">✓</div>
                 }
             </button>
+
+            @if (SelectedStall.Status != PaymentStatus.Paid && _ahead is { } ahead && (ahead.HeldBy is not null || AheadCounts.Count > 0))
+            {
+                <button class="status-option @(PayingAhead ? "status-option-active paid" : "")" type="button" disabled="@(ahead.HeldBy is not null)" @onclick="SelectAhead">
+                    <div class="status-option-icon paid-icon-sm">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /><path d="m10 15 2 2 4-4" /></svg>
+                    </div>
+                    <div class="status-option-info">
+                        <div class="status-option-label">Pay ahead</div>
+                        <div class="status-option-sub">@(ahead.HeldBy ?? "This month and the months after it.")</div>
+                    </div>
+                    @if (PayingAhead)
+                    {
+                        <div class="status-option-check">✓</div>
+                    }
+                </button>
+                @if (PayingAhead)
+                {
+                    @PayAheadBlock
+                }
+            }
 
             <button class="status-option @(SelectedStatus == PaymentStatus.Partial ? "status-option-active partial" : "")" type="button" @onclick="() => SelectStatus(PaymentStatus.Partial)">
                 <div class="status-option-icon partial-icon-sm">
@@ -272,7 +294,7 @@
                 </div>
             }
 
-            @if (SelectedStatus != PaymentStatus.Unpaid && SelectedStall is { RentCanonical: false })
+            @if (SelectedStatus != PaymentStatus.Unpaid && !PayingAhead && SelectedStall is { RentCanonical: false })
             {
                 <details class="or-number-wrap">
                     <summary>Receipt details (optional entry)</summary>
@@ -381,6 +403,10 @@
                     Collect Balance · @FormatCurrency(SelectedStall.Balance)
                 </button>
             }
+            @if (SelectedStall.Status == PaymentStatus.Paid && AheadCounts.Count > 0)
+            {
+                <button class="btn-receipt-collect" type="button" @onclick="OpenAhead">Pay ahead · from @MonthName(_ahead!.Months[0].Year, _ahead.Months[0].Month)</button>
+            }
             @if (Sync.IsOnline)
             {
                 <button class="sheet-activation-link" type="button" @onclick="OpenActivationFromSheet">
@@ -391,6 +417,34 @@
             <div class="receipt-close-row">
                 <button class="btn-receipt-edit" type="button" @onclick="OpenEditFromReceipt">Edit</button>
                 <button class="btn-receipt-close" type="button" @onclick="CloseReceipt">Close</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (ShowAhead && SelectedStall is not null)
+{
+    <div class="sheet-overlay" @onclick="CloseAhead">
+        <div class="sheet" @onclick:stopPropagation="true">
+            <div class="sheet-handle"></div>
+            <div class="sheet-title">Pay Ahead</div>
+            <div class="sheet-sub">Rent for the months after @MonthLabel.</div>
+            <div class="sheet-preview">
+                <div class="preview-num" title="@SelectedStall.StallNo">@SelectedStall.StallNo</div>
+                <div class="preview-info">
+                    <div class="preview-name">@SelectedStall.PayorName</div>
+                    <div class="preview-detail">@MonthLabel paid · monthly billing</div>
+                </div>
+            </div>
+            @PayAheadBlock
+            @if (!string.IsNullOrWhiteSpace(SheetError))
+            {
+                <div class="form-error">@SheetError</div>
+            }
+            <SlowSaveHint Active="IsSaving" />
+            <div class="sheet-btn-row">
+                <button class="btn-cancel" type="button" @onclick="CloseAhead">Cancel</button>
+                <button class="btn-confirm" type="button" @onclick="ConfirmAheadSheetAsync" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Confirm")</button>
             </div>
         </div>
     </div>
@@ -1025,6 +1079,7 @@
         {
             SheetError = null;
             ShowReceipt = true;
+            if (stall.Status == PaymentStatus.Paid) LoadAhead(stall);
         }
         else
         {
@@ -1042,7 +1097,136 @@
     {
         ShowReceipt = false;
         SelectedStall = null;
+        ResetAhead();
     }
+
+    // ── Pay ahead (IA-071, collectors included 2026-11-25) ──
+    // The office's own pay-ahead: the server lists the months a space can pay now, soonest first, and how many one receipt may cover (the Billing
+    // Policy's limit, and a year where annual payment is on); it refuses while an older month is open and says which. Online only, never queued,
+    // OR spaces only: a space on SRC receipts is not offered it. Chosen on the record sheet (with this month) or from a paid month's receipt.
+    private PayAheadOptionsDto? _ahead;
+    private int _aheadCount;
+    private bool PayingAhead;
+    private bool ShowAhead;
+    private string _aheadOr = string.Empty;
+    private DateOnly Today => Session.Menu?.Today ?? DateOnly.FromDateTime(DateTime.Now);
+    private bool StartsThisMonth => _ahead?.Months.FirstOrDefault() is { } first && first.Year == Today.Year && first.Month == Today.Month;
+    // A count that is only this month is Paid in Full, so with this month unpaid the choices start at two.
+    private IReadOnlyList<int> AheadCounts => _ahead is { Months.Count: > 0 } ahead
+        ? ahead.Counts.Where(n => n <= ahead.Months.Count && (!StartsThisMonth || n > 1)).ToList() : [];
+    // Rent only, as at the office: open penalties stay on Collect Penalties.
+    private IReadOnlyList<PayAheadMonthDto> AheadMonths => _ahead?.Months.Take(_aheadCount).ToList() ?? [];
+
+    private void LoadAhead(MobileMonthlyStallCollectionDto stall)
+    {
+        ResetAhead();
+        if (stall.RentCanonical || !Sync.IsOnline || SelectedYear != Today.Year || SelectedMonth != Today.Month) return;
+        _ = LoadAheadAsync(stall.StallId);
+    }
+
+    private async Task LoadAheadAsync(Guid stallId)
+    {
+        try
+        {
+            var result = await MobileApi.GetPayAheadAsync(stallId);
+            if (!result.IsSuccess || result.Value is null || SelectedStall?.StallId != stallId) return;
+            _ahead = result.Value;
+            _aheadCount = AheadCounts.FirstOrDefault();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception) { /* offline or refused: the option is simply not offered */ }
+    }
+
+    private void ResetAhead()
+    {
+        _ahead = null;
+        _aheadCount = 0;
+        PayingAhead = false;
+        _aheadOr = string.Empty;
+    }
+
+    private void SelectAhead()
+    {
+        if (AheadCounts.Count == 0) return;
+        SelectedStatus = PaymentStatus.Paid;
+        PayingAhead = true;
+        _aheadCount = _aheadCount == 0 ? AheadCounts[0] : _aheadCount;
+        SheetError = null;
+    }
+
+    private void OpenAhead()
+    {
+        if (SelectedStall is null || AheadCounts.Count == 0) return;
+        ShowReceipt = false;
+        SheetError = null;
+        _aheadOr = string.Empty;
+        ShowAhead = true;
+    }
+
+    private void CloseAhead()
+    {
+        ShowAhead = false;
+        SelectedStall = null;
+        SheetError = null;
+        _aheadOr = string.Empty;
+        ResetAhead();
+    }
+
+    /// <returns>True once the office recorded the months. A resend after a lost answer is answered as recorded and never pays twice.</returns>
+    private async Task<bool> RecordAheadAsync()
+    {
+        if (SelectedStall is not { } stall || AheadMonths is not { Count: > 0 } months) return false;
+        if (string.IsNullOrWhiteSpace(_aheadOr)) { SheetError = "Enter the official receipt number."; return false; }
+        if (!Sync.IsOnline) { SheetError = "Paying ahead needs a connection. Nothing was recorded."; return false; }
+        try
+        {
+            var result = await MobileApi.RecordPayAheadAsync(new(stall.StallId, months[0].Year, months[0].Month, months.Count, months.Sum(m => m.Amount), _aheadOr.Trim()));
+            if (!result.IsSuccess) { SheetError = (result.Error ?? "The office could not record these months.") + " Nothing was recorded."; return false; }
+            RentNotice = "Payment recorded successfully.";
+            Held.Clear();
+            return true;
+        }
+        catch (Exception)
+        {
+            SheetError = "Couldn't confirm with the office. Try again: months already recorded are never recorded twice.";
+            return false;
+        }
+    }
+
+    // From a paid month's receipt: the months after it, rent only.
+    private async Task ConfirmAheadSheetAsync()
+    {
+        IsSaving = true;
+        SheetError = null;
+        try
+        {
+            if (!await RecordAheadAsync()) return;
+            CloseAhead();
+            await LoadCollectionAsync();
+        }
+        finally { IsSaving = false; }
+    }
+
+    private RenderFragment PayAheadBlock =>@<div class="or-number-wrap ahead">
+        <div class="ahead-counts" role="radiogroup" aria-label="Months to pay">
+            @foreach (var n in AheadCounts)
+            {
+                var count = n;
+                var label = count == 1 ? "1 month" : $"{count} months";
+                <button type="button" role="radio" aria-checked="@(count == _aheadCount ? "true" : "false")" aria-label="@label" class="ahead-count @(count == _aheadCount ? "active" : "")"
+                        @onclick="() => { _aheadCount = count; SheetError = null; }"><strong>@count</strong><span>@(count == 1 ? "month" : "months")</span></button>
+            }
+        </div>
+        <dl class="money-rows" aria-label="Months paid ahead">
+            @foreach (var m in AheadMonths)
+            {
+                <div class="money-row"><dt>@($"{MonthName(m.Year, m.Month)} rental")</dt><dd>@FormatCurrency(m.Amount)</dd></div>
+            }
+            <div class="money-row strong"><dt>Total</dt><dd>@FormatCurrency(AheadMonths.Sum(m => m.Amount))</dd></div>
+        </dl>
+        <div class="form-label">Official receipt no.</div>
+        <input class="form-input mono-input" type="text" inputmode="numeric" maxlength="30" placeholder="000001" aria-label="Official receipt no." @bind="_aheadOr" @bind:event="oninput" />
+    </div>;
 
     // ── Collect the remaining balance on a partial record ──
     private bool ShowCollectBalance;
@@ -1208,6 +1392,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         LoadEarlier(stall);
         // A month already paid is opened here only to edit its record; its penalties are collected from their own sheet, never by an edit.
         if (stall.Status != PaymentStatus.Paid) LoadPenalties(stall);
+        if (stall.Status != PaymentStatus.Paid) LoadAhead(stall); else ResetAhead();
     }
 
     // The space's unpaid months before the one on screen, read live each time the sheet opens (never from a device cache). Empty when none or unreadable:
@@ -1243,6 +1428,7 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
     private void SelectStatus(PaymentStatus status)
     {
         SelectedStatus = status;
+        PayingAhead = false;
         SheetError = null;
     }
 
@@ -1399,6 +1585,17 @@ if (SelectedStall.RentCanonical)        {            IsSaving = true;           
         if (SelectedStall is null || Collection is null)
             return;
 
+        // Paid ahead: the office records it whole or not at all, online only; it never reaches the offline queue below.
+        if (PayingAhead)
+        {
+            IsSaving = true;
+            SheetError = null;
+            if (!await RecordAheadAsync()) return;
+            CloseSheet();
+            await LoadCollectionAsync();
+            return;
+        }
+
         if (SelectedStatus == PaymentStatus.Partial && (PartialAmount is null or <= 0))
         {
             SheetError = "Enter the partial amount collected (greater than 0).";
@@ -1522,6 +1719,7 @@ if (SelectedStall.RentCanonical && SelectedStatus != PaymentStatus.Unpaid)      
         ORNumber = string.Empty;
         SheetError = null;
         ResetPenalties();
+        ResetAhead();
     }
 
     // ── Penalties on the account (surcharge, interest, assessed fines) ──

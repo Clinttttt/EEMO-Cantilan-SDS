@@ -1,3 +1,5 @@
+using EEMOCantilanSDS.Application.Command.Payments.RecordPayAhead;
+using EEMOCantilanSDS.Application.Dtos.Payments;
 ﻿using EEMOCantilanSDS.Application.Common.Interface.ApiClients;
 using EEMOCantilanSDS.Application.Dtos.Mobile;
 using EEMOCantilanSDS.Application.Dtos.Payors;
@@ -169,6 +171,11 @@ public class MobileApiClient(HttpClient http) : HandleResponse(http), IMobileApi
 
     public async Task<Result<bool>> RecordMonthlyCollectionAsync(RecordMobileMonthlyCollectionRequest request) =>
         await PostAsync<RecordMobileMonthlyCollectionRequest, bool>("api/Mobile/monthly/collections/record", request);
+
+    public Task<Result<PayAheadOptionsDto>> GetPayAheadAsync(Guid stallId) => GetAsync<PayAheadOptionsDto>($"api/Mobile/monthly/pay-ahead?stallId={stallId}");
+
+    public Task<Result<bool>> RecordPayAheadAsync(RecordMobilePayAheadCommand request) =>
+        PostAsync<RecordMobilePayAheadCommand, bool>("api/Mobile/monthly/pay-ahead", request);
 
     public async Task<Result<MobileSlaughterCollectionDto>> GetSlaughterCollectionAsync(int year, int month, int day) =>
         await GetAsync<MobileSlaughterCollectionDto>($"api/Mobile/slaughter/collections?year={year}&month={month}&day={day}");

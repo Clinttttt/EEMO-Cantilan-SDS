@@ -32,6 +32,17 @@ public sealed class BillingRules(BillingPolicyWorkflow policy, IFacilityReportsR
         return rules.OldestMonthFirst ? await OlderMonthRefusalAsync(rules, stallId, year, month, ct, coveredByThisReceipt) : null;
     }
 
+    /// <summary>Why nothing can be paid ahead, when the statement shows anything owed from before this month; null when nothing is.</summary>
+    private async Task<string?> OwedRefusalAsync(Guid stallId, DateOnly thisMonth, CancellationToken ct)
+    {
+        if (await reports.GetStallStatementAsync(stallId, ct) is not { } statement) return null;
+        var owed = statement.TotalDue - statement.CurrentBalance;
+        if (owed <= 0m) return null;
+        var oldest = statement.UnpaidMonths.Select(m => new DateOnly(m.Year, m.Month, 1)).Where(m => m < thisMonth).Order().Cast<DateOnly?>().FirstOrDefault();
+        var from = oldest is { } month ? $", from {month.ToString("MMMM yyyy", CultureInfo.InvariantCulture)}" : "";
+        return $"Collect the {owed.ToString("₱#,##0.##", CultureInfo.InvariantCulture)} owed first{from}. Rent is not paid ahead while anything earlier is unpaid.";
+    }
+
     private async Task<string?> OlderMonthRefusalAsync(BillingPolicy rules, Guid stallId, int year, int month, CancellationToken ct, IReadOnlyCollection<(int Year, int Month)>? coveredByThisReceipt = null)
     {
         var today = clock.PhilippineToday;
@@ -56,6 +67,9 @@ public sealed class BillingRules(BillingPolicyWorkflow policy, IFacilityReportsR
     /// What the office can take ahead on this space right now: the unbroken run of unpaid billed months starting at the first one open from this month on,
     /// and how many of them one receipt may cover. Asked both to offer the months and to record them, so the two cannot disagree. A year is its own
     /// permission, because the limit on months ahead would otherwise rule it out.
+    /// Nothing is taken ahead while the account owes anything from before this month (project owner, 2026-11-25): Arrears, Delinquent months,
+    /// penalties or utility bills, as the statement states them. This holds whatever the oldest-month-first setting, and for months from before the
+    /// billing rules begin as well: they are still on the statement.
     /// </summary>
     public async Task<PayAheadOptionsDto> PayAheadAsync(Stall stall, CancellationToken ct)
     {
@@ -65,8 +79,8 @@ public sealed class BillingRules(BillingPolicyWorkflow policy, IFacilityReportsR
         var rules = await policy.CurrentAsync(ct);
         var today = clock.PhilippineToday;
         var thisMonth = new DateOnly(today.Year, today.Month, 1);
-        if (rules.OldestMonthFirst && await OlderMonthRefusalAsync(rules, stall.Id, today.Year, today.Month, ct) is { } refusal)
-            return new([], [], refusal);
+        if (await OwedRefusalAsync(stall.Id, thisMonth, ct) is { } owed)
+            return new([], [], owed);
 
         var rows = await db.PaymentRecords.AsNoTracking()
             .Where(r => r.StallId == stall.Id && (r.BillingYear > today.Year || r.BillingYear == today.Year && r.BillingMonth >= today.Month))
